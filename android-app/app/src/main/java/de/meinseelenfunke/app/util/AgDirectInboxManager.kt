@@ -21,20 +21,28 @@ import de.meinseelenfunke.app.data.api.AgDirectResolveRequest
 import de.meinseelenfunke.app.di.ServiceLocator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import android.os.SystemClock
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.time.Instant
 import java.util.Base64
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -108,22 +116,73 @@ data class AgDirectDisplayItem(
     val awaitingGoAt: String? = null
 )
 
+data class AgRealtimeStatusSummary(
+    val activeWorkingCount: Int = 0,
+    val waitingForGoCount: Int = 0,
+    val completedRecentCount: Int = 0,
+    val activeHeadline: String = "",
+    val primaryState: String = "idle", // "working" | "waiting_go" | "completed" | "idle"
+    val isSyncing: Boolean = false
+)
+
+data class AgStatusTransitionEvent(
+    val itemId: String,
+    val title: String,
+    val channel: String,
+    val previousStatus: AgDirectStatus?,
+    val newStatus: AgDirectStatus,
+    val responseSummary: String? = null,
+    val pendingQuestion: String? = null,
+    val timestampMs: Long = System.currentTimeMillis()
+) {
+    fun toHumanEventLine(): String {
+        return when (newStatus) {
+            AgDirectStatus.DELIVERED -> "⚡ Antigravity arbeitet aktiv an: $title"
+            AgDirectStatus.AWAITING_GO -> {
+                val hint = pendingQuestion?.takeIf { it.isNotBlank() }?.take(120)
+                    ?: responseSummary?.takeIf { it.isNotBlank() }?.take(120)
+                if (hint != null) "⏳ Wartet auf dein Go: $title ($hint)" else "⏳ Wartet auf dein Go: $title"
+            }
+            AgDirectStatus.COMPLETED -> {
+                val sum = responseSummary?.takeIf { it.isNotBlank() }?.take(140)
+                if (sum != null) "✓ Erledigt: $title · $sum" else "✓ Erledigt: $title"
+            }
+            AgDirectStatus.PENDING -> "📤 An Antigravity übermittelt: $title"
+            AgDirectStatus.QUEUED -> "📦 Offline vorgemerkt: $title"
+        }
+    }
+}
+
 object AgDirectInboxManager {
     const val OUTBOX_FILE_NAME = "ag_direct_outbox.json"
     const val PREFS_NAME = "seelenfunke_ag_direct_prefs"
     const val KEY_VOICE_FORCE_DIRECT = "ag_voice_force_direct"
     const val MAX_IMAGE_EDGE_PX = 1440
     const val JPEG_QUALITY = 82
+    const val FAST_POLL_INTERVAL_MS = 2_800L
+    const val IDLE_POLL_INTERVAL_MS = 9_000L
+    const val FRESH_CACHE_FASTPATH_MS = 2_500L
     private const val MAX_OUTBOX_ITEMS = 50
     private const val MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
 
     private val gson = Gson()
     private val outboxLock = Any()
     private val flushMutex = Mutex()
+    private val syncMutex = Mutex()
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var cachedServerItems: List<AgDirectInboxItemDto> = emptyList()
     private var cachedServerCounts: AgDirectCountsDto? = null
+    private var knownStatusByKey: MutableMap<String, AgDirectStatus> = mutableMapOf()
+    private var hasInitializedTransitionBaseline: Boolean = false
+    @Volatile
+    private var lastCompletedSyncElapsedMs: Long = 0L
+    @Volatile
+    private var fastPollBoostUntilElapsedMs: Long = 0L
+    private val activeRealtimeObservers = AtomicInteger(0)
+    private var realtimePollJob: Job? = null
+
+    internal var elapsedRealtimeProvider: () -> Long = { SystemClock.elapsedRealtime() }
 
     private val attachmentBitmapCache = object : LruCache<String, ImageBitmap>(12) {}
 
@@ -138,6 +197,12 @@ object AgDirectInboxManager {
 
     private val _isSyncingFlow = MutableStateFlow(false)
     val isSyncingFlow: StateFlow<Boolean> = _isSyncingFlow.asStateFlow()
+
+    private val _realtimeStatusFlow = MutableStateFlow(AgRealtimeStatusSummary())
+    val realtimeStatusFlow: StateFlow<AgRealtimeStatusSummary> = _realtimeStatusFlow.asStateFlow()
+
+    private val _statusTransitionEvents = MutableSharedFlow<AgStatusTransitionEvent>(extraBufferCapacity = 16)
+    val statusTransitionEvents: SharedFlow<AgStatusTransitionEvent> = _statusTransitionEvents.asSharedFlow()
 
     private val _voiceDirectExecutionFlow = MutableStateFlow(true)
     val voiceDirectExecutionFlow: StateFlow<Boolean> = _voiceDirectExecutionFlow.asStateFlow()
@@ -419,12 +484,156 @@ object AgDirectInboxManager {
         return File(context.applicationContext.filesDir, OUTBOX_FILE_NAME)
     }
 
-    private fun updateFlowsFromCache(context: Context) {
+    fun computeRealtimeStatusSummary(
+        items: List<AgDirectDisplayItem>,
+        isSyncing: Boolean = _isSyncingFlow.value
+    ): AgRealtimeStatusSummary {
+        val working = items.filter {
+            it.status == AgDirectStatus.QUEUED ||
+                it.status == AgDirectStatus.PENDING ||
+                it.status == AgDirectStatus.DELIVERED
+        }
+        val waitingGo = items.filter { it.status == AgDirectStatus.AWAITING_GO }
+        val completed = items.filter { it.status == AgDirectStatus.COMPLETED }
+
+        val (primaryState, headline) = when {
+            working.isNotEmpty() -> {
+                val lead = working.first().title.take(36)
+                "working" to if (working.size == 1) {
+                    "⚡ Antigravity arbeitet aktiv: $lead"
+                } else {
+                    "⚡ Antigravity arbeitet aktiv (${working.size}) · $lead"
+                }
+            }
+            waitingGo.isNotEmpty() -> {
+                val lead = waitingGo.first().title.take(36)
+                "waiting_go" to if (waitingGo.size == 1) {
+                    "⏳ Wartet auf dein Go: $lead"
+                } else {
+                    "⏳ ${waitingGo.size} Aufträge warten auf dein Go"
+                }
+            }
+            completed.isNotEmpty() -> {
+                "completed" to "✓ ${completed.size} erledigt · ${completed.first().title.take(34)}"
+            }
+            else -> "idle" to ""
+        }
+
+        return AgRealtimeStatusSummary(
+            activeWorkingCount = working.size,
+            waitingForGoCount = waitingGo.size,
+            completedRecentCount = completed.size,
+            activeHeadline = headline,
+            primaryState = primaryState,
+            isSyncing = isSyncing
+        )
+    }
+
+    private fun updateFlowsFromCache(context: Context, emitTransitions: Boolean = false) {
         val outbox = readOutboxFromFile(outboxFileFor(context))
         val merged = mergeOutboxAndServerItems(outbox, cachedServerItems)
+
+        synchronized(outboxLock) {
+            if (!hasInitializedTransitionBaseline) {
+                merged.forEach { item ->
+                    val key = item.clientUuid.ifBlank { item.id }
+                    if (key.isNotBlank()) knownStatusByKey[key] = item.status
+                }
+                if (merged.isNotEmpty()) {
+                    hasInitializedTransitionBaseline = true
+                }
+            } else if (emitTransitions) {
+                for (item in merged.asReversed()) {
+                    val key = item.clientUuid.ifBlank { item.id }
+                    if (key.isBlank()) continue
+                    val prev = knownStatusByKey[key]
+                    if (prev != item.status) {
+                        knownStatusByKey[key] = item.status
+                        if (prev != null || item.status != AgDirectStatus.COMPLETED) {
+                            _statusTransitionEvents.tryEmit(
+                                AgStatusTransitionEvent(
+                                    itemId = item.id,
+                                    title = item.title,
+                                    channel = item.channel,
+                                    previousStatus = prev,
+                                    newStatus = item.status,
+                                    responseSummary = item.agResponseSummary,
+                                    pendingQuestion = item.pendingQuestion
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         _itemsFlow.value = merged
         _pendingBlockadesFlow.value = computePendingBlockades(merged)
         _openCountFlow.value = computeOpenCount(merged, cachedServerCounts)
+        _realtimeStatusFlow.value = computeRealtimeStatusSummary(merged, _isSyncingFlow.value)
+    }
+
+    fun boostFastPollWindow(durationMs: Long = 25_000L) {
+        fastPollBoostUntilElapsedMs = elapsedRealtimeProvider() + durationMs.coerceAtLeast(3_000L)
+    }
+
+    fun computeRecommendedPollIntervalMs(nowElapsedMs: Long = elapsedRealtimeProvider()): Long {
+        val summary = _realtimeStatusFlow.value
+        return if (summary.activeWorkingCount > 0 || nowElapsedMs < fastPollBoostUntilElapsedMs) {
+            FAST_POLL_INTERVAL_MS
+        } else {
+            IDLE_POLL_INTERVAL_MS
+        }
+    }
+
+    fun acquireRealtimeObserver(context: Context) {
+        val appCtx = context.applicationContext
+        val count = activeRealtimeObservers.incrementAndGet()
+        if (count == 1 || realtimePollJob?.isActive != true) {
+            realtimePollJob?.cancel()
+            realtimePollJob = managerScope.launch {
+                hydrateLocalState(appCtx)
+                syncAll(appCtx)
+                while (isActive && activeRealtimeObservers.get() > 0) {
+                    val waitMs = computeRecommendedPollIntervalMs()
+                    delay(waitMs)
+                    if (!isActive || activeRealtimeObservers.get() <= 0) break
+                    syncAll(appCtx)
+                }
+            }
+        } else {
+            refreshAsync(appCtx)
+        }
+    }
+
+    fun releaseRealtimeObserver() {
+        val rem = activeRealtimeObservers.decrementAndGet().coerceAtLeast(0)
+        activeRealtimeObservers.set(rem)
+        if (rem == 0) {
+            realtimePollJob?.cancel()
+            realtimePollJob = null
+        }
+    }
+
+    suspend fun syncIfStale(
+        context: Context,
+        maxAgeMs: Long = FRESH_CACHE_FASTPATH_MS,
+        apiOverride: AgDirectApi? = null
+    ) {
+        val appCtx = context.applicationContext
+        if (apiOverride != null) {
+            syncAll(appCtx, apiOverride)
+            return
+        }
+        val nowElapsed = elapsedRealtimeProvider()
+        val age = nowElapsed - lastCompletedSyncElapsedMs
+        if (lastCompletedSyncElapsedMs > 0L && age in 0L..maxAgeMs) {
+            if (age > 1_200L) {
+                refreshAsync(appCtx)
+            }
+            return
+        }
+        syncAll(appCtx)
     }
 
     fun hydrateLocalState(context: Context) {
@@ -498,7 +707,9 @@ object AgDirectInboxManager {
                         )
                     }
                 }
-                updateFlowsFromCache(appCtx)
+                boostFastPollWindow(30_000L)
+                lastCompletedSyncElapsedMs = elapsedRealtimeProvider()
+                updateFlowsFromCache(appCtx, emitTransitions = true)
                 return@withContext true
             }
         } catch (_: Throwable) {
@@ -598,35 +809,39 @@ object AgDirectInboxManager {
         if (apiOverride == null) {
             ServiceLocator.ensureInitialized(appCtx)
             if (ServiceLocator.getAuthToken().isNullOrBlank()) {
-                updateFlowsFromCache(appCtx)
+                updateFlowsFromCache(appCtx, emitTransitions = false)
                 return@withContext
             }
         }
 
-        _isSyncingFlow.value = true
-        try {
-            flushOutbox(appCtx, apiOverride)
-            val api = apiOverride ?: ServiceLocator.agDirectApi
-            val listResp = api.listInbox(limit = 30)
-            if (listResp.success || listResp.items != null) {
-                val serverItems = listResp.items ?: emptyList()
-                cachedServerItems = serverItems
-                cachedServerCounts = listResp.counts
+        syncMutex.withLock {
+            _isSyncingFlow.value = true
+            _realtimeStatusFlow.value = _realtimeStatusFlow.value.copy(isSyncing = true)
+            try {
+                flushOutbox(appCtx, apiOverride)
+                val api = apiOverride ?: ServiceLocator.agDirectApi
+                val listResp = api.listInbox(limit = 30)
+                if (listResp.success || listResp.items != null) {
+                    val serverItems = listResp.items ?: emptyList()
+                    cachedServerItems = serverItems
+                    cachedServerCounts = listResp.counts
 
-                val serverUuids = serverItems.mapNotNull { it.client_uuid?.trim()?.takeIf { s -> s.isNotEmpty() } }.toSet()
-                if (serverUuids.isNotEmpty()) {
-                    val file = outboxFileFor(appCtx)
-                    val outbox = readOutboxFromFile(file)
-                    val pruned = outbox.filterNot { it.client_uuid in serverUuids }
-                    if (pruned.size != outbox.size) {
-                        writeOutboxToFile(file, pruned)
+                    val serverUuids = serverItems.mapNotNull { it.client_uuid?.trim()?.takeIf { s -> s.isNotEmpty() } }.toSet()
+                    if (serverUuids.isNotEmpty()) {
+                        val file = outboxFileFor(appCtx)
+                        val outbox = readOutboxFromFile(file)
+                        val pruned = outbox.filterNot { it.client_uuid in serverUuids }
+                        if (pruned.size != outbox.size) {
+                            writeOutboxToFile(file, pruned)
+                        }
                     }
+                    lastCompletedSyncElapsedMs = elapsedRealtimeProvider()
                 }
+            } catch (_: Throwable) {
+            } finally {
+                _isSyncingFlow.value = false
+                updateFlowsFromCache(appCtx, emitTransitions = true)
             }
-        } catch (_: Throwable) {
-        } finally {
-            updateFlowsFromCache(appCtx)
-            _isSyncingFlow.value = false
         }
     }
 
@@ -710,7 +925,8 @@ object AgDirectInboxManager {
             val updated = upsertOutboxEntry(current, entry)
             writeOutboxToFile(file, updated)
         }
-        updateFlowsFromCache(appCtx)
+        boostFastPollWindow(30_000L)
+        updateFlowsFromCache(appCtx, emitTransitions = true)
 
         val flushed = flushOutbox(appCtx, apiOverride)
         if (flushed > 0) {
@@ -720,7 +936,8 @@ object AgDirectInboxManager {
                 if (listResp.success || listResp.items != null) {
                     cachedServerItems = listResp.items ?: cachedServerItems
                     cachedServerCounts = listResp.counts ?: cachedServerCounts
-                    updateFlowsFromCache(appCtx)
+                    lastCompletedSyncElapsedMs = elapsedRealtimeProvider()
+                    updateFlowsFromCache(appCtx, emitTransitions = true)
                 }
             } catch (_: Throwable) {
             }
@@ -992,12 +1209,22 @@ object AgDirectInboxManager {
     }
 
     internal fun resetMemoryCacheForTests() {
+        realtimePollJob?.cancel()
+        realtimePollJob = null
+        activeRealtimeObservers.set(0)
         cachedServerItems = emptyList()
         cachedServerCounts = null
+        synchronized(outboxLock) {
+            knownStatusByKey.clear()
+            hasInitializedTransitionBaseline = false
+        }
+        lastCompletedSyncElapsedMs = 0L
+        fastPollBoostUntilElapsedMs = 0L
         _itemsFlow.value = emptyList()
         _pendingBlockadesFlow.value = emptyList()
         _openCountFlow.value = 0
         _isSyncingFlow.value = false
+        _realtimeStatusFlow.value = AgRealtimeStatusSummary()
         _voiceDirectExecutionFlow.value = true
         _stagedAttachmentFlow.value = null
     }

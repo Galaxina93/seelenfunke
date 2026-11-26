@@ -153,6 +153,20 @@ class FunkiraLiveViewModel : ViewModel() {
                 }
             }
         }
+        viewModelScope.launch {
+            de.meinseelenfunke.app.util.AgDirectInboxManager.statusTransitionEvents.collect { ev ->
+                val line = ev.toHumanEventLine()
+                addLog("[Antigravity Live]: $line")
+                if (_isConnected.value && setupCompletedForCurrentSocket) {
+                    try {
+                        val pkt = de.meinseelenfunke.app.util.FalconClientTools.buildSilentClientContextPacket(
+                            "[SYSTEM-ECHTZEIT-STATUS ANTIGRAVITY: $line]"
+                        )
+                        webSocket?.send(gson.toJson(pkt))
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
     }
 
     private fun isExecutiveRootAgentName(name: String?): Boolean {
@@ -342,6 +356,11 @@ class FunkiraLiveViewModel : ViewModel() {
         userTurnTranscript.clear()
         // Set live call active immediately to yield microphone from background service
         de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = true
+        try {
+            de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.hydrate(ServiceLocator.context)
+            de.meinseelenfunke.app.util.FunkiraPackageStore.hydrate(ServiceLocator.context)
+        } catch (_: Throwable) {
+        }
         addLog("Sitzungsdaten werden geladen...")
         chatSessionId = "android_live_${java.util.UUID.randomUUID()}"
 
@@ -370,6 +389,18 @@ class FunkiraLiveViewModel : ViewModel() {
             val host = parsedUri?.host ?: "stage.mein-seelenfunke.de"
             val defaultOrigin = if (baseUrl.startsWith("https://", ignoreCase = true)) "https://$host" else "https://mein-seelenfunke.de"
 
+            val appCtxForPrefetch = ServiceLocator.context.applicationContext
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
+                    de.meinseelenfunke.app.util.MusicPlayerManager.ensureCatalogLoadedFast(appCtxForPrefetch)
+                }
+            } catch (_: Throwable) {}
+            val smartHomePrefetchJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                kotlinx.coroutines.withTimeoutOrNull(2200L) {
+                    de.meinseelenfunke.app.util.FunkenwerkAlarmManager.refreshSmartHomeInventoryFromPortalSuspend(appCtxForPrefetch)
+                }
+            }
+
             val firstCredResult = aiRepository.getLiveCredentials(
                 agentId = _selectedAgent.value?.id,
                 chatSessionId = chatSessionId,
@@ -390,6 +421,9 @@ class FunkiraLiveViewModel : ViewModel() {
             } else {
                 firstCredResult
             }
+            try {
+                kotlinx.coroutines.withTimeoutOrNull(650L) { smartHomePrefetchJob.join() }
+            } catch (_: Throwable) {}
 
             finalCredResult
                 .onSuccess { creds ->
@@ -460,6 +494,7 @@ class FunkiraLiveViewModel : ViewModel() {
                                     "(${localBlockades.size} wartende Freigabe(n), zuerst: \"${first.title}\", Frage: \"$q\"). " +
                                     "Frage freundlich nach einer klaren Antwort oder einem Go, damit du sofort ag_resolve_pending_blockade aufrufen kannst."
                             }
+                            isFunkiraSelected -> de.meinseelenfunke.app.util.FunkiraPackageStore.buildProactivePackageKick(ServiceLocator.context)
                             else -> null
                         }
                     } else {
@@ -690,9 +725,21 @@ class FunkiraLiveViewModel : ViewModel() {
                                     if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
                                         strictPrompt = "$strictPrompt\n\n$brevityRule"
                                     }
-                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik) und bestätige danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für Smart-Home-Steckdosen/Lichterketten, Connexoon Window Somfy Rollläden UND SmartHome-Gruppen sofort falcon_smarthome_control (Steckdosen: 'turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off'; Rollläden: 'shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' mit position_percent 0..100; Gruppen & Kombi-Befehle wie 'Wohnzimmer und Terrassentür': 'group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off' oder Gruppenname in device_name; Bestand: 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (bereits in der App hinterlegte oder gerade geschossene Fotos/Dateien werden automatisch angehängt), für Statusabfragen falcon_check_antigravity_status und zum Öffnen von App-Bereichen falcon_app_navigate. ANTI-DOPPELANTWORT-REGEL: Beantworte jede Aussage oder Frage von Alina immer exakt EINMAL knapp und vollständig; wiederhole oder paraphrasiere deine eigene Antwort niemals ein zweites Mal."
+                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (intelligente Kontext-/Routine-Auswahl per action='play_smart' oder 'play_query', Sport per 'play_sport', 1-Song-Playlists per Name/Song/Vibe oder Analyse per 'analyze_playlist' - spiele NICHT pauschal nur Favoriten!) und bestätige bei Musikstart danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für ALLE Smart-Home-Geräte (Lichterketten, Steckdosen, Connexoon Window Somfy Rollläden UND alle SmartHome-Gruppen) immer sofort lokal falcon_smarthome_control (Lichterketten/Steckdosen: 'turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off' inkl. 'alle Lichterketten'; Rollläden: 'shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' mit position_percent 0..100; Gruppen & Kombi-Befehle wie 'Wohnzimmer und Terrassentür': 'group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off', 'group_toggle' oder Gruppenname in device_name; Bestand: 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), zum Bündeln mehrerer Ideen/Konzepte/Fotos vor dem Versand falcon_stage_to_package, falcon_list_draft_packages und auf Alinas Freigabe falcon_release_package (SAMMELPAKET-GESETZ: Bündle mehrteilige Gedanken oder Konzepte zuerst per falcon_stage_to_package statt Einzel-Aufträge zu spammen; nutze falcon_send_to_antigravity nur bei ausdrücklichem Sofort-Einzelauftrag), für Kurzzeitgedächtnis falcon_get_recent_memory, für Statusabfragen falcon_check_antigravity_status und zum Öffnen von App-Bereichen falcon_app_navigate. ANTI-DOPPELANTWORT-REGEL: Beantworte jede Aussage oder Frage von Alina immer exakt EINMAL knapp und vollständig; wiederhole oder paraphrasiere deine eigene Antwort niemals ein zweites Mal."
                                     if (!strictPrompt.contains("LOKALE SMARTPHONE-SUPERTOOLS")) {
                                         strictPrompt = "$strictPrompt\n\n$falconDeviceToolsRule"
+                                    }
+                                    try {
+                                        val appCtx = ServiceLocator.context.applicationContext
+                                        val memDirective = de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.buildMemoryContextPromptDirective(appCtx, 14)
+                                        if (memDirective.isNotBlank() && !strictPrompt.contains("LOKALES KURZZEITGEDAECHTNIS")) {
+                                            strictPrompt = "$strictPrompt\n\n$memDirective"
+                                        }
+                                        val pkgDirective = de.meinseelenfunke.app.util.FunkiraPackageStore.buildPackagesPromptDirective(appCtx)
+                                        if (pkgDirective.isNotBlank() && !strictPrompt.contains("OFFENE SAMMELPAKETE")) {
+                                            strictPrompt = "$strictPrompt\n\n$pkgDirective"
+                                        }
+                                    } catch (_: Throwable) {
                                     }
                                     if (sessionEverSetupComplete) {
                                         strictPrompt = "$strictPrompt\n\nNAHTLOSER RECONNECT-HINWEIS: Die Verbindung wurde mitten im laufenden Gespräch kurz erneuert. Begrüße Alina NICHT erneut und wiederhole NICHT deine vorherige Antwort, sondern warte ruhig auf ihre nächste Aussage."
@@ -700,7 +747,11 @@ class FunkiraLiveViewModel : ViewModel() {
                                     try {
                                         val appCtx = ServiceLocator.context.applicationContext
                                         de.meinseelenfunke.app.util.FunkenwerkAlarmManager.ensureInitialized(appCtx)
-                                        de.meinseelenfunke.app.util.FunkenwerkAlarmManager.refreshSmartHomeInventoryFromPortalAsync(appCtx)
+                                        if (de.meinseelenfunke.app.util.FunkenwerkAlarmManager.smartShuttersFlow.value.isEmpty() &&
+                                            de.meinseelenfunke.app.util.FunkenwerkAlarmManager.smartGroupsFlow.value.isEmpty()
+                                        ) {
+                                            de.meinseelenfunke.app.util.FunkenwerkAlarmManager.refreshSmartHomeInventoryFromPortalAsync(appCtx)
+                                        }
                                         val shDirective = de.meinseelenfunke.app.util.FalconClientTools.buildSmartHomeLiveInventoryDirective(
                                             plugs = de.meinseelenfunke.app.util.FunkenwerkAlarmManager.smartPlugsFlow.value.ifEmpty {
                                                 de.meinseelenfunke.app.util.FunkenwerkAlarmManager.defaultSmartPlugs()
@@ -710,6 +761,12 @@ class FunkiraLiveViewModel : ViewModel() {
                                         )
                                         if (shDirective.isNotBlank() && !strictPrompt.contains("AKTIVER SMARTHOME-BESTAND")) {
                                             strictPrompt = "$strictPrompt\n\n$shDirective"
+                                        }
+                                        val musicDirective = de.meinseelenfunke.app.util.FalconClientTools.buildMusicLibraryLiveDirective(
+                                            de.meinseelenfunke.app.util.MusicPlayerManager.playlists.value
+                                        )
+                                        if (musicDirective.isNotBlank() && !strictPrompt.contains("AKTIVE MUSIK-BIBLIOTHEK")) {
+                                            strictPrompt = "$strictPrompt\n\n$musicDirective"
                                         }
                                     } catch (_: Throwable) {
                                     }
@@ -1070,6 +1127,7 @@ class FunkiraLiveViewModel : ViewModel() {
                         val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
                         if (cleanText.isNotBlank()) {
                             addLog("$agentName (unterbrochen): $cleanText")
+                            persistTurnToLocalMemory(role = "funkira", text = cleanText)
                         }
                         aiTurnTranscript.clear()
                     }
@@ -1096,7 +1154,9 @@ class FunkiraLiveViewModel : ViewModel() {
                         inactivityTracker.onAiSpeechFinished(finishedAt)
                     }
                     if (userTurnTranscript.isNotBlank()) {
-                        addLog("Du: ${userTurnTranscript.toString().trim()}")
+                        val userLine = userTurnTranscript.toString().trim()
+                        addLog("Du: $userLine")
+                        persistTurnToLocalMemory(role = "user", text = userLine)
                         userTurnTranscript.clear()
                         lastUserTranscriptDeltaUptimeMs = 0L
                     }
@@ -1104,6 +1164,7 @@ class FunkiraLiveViewModel : ViewModel() {
                         val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
                         if (cleanText.isNotBlank()) {
                             addLog("$agentName: $cleanText")
+                            persistTurnToLocalMemory(role = "funkira", text = cleanText)
                         }
                         aiTurnTranscript.clear()
                     }
@@ -1293,7 +1354,12 @@ class FunkiraLiveViewModel : ViewModel() {
             return Triple(callId, name, resultObj)
         }
 
-        if (de.meinseelenfunke.app.util.FalconClientTools.shouldEnterStandbyAfterTool(name)) {
+        val toolActionArg = if (callObj.has("args") && callObj.get("args").isJsonObject) {
+            callObj.getAsJsonObject("args").get("action")?.takeIf { it.isJsonPrimitive }?.asString
+        } else {
+            null
+        }
+        if (de.meinseelenfunke.app.util.FalconClientTools.shouldEnterStandbyAfterTool(name, toolActionArg)) {
             scheduleStandbyAfterMusicControl(name)
         }
 
@@ -1311,9 +1377,13 @@ class FunkiraLiveViewModel : ViewModel() {
                 addLog("[Funkira-Tool]: '$name' lokal ausgeführt.")
                 if (name == "falcon_send_to_antigravity" ||
                     name == "falcon_resolve_antigravity_blockade" ||
-                    name == "falcon_check_antigravity_status"
+                    name == "falcon_check_antigravity_status" ||
+                    name == "falcon_release_package"
                 ) {
                     de.meinseelenfunke.app.util.AgDirectInboxManager.refreshFromServer(ServiceLocator.context)
+                }
+                if (name == "falcon_stage_to_package" || name == "falcon_release_package") {
+                    de.meinseelenfunke.app.util.FunkiraPackageStore.hydrate(ServiceLocator.context)
                 }
                 Triple(callId, name, resObj)
             } catch (err: Throwable) {
@@ -2062,15 +2132,34 @@ class FunkiraLiveViewModel : ViewModel() {
         releaseAudioTrack()
         if (aiTurnTranscript.isNotBlank()) {
             val agentName = displayAgentName()
-            addLog("$agentName: ${aiTurnTranscript.toString().trim()}")
+            val cleanAi = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
+            if (cleanAi.isNotBlank()) {
+                addLog("$agentName: $cleanAi")
+                persistTurnToLocalMemory(role = "funkira", text = cleanAi)
+            }
             aiTurnTranscript.clear()
         }
         if (userTurnTranscript.isNotBlank()) {
-            addLog("Du: ${userTurnTranscript.toString().trim()}")
+            val cleanUser = userTurnTranscript.toString().trim()
+            addLog("Du: $cleanUser")
+            persistTurnToLocalMemory(role = "user", text = cleanUser)
             userTurnTranscript.clear()
         }
         _liveSubtitle.value = null
         addLog("[System]: Getrennt ($reason)")
+    }
+
+    private fun persistTurnToLocalMemory(role: String, text: String) {
+        if (text.isBlank()) return
+        try {
+            de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.recordTurn(
+                context = ServiceLocator.context,
+                role = role,
+                body = text,
+                mode = "live_call"
+            )
+        } catch (_: Throwable) {
+        }
     }
 
     private fun releaseAudioTrack() {

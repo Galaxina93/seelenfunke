@@ -136,10 +136,31 @@ namespace FunkenwerkSmartHome
 
             if (_smartHomeData.Plugs.Count == 0)
             {
-                _smartHomeData.Plugs.Add(new SmartPlugConfig { Name = "Steckdose 1", IpAddress = "192.168.188.109", Model = "Tapo P100" });
-                _smartHomeData.Plugs.Add(new SmartPlugConfig { Name = "Steckdose 2", IpAddress = "192.168.188.110", Model = "Tapo P100" });
+                _smartHomeData.Plugs.Add(new SmartPlugConfig { Name = "Lichterkette Fußleiste", IpAddress = "192.168.188.109", Model = "Tapo P100" });
+                _smartHomeData.Plugs.Add(new SmartPlugConfig { Name = "Packtisch Warm Licht", IpAddress = "192.168.188.110", Model = "Tapo P100/P110" });
                 _smartHomeData.Plugs.Add(new SmartPlugConfig { Name = "Lichterkette Spiegel", IpAddress = "192.168.188.123", Model = "Tapo P100" });
                 SaveSmartHomeConfig();
+            }
+            else
+            {
+                bool healedPlaceholderNames = false;
+                foreach (var p in _smartHomeData.Plugs)
+                {
+                    if (p.IpAddress == "192.168.188.109" && string.Equals(p.Name?.Trim(), "Steckdose 1", StringComparison.OrdinalIgnoreCase))
+                    {
+                        p.Name = "Lichterkette Fußleiste";
+                        healedPlaceholderNames = true;
+                    }
+                    else if (p.IpAddress == "192.168.188.110" && string.Equals(p.Name?.Trim(), "Steckdose 2", StringComparison.OrdinalIgnoreCase))
+                    {
+                        p.Name = "Packtisch Warm Licht";
+                        healedPlaceholderNames = true;
+                    }
+                }
+                if (healedPlaceholderNames)
+                {
+                    SaveSmartHomeConfig();
+                }
             }
         }
 
@@ -3362,6 +3383,9 @@ namespace FunkenwerkSmartHome
                     return;
 
                 string safeApi = FunkenwerkSecurityVault.NormalizeSecureApiUrl(session.ApiBaseUrl);
+                string somfyPwdPlain = FunkenwerkSecurityVault.UnprotectSecret(_tahomaConfig.SomfyPasswordProtected);
+                string tapoEmailPlain = FunkenwerkSecurityVault.UnprotectSecret(_smartHomeData.TapoLocalEmail);
+                string tapoPwdPlain = FunkenwerkSecurityVault.UnprotectSecret(_smartHomeData.TapoLocalPassword);
                 var payload = new
                 {
                     connexoon_gateway = new
@@ -3370,6 +3394,11 @@ namespace FunkenwerkSmartHome
                         ip = _tahomaConfig.GatewayIp,
                         pin = _tahomaConfig.GatewayPin
                     },
+                    somfy_email = string.IsNullOrWhiteSpace(_tahomaConfig.SomfyEmail) ? null : _tahomaConfig.SomfyEmail.Trim(),
+                    somfy_password = string.IsNullOrWhiteSpace(somfyPwdPlain) ? null : somfyPwdPlain,
+                    somfy_local_token = string.IsNullOrWhiteSpace(_tahomaConfig.LocalBearerToken) ? null : _tahomaConfig.LocalBearerToken.Trim(),
+                    tapo_email = string.IsNullOrWhiteSpace(tapoEmailPlain) ? null : tapoEmailPlain.Trim(),
+                    tapo_password = string.IsNullOrWhiteSpace(tapoPwdPlain) ? null : tapoPwdPlain,
                     shutters = _tahomaConfig.CachedShutters.Select(s => new
                     {
                         device_url = s.DeviceUrl,

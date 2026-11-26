@@ -1,13 +1,18 @@
 package de.meinseelenfunke.app.ui.components
 
+import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -45,8 +50,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -57,11 +67,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -80,6 +92,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -104,14 +117,22 @@ import de.meinseelenfunke.app.util.AgDirectChannel
 import de.meinseelenfunke.app.util.AgDirectDisplayItem
 import de.meinseelenfunke.app.util.AgDirectInboxManager
 import de.meinseelenfunke.app.util.AgDirectStatus
+import de.meinseelenfunke.app.util.FunkiraDraftPackage
+import de.meinseelenfunke.app.util.FunkiraLocalMemoryStore
+import de.meinseelenfunke.app.util.FunkiraPackageStore
 import de.meinseelenfunke.app.util.PreparedAgAttachment
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Base64
 import java.util.Locale
 
 private sealed class LightboxTarget {
     data class DirectBitmap(val bitmap: ImageBitmap, val title: String) : LightboxTarget()
+    data class Base64Image(val base64Jpeg: String, val title: String) : LightboxTarget()
     data class InboxItem(val item: AgDirectDisplayItem) : LightboxTarget()
 }
 
@@ -131,6 +152,8 @@ fun AgDirectInboxSheet(
     val items by AgDirectInboxManager.itemsFlow.collectAsState()
     val isSyncing by AgDirectInboxManager.isSyncingFlow.collectAsState()
     val voiceDirectEnabled by AgDirectInboxManager.voiceDirectExecutionFlow.collectAsState()
+    val draftPackages by FunkiraPackageStore.packagesFlow.collectAsState()
+    val memorySnap by FunkiraLocalMemoryStore.snapshotFlow.collectAsState()
 
     var messageText by remember { mutableStateOf("") }
     val checklistItems = remember { mutableStateListOf<String>() }
@@ -143,9 +166,16 @@ fun AgDirectInboxSheet(
     var isPreparingAudio by remember { mutableStateOf(false) }
     var expandedItemId by remember(initialExpandedItemId) { mutableStateOf(initialExpandedItemId) }
     var lightboxTarget by remember { mutableStateOf<LightboxTarget?>(null) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingPackageUuidForPhoto by remember { mutableStateOf<String?>(null) }
+    var confirmDeletePackage by remember { mutableStateOf<FunkiraDraftPackage?>(null) }
+    var showMemoryDrawer by remember { mutableStateOf(false) }
+    var confirmClearMemory by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         AgDirectInboxManager.hydrateLocalState(context)
+        FunkiraPackageStore.hydrate(context)
+        FunkiraLocalMemoryStore.hydrate(context)
         AgDirectInboxManager.refreshAsync(context)
     }
 
@@ -170,18 +200,88 @@ fun AgDirectInboxSheet(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
+        val targetPkgUuid = pendingPackageUuidForPhoto
+        pendingPackageUuidForPhoto = null
         if (uri != null) {
             isPreparingImage = true
             scope.launch {
                 val prepared = AgDirectInboxManager.prepareAttachmentFromUri(context, uri)
                 isPreparingImage = false
                 if (prepared != null) {
-                    selectedAttachment = prepared
-                    de.meinseelenfunke.app.util.FalconCameraController.syncFromPreparedAttachment(prepared)
+                    if (targetPkgUuid != null) {
+                        FunkiraPackageStore.attachMediaToPackage(
+                            context = context,
+                            attachment = prepared,
+                            caption = prepared.fileName,
+                            packageUuid = targetPkgUuid
+                        )
+                        Toast.makeText(context, "✓ Bild ins Sammelpaket gelegt", Toast.LENGTH_SHORT).show()
+                    } else {
+                        selectedAttachment = prepared
+                        de.meinseelenfunke.app.util.FalconCameraController.syncFromPreparedAttachment(prepared)
+                    }
                 } else {
                     Toast.makeText(context, "Bild konnte nicht geladen werden.", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        val uri = pendingCameraUri
+        val targetPkgUuid = pendingPackageUuidForPhoto
+        pendingCameraUri = null
+        pendingPackageUuidForPhoto = null
+        if (success && uri != null) {
+            isPreparingImage = true
+            scope.launch {
+                val prepared = AgDirectInboxManager.prepareAttachmentFromUri(context, uri)
+                isPreparingImage = false
+                if (prepared != null) {
+                    if (targetPkgUuid != null) {
+                        FunkiraPackageStore.attachMediaToPackage(
+                            context = context,
+                            attachment = prepared,
+                            caption = "Kamera-Foto",
+                            packageUuid = targetPkgUuid
+                        )
+                        Toast.makeText(context, "✓ Foto ins Sammelpaket gelegt", Toast.LENGTH_SHORT).show()
+                    } else {
+                        selectedAttachment = prepared
+                        de.meinseelenfunke.app.util.FalconCameraController.syncFromPreparedAttachment(prepared)
+                    }
+                } else {
+                    Toast.makeText(context, "Foto konnte nicht verarbeitet werden.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val launchCameraCapture: (String?) -> Unit = { targetPkgUuid ->
+        try {
+            pendingPackageUuidForPhoto = targetPkgUuid
+            val dir = File(context.cacheDir, "camera_captures").apply { mkdirs() }
+            val outFile = File(dir, "ag_cam_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
+        } catch (e: Throwable) {
+            pendingPackageUuidForPhoto = null
+            Toast.makeText(context, "Kamera nicht verfügbar.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted: Boolean ->
+        val targetPkgUuid = pendingPackageUuidForPhoto
+        if (granted) {
+            launchCameraCapture(targetPkgUuid)
+        } else {
+            pendingPackageUuidForPhoto = null
+            Toast.makeText(context, "Kamera-Berechtigung erforderlich.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -207,6 +307,75 @@ fun AgDirectInboxSheet(
         AgImageLightboxDialog(
             target = target,
             onDismiss = { lightboxTarget = null }
+        )
+    }
+
+    confirmDeletePackage?.let { pkg ->
+        AlertDialog(
+            onDismissRequest = { confirmDeletePackage = null },
+            containerColor = AppTheme.colors.cardBackground,
+            title = {
+                Text(
+                    text = "Sammelpaket löschen?",
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = pkg.title,
+                    color = AppTheme.colors.textSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    FunkiraPackageStore.deletePackage(context, pkg.uuid)
+                    confirmDeletePackage = null
+                }) {
+                    Text("Löschen", color = Rose500, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeletePackage = null }) {
+                    Text("Abbrechen", color = AppTheme.colors.textPrimary)
+                }
+            }
+        )
+    }
+
+    if (confirmClearMemory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearMemory = false },
+            containerColor = AppTheme.colors.cardBackground,
+            title = {
+                Text(
+                    text = "Gedächtnis zurücksetzen?",
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Lokale Gesprächsverläufe und gemerkte Fakten werden gelöscht.",
+                    color = AppTheme.colors.textSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    FunkiraLocalMemoryStore.clearMemory(context)
+                    confirmClearMemory = false
+                    Toast.makeText(context, "Gedächtnis geleert", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text("Zurücksetzen", color = Rose500, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearMemory = false }) {
+                    Text("Abbrechen", color = AppTheme.colors.textPrimary)
+                }
+            }
         )
     }
 
@@ -610,9 +779,11 @@ fun AgDirectInboxSheet(
                 }
             }
 
-            // Aktionszeile: + Punkt & + Bild & + Audio
+            // Aktionszeile: + Punkt & + Foto & + Bild & + Audio
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
@@ -621,7 +792,7 @@ fun AgDirectInboxSheet(
                         .background(AppTheme.colors.glassSurface)
                         .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(10.dp))
                         .clickable { checklistItems.add("") }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
@@ -643,11 +814,47 @@ fun AgDirectInboxSheet(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+                        .clickable(enabled = !isPreparingImage) {
+                            pendingPackageUuidForPhoto = null
+                            val hasCam = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasCam) {
+                                launchCameraCapture(null)
+                            } else {
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoCamera,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = "+ Foto",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AppTheme.colors.glassSurface)
                         .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(10.dp))
                         .clickable(enabled = !isPreparingImage) {
+                            pendingPackageUuidForPhoto = null
                             imagePickerLauncher.launch("image/*")
                         }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
@@ -681,7 +888,7 @@ fun AgDirectInboxSheet(
                         .clickable(enabled = !isPreparingAudio) {
                             audioPickerLauncher.launch("audio/*")
                         }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
@@ -727,66 +934,140 @@ fun AgDirectInboxSheet(
                 )
             }
 
-            // Senden-Button
+            // Senden & Ins Sammelpaket schnüren
             val canSend = (messageText.isNotBlank() ||
                 checklistItems.any { it.isNotBlank() } ||
                 selectedAttachment != null) && !isPreparingImage && !isPreparingAudio
 
-            Button(
-                onClick = {
-                    val rawSnapshot = messageText
-                    val checklistSnapshot = checklistItems.map { it.trim() }.filter { it.isNotEmpty() }
-                    val modeSnapshot = executionMode
-                    val channelSnapshot = selectedChannel
-                    val attachmentSnapshot = selectedAttachment
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        val rawSnapshot = messageText.trim()
+                        val checklistSnapshot = checklistItems.map { it.trim() }.filter { it.isNotEmpty() }
+                        val modeSnapshot = executionMode
+                        val channelSnapshot = selectedChannel
+                        val attachmentSnapshot = selectedAttachment
 
-                    // Formular sofort leeren für den nächsten Gedanken
-                    messageText = ""
-                    checklistItems.clear()
-                    selectedAttachment = null
-                    executionMode = "concept"
-                    selectedChannel = AgDirectChannel.LEITUNG.code
-                    if (attachmentSnapshot != null) {
-                        de.meinseelenfunke.app.util.FalconCameraController.clearLastCapturedPhoto()
-                        onAttachmentSubmitted()
-                    }
-
-                    scope.launch {
-                        val sentLive = AgDirectInboxManager.submitMessage(
+                        val lines = rawSnapshot.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                        val stagedItems = if (checklistSnapshot.isNotEmpty()) {
+                            (lines + checklistSnapshot).distinct()
+                        } else {
+                            lines
+                        }
+                        val pkg = FunkiraPackageStore.stageRequirement(
                             context = context,
-                            rawText = rawSnapshot,
-                            checklist = checklistSnapshot,
+                            item = stagedItems.firstOrNull(),
+                            items = stagedItems.drop(1),
+                            packageTitle = if (lines.size == 1 && checklistSnapshot.isNotEmpty()) lines.first() else null,
+                            channel = channelSnapshot,
                             executionMode = modeSnapshot,
                             attachment = attachmentSnapshot,
-                            channel = channelSnapshot
+                            attachmentCaption = rawSnapshot.take(60),
+                            source = "sheet"
                         )
-                        if (!sentLive) {
+                        if (pkg != null) {
+                            messageText = ""
+                            checklistItems.clear()
+                            selectedAttachment = null
+                            if (attachmentSnapshot != null) {
+                                de.meinseelenfunke.app.util.FalconCameraController.clearLastCapturedPhoto()
+                                onAttachmentSubmitted()
+                            }
                             Toast.makeText(
                                 context,
-                                "Offline gespeichert (Wartet)",
+                                "✓ Ins Sammelpaket '${pkg.title.take(28)}' gelegt",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
-                    }
-                },
-                enabled = canSend,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Gold,
-                    contentColor = SpaceBlack,
-                    disabledContainerColor = Gold.copy(alpha = 0.35f),
-                    disabledContentColor = SpaceBlack.copy(alpha = 0.6f)
-                ),
-                contentPadding = PaddingValues(horizontal = 16.dp)
-            ) {
-                Text(
-                    text = "An Antigravity senden",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                    },
+                    enabled = canSend,
+                    modifier = Modifier
+                        .weight(0.95f)
+                        .height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, if (canSend) Gold else Gold.copy(alpha = 0.35f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Gold,
+                        disabledContentColor = Gold.copy(alpha = 0.4f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Inventory2,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = "Ins Paket",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        val rawSnapshot = messageText
+                        val checklistSnapshot = checklistItems.map { it.trim() }.filter { it.isNotEmpty() }
+                        val modeSnapshot = executionMode
+                        val channelSnapshot = selectedChannel
+                        val attachmentSnapshot = selectedAttachment
+
+                        // Formular sofort leeren für den nächsten Gedanken
+                        messageText = ""
+                        checklistItems.clear()
+                        selectedAttachment = null
+                        executionMode = "concept"
+                        selectedChannel = AgDirectChannel.LEITUNG.code
+                        if (attachmentSnapshot != null) {
+                            de.meinseelenfunke.app.util.FalconCameraController.clearLastCapturedPhoto()
+                            onAttachmentSubmitted()
+                        }
+
+                        scope.launch {
+                            val sentLive = AgDirectInboxManager.submitMessage(
+                                context = context,
+                                rawText = rawSnapshot,
+                                checklist = checklistSnapshot,
+                                executionMode = modeSnapshot,
+                                attachment = attachmentSnapshot,
+                                channel = channelSnapshot
+                            )
+                            if (!sentLive) {
+                                Toast.makeText(
+                                    context,
+                                    "Offline gespeichert (Wartet)",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    },
+                    enabled = canSend,
+                    modifier = Modifier
+                        .weight(1.25f)
+                        .height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Gold,
+                        contentColor = SpaceBlack,
+                        disabledContainerColor = Gold.copy(alpha = 0.35f),
+                        disabledContentColor = SpaceBlack.copy(alpha = 0.6f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Text(
+                        text = "An Antigravity",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
@@ -822,6 +1103,155 @@ fun AgDirectInboxSheet(
             }
 
             HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
+
+            // Offene Sammelpakete (Pakete schnüren vor dem Versand)
+            if (draftPackages.isNotEmpty()) {
+                Text(
+                    text = "Sammelpakete (${draftPackages.size})",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    draftPackages.forEach { pkg ->
+                        FunkiraDraftPackageCard(
+                            pkg = pkg,
+                            onAddPoint = { text ->
+                                FunkiraPackageStore.stageRequirement(
+                                    context = context,
+                                    item = text,
+                                    packageUuid = pkg.uuid,
+                                    channel = pkg.channel,
+                                    executionMode = pkg.executionMode,
+                                    source = "sheet"
+                                )
+                            },
+                            onRemovePoint = { idx ->
+                                FunkiraPackageStore.removeItem(context, pkg.uuid, idx)
+                            },
+                            onAddCameraPhoto = {
+                                val hasCam = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.CAMERA
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (hasCam) {
+                                    launchCameraCapture(pkg.uuid)
+                                } else {
+                                    pendingPackageUuidForPhoto = pkg.uuid
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
+                            },
+                            onAddGalleryImage = {
+                                pendingPackageUuidForPhoto = pkg.uuid
+                                imagePickerLauncher.launch("image/*")
+                            },
+                            onOpenAttachment = { att ->
+                                lightboxTarget = LightboxTarget.Base64Image(
+                                    base64Jpeg = att.base64Data,
+                                    title = att.caption.ifBlank { att.fileName }
+                                )
+                            },
+                            onRemoveAttachment = { attId ->
+                                FunkiraPackageStore.removeAttachment(context, pkg.uuid, attId)
+                            },
+                            onModeChange = { nextMode ->
+                                FunkiraPackageStore.updateMode(context, pkg.uuid, nextMode)
+                            },
+                            onRelease = { mode ->
+                                scope.launch {
+                                    val res = FunkiraPackageStore.releasePackage(
+                                        context = context,
+                                        packageUuid = pkg.uuid,
+                                        executionModeOverride = mode
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        if (res.sentLive) "✓ Sammelpaket an Antigravity gesendet" else "Offline gespeichert (Wartet)",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            onDelete = { confirmDeletePackage = pkg }
+                        )
+                    }
+                }
+                HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
+            }
+
+            // Einklappbares lokales Kurzzeitgedächtnis ("Lokales Gehirn")
+            if (memorySnap.turns.isNotEmpty() || memorySnap.rollingDigest.isNotBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(12.dp))
+                        .clickable { showMemoryDrawer = !showMemoryDrawer }
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Psychology,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Gedächtnis (${memorySnap.memoryCount})",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (showMemoryDrawer) {
+                                Text(
+                                    text = "Leeren",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Rose500,
+                                    modifier = Modifier.clickable { confirmClearMemory = true }
+                                )
+                            }
+                            Text(
+                                text = if (showMemoryDrawer) "Ausblenden" else "Verlauf",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Gold
+                            )
+                        }
+                    }
+                    if (showMemoryDrawer) {
+                        memorySnap.turns.takeLast(6).forEach { turn ->
+                            val who = if (turn.role == "user") "Du" else "Funkira"
+                            Text(
+                                text = "${turn.timeShort} $who: ${turn.body}".trim(),
+                                fontSize = 11.5.sp,
+                                lineHeight = 15.sp,
+                                color = if (turn.role == "user") AppTheme.colors.textSecondary else AppTheme.colors.textPrimary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
+            }
 
             // Verlauf
             Text(
@@ -899,6 +1329,267 @@ fun AgDirectInboxSheet(
                             }
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FunkiraDraftPackageCard(
+    pkg: FunkiraDraftPackage,
+    onAddPoint: (String) -> Unit,
+    onRemovePoint: (Int) -> Unit,
+    onAddCameraPhoto: () -> Unit,
+    onAddGalleryImage: () -> Unit,
+    onOpenAttachment: (de.meinseelenfunke.app.util.FunkiraPackageAttachment) -> Unit,
+    onRemoveAttachment: (String) -> Unit,
+    onModeChange: (String) -> Unit,
+    onRelease: (String) -> Unit,
+    onDelete: () -> Unit
+) {
+    var newBullet by remember(pkg.uuid) { mutableStateOf("") }
+    val channelBadgeLabel = AgDirectInboxManager.resolveChannelEnum(pkg.channel).chipLabel
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
+        border = BorderStroke(1.2.dp, Gold.copy(alpha = 0.78f)),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Gold)
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "SAMMELPAKET",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = SpaceBlack
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(AppTheme.colors.cardBackground)
+                            .border(1.dp, Gold.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = channelBadgeLabel,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppTheme.colors.textPrimary
+                        )
+                    }
+                }
+                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "Paket löschen",
+                        tint = Rose500,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = pkg.title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppTheme.colors.textPrimary
+            )
+
+            if (pkg.checklist.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    pkg.checklist.forEachIndexed { idx, bullet ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(AppTheme.colors.cardBackground)
+                                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(9.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${idx + 1}. $bullet",
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                color = AppTheme.colors.textPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { onRemovePoint(idx) },
+                                modifier = Modifier.size(22.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Punkt entfernen",
+                                    tint = AppTheme.colors.textMuted,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Angehängte Fotos + Kamera/Galerie-Schnellbuttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppTheme.colors.cardBackground)
+                        .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                        .clickable(onClick = onAddCameraPhoto)
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Default.PhotoCamera, contentDescription = "Foto hinzufügen", tint = Gold, modifier = Modifier.size(13.dp))
+                    Text("+ Foto", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
+                }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppTheme.colors.cardBackground)
+                        .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(8.dp))
+                        .clickable(onClick = onAddGalleryImage)
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = "Bild hinzufügen", tint = Gold, modifier = Modifier.size(13.dp))
+                    Text("+ Bild", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
+                }
+                pkg.attachments.forEach { att ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Gold.copy(alpha = 0.14f))
+                            .border(1.dp, Gold.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                            .clickable { onOpenAttachment(att) }
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, tint = Gold, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "${att.caption.take(18)} (${att.sizeKb} KB)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.textPrimary
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Foto entfernen",
+                            tint = Rose500,
+                            modifier = Modifier
+                                .size(13.dp)
+                                .clickable { onRemoveAttachment(att.id) }
+                        )
+                    }
+                }
+            }
+
+            // Punkt schnell ergänzen
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedTextField(
+                    value = newBullet,
+                    onValueChange = { newBullet = it },
+                    placeholder = { Text("+ Punkt ergänzen...", fontSize = 12.sp, color = AppTheme.colors.textMuted) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    textStyle = TextStyle(fontSize = 12.5.sp, color = AppTheme.colors.textPrimary),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                        cursorColor = Gold,
+                        focusedContainerColor = AppTheme.colors.inputBackground,
+                        unfocusedContainerColor = AppTheme.colors.inputBackground
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Gold.copy(alpha = 0.16f))
+                        .border(1.dp, Gold, RoundedCornerShape(10.dp))
+                        .clickable {
+                            val t = newBullet.trim()
+                            if (t.isNotEmpty()) {
+                                newBullet = ""
+                                onAddPoint(t)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Punkt hinzufügen", tint = Gold, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            // Modus & Absenden
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
+                    AgModeChip(
+                        modifier = Modifier.weight(1f),
+                        label = "Konzept",
+                        selected = pkg.executionMode != "direct",
+                        onClick = { onModeChange("concept") }
+                    )
+                    AgModeChip(
+                        modifier = Modifier.weight(1f),
+                        label = "Direkt",
+                        selected = pkg.executionMode == "direct",
+                        onClick = { onModeChange("direct") }
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { onRelease(pkg.executionMode) },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("Absenden", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1439,12 +2130,13 @@ private fun AgImageLightboxDialog(
         mutableStateOf(
             when (target) {
                 is LightboxTarget.DirectBitmap -> target.bitmap
+                is LightboxTarget.Base64Image -> null
                 is LightboxTarget.InboxItem -> null
             }
         )
     }
     var isLoading by remember(target) {
-        mutableStateOf(target is LightboxTarget.InboxItem)
+        mutableStateOf(target is LightboxTarget.InboxItem || target is LightboxTarget.Base64Image)
     }
     var loadError by remember(target) { mutableStateOf(false) }
 
@@ -1462,23 +2154,46 @@ private fun AgImageLightboxDialog(
     var offset by remember(target) { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(target) {
-        if (target is LightboxTarget.InboxItem) {
-            if (isAudioTarget) {
+        when (target) {
+            is LightboxTarget.DirectBitmap -> {
                 isLoading = false
                 loadError = false
-            } else {
+            }
+            is LightboxTarget.Base64Image -> {
                 isLoading = true
                 loadError = false
-                val loaded = AgDirectInboxManager.loadAttachmentBitmap(target.item)
+                val loaded = withContext(Dispatchers.IO) {
+                    try {
+                        val clean = target.base64Jpeg.substringAfter("base64,", target.base64Jpeg)
+                        val bytes = Base64.getMimeDecoder().decode(clean)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }
                 bitmap = loaded
                 loadError = loaded == null
                 isLoading = false
+            }
+            is LightboxTarget.InboxItem -> {
+                if (isAudioTarget) {
+                    isLoading = false
+                    loadError = false
+                } else {
+                    isLoading = true
+                    loadError = false
+                    val loaded = AgDirectInboxManager.loadAttachmentBitmap(target.item)
+                    bitmap = loaded
+                    loadError = loaded == null
+                    isLoading = false
+                }
             }
         }
     }
 
     val headerTitle = when (target) {
         is LightboxTarget.DirectBitmap -> target.title
+        is LightboxTarget.Base64Image -> target.title
         is LightboxTarget.InboxItem -> target.item.attachmentName ?: target.item.title
     }
 

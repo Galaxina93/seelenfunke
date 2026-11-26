@@ -42,13 +42,15 @@ class FunkiraCallScreeningService : CallScreeningService() {
             ?.trim()
             .orEmpty()
         val tail = rawNumber.filter { it.isDigit() }.takeLast(4)
-        PhoneConciergeManager.markScreenedNow()
-        PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Screening Eingang (**$tail)")
 
         if (rawNumber.isEmpty()) {
+            PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Screening ohne Rufnummer -> Fallback erlaubt")
             respondToCall(callDetails, CallResponse.Builder().build())
             return
         }
+
+        PhoneConciergeManager.markScreenedNow()
+        PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Screening Eingang (**$tail)")
 
         val matched = PhoneConciergeManager.matchIncomingWhitelistedCaller(applicationContext, rawNumber)
         if (matched == null) {

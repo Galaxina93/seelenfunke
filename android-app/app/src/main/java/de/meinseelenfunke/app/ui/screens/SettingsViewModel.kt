@@ -153,6 +153,12 @@ class SettingsViewModel : ViewModel() {
         _carrierForwardingConfirmed.value = PhoneConciergeManager.isCarrierForwardingConfirmed(ServiceLocator.context)
     }
 
+    fun confirmCarrierForwarding(confirmed: Boolean) {
+        val ctx = ServiceLocator.context
+        PhoneConciergeManager.setCarrierForwardingConfirmed(ctx, confirmed)
+        _carrierForwardingConfirmed.value = confirmed
+    }
+
     fun clearPhoneDiagnosticTrace() {
         PhoneConciergeManager.clearDiagnosticTrace(ServiceLocator.context)
     }

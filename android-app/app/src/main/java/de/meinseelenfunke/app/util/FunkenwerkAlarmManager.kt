@@ -66,15 +66,20 @@ import java.net.CookieManager
 import java.net.CookiePolicy
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import javax.crypto.Cipher
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -328,9 +333,10 @@ object FunkenwerkAlarmManager {
             val canonical = canonicalByIp[cleanIp]
             val isLegacyName = rawName.contains("Test-Steckdose", ignoreCase = true) ||
                 rawName.startsWith("Smart Plug #", ignoreCase = true) ||
+                rawName.matches(Regex("^Steckdose\\s+\\d+$", RegexOption.IGNORE_CASE)) ||
                 rawName.isBlank()
             if (canonical != null) {
-                result[cleanIp] = if (isLegacyName) canonical else canonical.copy(name = canonical.name)
+                result[cleanIp] = if (isLegacyName) canonical else canonical.copy(name = rawName)
             } else if (!isLegacyName) {
                 result[cleanIp] = item.copy(
                     name = rawName,
@@ -1356,6 +1362,22 @@ object FunkenwerkAlarmManager {
                 val respObj = JSONObject(rawResp)
                 if (respObj.optBoolean("success") && respObj.has("data")) {
                     val d = respObj.getJSONObject("data")
+                    val te = d.optString("tapo_email", "").trim()
+                    val tp = d.optString("tapo_password", "")
+                    if (te.isNotBlank()) ServiceLocator.saveTapoEmail(te)
+                    if (tp.isNotBlank()) ServiceLocator.saveTapoPassword(tp)
+                    val se = d.optString("somfy_email", "").trim()
+                    val sp = d.optString("somfy_password", "")
+                    val slt = d.optString("somfy_local_token", "").trim()
+                    if (se.isNotBlank()) ServiceLocator.saveSomfyEmail(se)
+                    if (sp.isNotBlank()) ServiceLocator.saveSomfyPassword(sp)
+                    if (slt.isNotBlank()) ServiceLocator.saveSomfyLocalToken(slt)
+                    d.optJSONObject("connexoon_gateway")?.let { gw ->
+                        val gwIp = gw.optString("ip", "").trim()
+                        val gwPin = gw.optString("pin", "").trim()
+                        if (gwIp.isNotBlank()) ServiceLocator.saveConnexoonIp(gwIp)
+                        if (gwPin.isNotBlank()) ServiceLocator.saveConnexoonPin(gwPin)
+                    }
                     val plugsArr = d.optJSONArray("plugs")
                     val shuttersArr = d.optJSONArray("shutters")
                     val groupsArr = d.optJSONArray("groups")
@@ -1366,6 +1388,11 @@ object FunkenwerkAlarmManager {
                     val parsedShutters = shuttersArr?.let { gson.fromJson<List<SmartShutterDevice>>(it.toString(), sType) }
                     val parsedGroups = groupsArr?.let { gson.fromJson<List<SmartHomeGroupDto>>(it.toString(), gType) }
                     applyRemoteSmartHomeInventory(appCtx, plugs = parsedPlugs, shutters = parsedShutters, groups = parsedGroups)
+                    if (_smartShuttersFlow.value.isEmpty() && (ServiceLocator.getSomfyLocalToken().isNotBlank() ||
+                            (ServiceLocator.getSomfyEmail().isNotBlank() && ServiceLocator.getSomfyPassword().isNotBlank()))
+                    ) {
+                        discoverConnexoonShuttersDirectSuspend(appCtx)
+                    }
                     return@withContext true
                 }
             } else {
@@ -1448,6 +1475,402 @@ object FunkenwerkAlarmManager {
         } catch (e: Exception) {
             return@withContext Pair(false, "SmartHome-Relay fehlgeschlagen: ${e.message}")
         }
+    }
+
+    private const val OVERKIZ_CLOUD_BASE_URL = "https://ha101-1.overkiz.com/enduser-mobile-web/enduserAPI"
+    @Volatile
+    private var cachedOverkizCookieHeader: String? = null
+    @Volatile
+    private var cachedOverkizCookieEmail: String = ""
+    @Volatile
+    private var cachedOverkizAuthAtMs: Long = 0L
+
+    internal fun verifyOverkizCertificate(cert: X509Certificate?, expectedPin: String?): Boolean {
+        if (cert == null) return false
+        val subject = cert.subjectX500Principal?.name.orEmpty()
+        val issuer = cert.issuerX500Principal?.name.orEmpty()
+        if (!subject.contains("Overkiz", ignoreCase = true) && !issuer.contains("Overkiz", ignoreCase = true)) {
+            return false
+        }
+        val cleanPin = expectedPin?.trim().orEmpty()
+        if (cleanPin.isNotEmpty()) {
+            val pinMatch = Regex("CN=([0-9]{4}-[0-9]{4}-[0-9]{4})\\.local", RegexOption.IGNORE_CASE).find(subject)
+            if (pinMatch != null && !pinMatch.groupValues[1].equals(cleanPin, ignoreCase = true)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun openLocalOverkizHttpsConnection(urlStr: String, expectedPin: String?, wifiNetwork: Network?): HttpsURLConnection {
+        val url = URL(urlStr)
+        val raw = if (wifiNetwork != null) {
+            try { wifiNetwork.openConnection(url) } catch (_: Exception) { url.openConnection() }
+        } else {
+            url.openConnection()
+        }
+        val sslCtx = SSLContext.getInstance("TLS")
+        val trustManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                val leaf = chain?.firstOrNull()
+                if (!verifyOverkizCertificate(leaf, expectedPin)) {
+                    throw java.security.cert.CertificateException("Connexoon Overkiz Zertifikat ungültig")
+                }
+            }
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        sslCtx.init(null, arrayOf(trustManager), SecureRandom())
+        return (raw as HttpsURLConnection).apply {
+            sslSocketFactory = sslCtx.socketFactory
+            hostnameVerifier = javax.net.ssl.HostnameVerifier { _, session ->
+                val peerCert = try { session.peerCertificates?.firstOrNull() as? X509Certificate } catch (_: Exception) { null }
+                verifyOverkizCertificate(peerCert, expectedPin)
+            }
+            instanceFollowRedirects = false
+            connectTimeout = 2800
+            readTimeout = 4500
+            useCaches = false
+        }
+    }
+
+    internal fun parseOverkizDevicesJson(rawJson: String): List<SmartShutterDevice> {
+        return try {
+            val arr = JSONArray(rawJson)
+            val result = ArrayList<SmartShutterDevice>()
+            val shutterClasses = setOf(
+                "rollershutter", "exteriorscreen", "screen", "awning", "pergola",
+                "venetianblind", "exteriorvenetianblind", "curtain", "window", " roofwindow", "velux"
+            )
+            for (i in 0 until arr.length()) {
+                val dev = arr.optJSONObject(i) ?: continue
+                val deviceUrl = dev.optString("deviceURL", "").trim()
+                if (deviceUrl.isBlank() || deviceUrl.startsWith("internal://", ignoreCase = true)) continue
+                val controllable = dev.optString("controllableName", "").trim()
+                val uiClass = dev.optJSONObject("definition")?.optString("uiClass", "")?.trim().orEmpty()
+                val combinedType = "$uiClass $controllable".lowercase(Locale.ROOT)
+                if (combinedType.contains("sensor") || combinedType.contains("pod") || combinedType.contains("handle")) continue
+                val isControllableShutter = shutterClasses.any { combinedType.contains(it.trim()) } ||
+                    controllable.contains("RollerShutter", ignoreCase = true) ||
+                    controllable.contains("WindowOpener", ignoreCase = true) ||
+                    controllable.contains("Awning", ignoreCase = true)
+                if (!isControllableShutter) continue
+
+                val label = dev.optString("label", "Rollladen").trim().ifBlank { "Rollladen" }
+                val available = dev.optBoolean("available", true)
+                val supportsPosition = !deviceUrl.startsWith("rts://", ignoreCase = true) &&
+                    !controllable.contains("RTS", ignoreCase = true)
+                var closure = 0
+                var hasNumeric = false
+                val states = dev.optJSONArray("states")
+                if (states != null) {
+                    for (sIdx in 0 until states.length()) {
+                        val st = states.optJSONObject(sIdx) ?: continue
+                        val stName = st.optString("name", "")
+                        if (stName.equals("core:ClosureState", ignoreCase = true) ||
+                            stName.equals("core:TargetClosureState", ignoreCase = true)
+                        ) {
+                            val pct = st.optInt("value", -1)
+                            if (pct in 0..100 && (!hasNumeric || stName.equals("core:ClosureState", ignoreCase = true))) {
+                                closure = pct
+                                hasNumeric = true
+                            }
+                        } else if (!hasNumeric && stName.equals("core:OpenClosedState", ignoreCase = true)) {
+                            closure = if (st.optString("value", "").equals("closed", ignoreCase = true)) 100 else 0
+                        }
+                    }
+                }
+                result.add(
+                    SmartShutterDevice(
+                        deviceUrl = deviceUrl,
+                        label = label,
+                        controllableName = controllable,
+                        closurePercent = closure,
+                        supportsPosition = supportsPosition,
+                        isAvailable = available
+                    )
+                )
+            }
+            result.sortedBy { it.label.lowercase(Locale.GERMAN) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun authenticateOverkizCloudCookie(email: String, password: String, forceReauth: Boolean = false): Pair<Boolean, String> {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isBlank() || password.isBlank()) {
+            return Pair(false, "Keine Connexoon Zugangsdaten hinterlegt.")
+        }
+        val now = System.currentTimeMillis()
+        val cached = cachedOverkizCookieHeader
+        if (!forceReauth && !cached.isNullOrBlank() &&
+            cachedOverkizCookieEmail.equals(cleanEmail, ignoreCase = true) &&
+            (now - cachedOverkizAuthAtMs) < 25 * 60 * 1000L
+        ) {
+            return Pair(true, cached)
+        }
+        return try {
+            val conn = (URL("$OVERKIZ_CLOUD_BASE_URL/login").openConnection() as HttpsURLConnection).apply {
+                instanceFollowRedirects = false
+                requestMethod = "POST"
+                connectTimeout = 4500
+                readTimeout = 6500
+                doOutput = true
+                useCaches = false
+                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                setRequestProperty("Accept", "application/json")
+            }
+            val form = "userId=" + URLEncoder.encode(cleanEmail, "UTF-8") +
+                "&userPassword=" + URLEncoder.encode(password, "UTF-8")
+            conn.outputStream.use { it.write(form.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val cookies = conn.headerFields["Set-Cookie"]
+                ?.mapNotNull { it?.substringBefore(";")?.trim()?.takeIf { c -> c.isNotEmpty() } }
+                .orEmpty()
+            conn.disconnect()
+            if (code in 200..299 && cookies.isNotEmpty()) {
+                val joined = cookies.joinToString("; ")
+                cachedOverkizCookieHeader = joined
+                cachedOverkizCookieEmail = cleanEmail
+                cachedOverkizAuthAtMs = now
+                Pair(true, joined)
+            } else {
+                Pair(false, "Connexoon Anmeldung abgelehnt (HTTP $code).")
+            }
+        } catch (e: Exception) {
+            Pair(false, "Connexoon Verbindung fehlgeschlagen: ${e.message}")
+        }
+    }
+
+    suspend fun discoverConnexoonShuttersDirectSuspend(context: Context): List<SmartShutterDevice> = withContext(Dispatchers.IO) {
+        val appCtx = context.applicationContext
+        ServiceLocator.ensureInitialized(appCtx)
+        val localToken = ServiceLocator.getSomfyLocalToken()
+        val gwIp = ServiceLocator.getConnexoonIp()
+        val gwPin = ServiceLocator.getConnexoonPin()
+
+        if (localToken.isNotBlank() && isValidPrivateLanIpv4(gwIp)) {
+            try {
+                val cm = appCtx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                val wifiNet = cm?.allNetworks?.firstOrNull { net ->
+                    cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                }
+                val conn = openLocalOverkizHttpsConnection(
+                    "https://$gwIp:8443/enduser-mobile-web/1/enduserAPI/setup/devices",
+                    gwPin,
+                    wifiNet
+                ).apply {
+                    requestMethod = "GET"
+                    setRequestProperty("Authorization", "Bearer $localToken")
+                    setRequestProperty("Accept", "application/json")
+                }
+                val code = conn.responseCode
+                if (code in 200..299) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    val parsed = parseOverkizDevicesJson(body)
+                    if (parsed.isNotEmpty()) {
+                        applyRemoteSmartHomeInventory(appCtx, shutters = parsed)
+                        return@withContext parsed
+                    }
+                } else {
+                    conn.disconnect()
+                }
+            } catch (_: Exception) {}
+        }
+
+        val email = ServiceLocator.getSomfyEmail()
+        val pass = ServiceLocator.getSomfyPassword()
+        if (email.isNotBlank() && pass.isNotBlank()) {
+            val (authOk, cookieOrErr) = authenticateOverkizCloudCookie(email, pass, forceReauth = false)
+            if (authOk) {
+                try {
+                    val conn = (URL("$OVERKIZ_CLOUD_BASE_URL/setup/devices").openConnection() as HttpsURLConnection).apply {
+                        instanceFollowRedirects = false
+                        requestMethod = "GET"
+                        connectTimeout = 4500
+                        readTimeout = 6500
+                        setRequestProperty("Cookie", cookieOrErr)
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    val code = conn.responseCode
+                    if (code in 200..299) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        conn.disconnect()
+                        val parsed = parseOverkizDevicesJson(body)
+                        if (parsed.isNotEmpty()) {
+                            applyRemoteSmartHomeInventory(appCtx, shutters = parsed)
+                            return@withContext parsed
+                        }
+                    } else {
+                        conn.disconnect()
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        emptyList()
+    }
+
+    private fun buildOverkizExecApplyPayload(
+        targets: List<SmartShutterDevice>,
+        action: String,
+        position: Int?
+    ): Pair<String, String> {
+        val resolvedCmd = when (action.trim().lowercase(Locale.ROOT)) {
+            "shutter_open", "group_open", "open", "auf", "up" -> "open"
+            "shutter_close", "group_close", "close", "zu", "down" -> "close"
+            "shutter_my", "group_my", "my", "fav" -> "my"
+            "shutter_position", "group_position", "position", "setclosure" -> "setClosure"
+            else -> "stop"
+        }
+        val clampedPos = position?.coerceIn(0, 100)
+        val actionsArr = JSONArray()
+        for (t in targets) {
+            if (t.deviceUrl.isBlank()) continue
+            val useFallbackOpenClose = resolvedCmd == "setClosure" && !t.supportsPosition
+            val cmdName = if (useFallbackOpenClose) {
+                if ((clampedPos ?: 50) >= 50) "close" else "open"
+            } else {
+                resolvedCmd
+            }
+            val paramsArr = JSONArray()
+            if (cmdName == "setClosure" && clampedPos != null) {
+                paramsArr.put(clampedPos)
+            }
+            val cmdObj = JSONObject().apply {
+                put("name", cmdName)
+                put("parameters", paramsArr)
+            }
+            actionsArr.put(JSONObject().apply {
+                put("deviceURL", t.deviceUrl)
+                put("commands", JSONArray().put(cmdObj))
+            })
+        }
+        val root = JSONObject().apply {
+            put("label", "Funkenwerk Android ($resolvedCmd)")
+            put("actions", actionsArr)
+        }
+        return Pair(root.toString(), resolvedCmd)
+    }
+
+    /**
+     * Executes Connexoon Window Somfy shutter or shutter-group commands directly from Android
+     * (1. Local LAN :8443 Overkiz API -> 2. Direct Somfy Connexoon Overkiz HTTPS -> 3. Portal Relay Fallback),
+     * so shutters & groups work in < 250ms even when the Windows PC is turned off.
+     */
+    suspend fun executeShuttersOrRelaySuspend(
+        context: Context,
+        action: String,
+        target: String,
+        matchedShutters: List<SmartShutterDevice>,
+        position: Int? = null
+    ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        val appCtx = context.applicationContext
+        ServiceLocator.ensureInitialized(appCtx)
+
+        var activeTargets = matchedShutters.filter { it.deviceUrl.isNotBlank() }
+        if (activeTargets.isEmpty() && (ServiceLocator.getSomfyLocalToken().isNotBlank() ||
+                (ServiceLocator.getSomfyEmail().isNotBlank() && ServiceLocator.getSomfyPassword().isNotBlank()))
+        ) {
+            val discovered = discoverConnexoonShuttersDirectSuspend(appCtx)
+            if (discovered.isNotEmpty()) {
+                activeTargets = FalconClientTools.matchSmartShutters(discovered, target).filter { it.deviceUrl.isNotBlank() }
+            }
+        }
+
+        if (activeTargets.isNotEmpty()) {
+            val (payloadJson, resolvedCmd) = buildOverkizExecApplyPayload(activeTargets, action, position)
+            val newClosure = when (resolvedCmd) {
+                "open" -> 0
+                "close" -> 100
+                "setClosure" -> position?.coerceIn(0, 100)
+                else -> null
+            }
+            val names = activeTargets.joinToString(", ") { it.label }
+            val humanSummary = when (resolvedCmd) {
+                "open" -> "$names: geöffnet"
+                "close" -> "$names: geschlossen"
+                "my" -> "$names: My-Position"
+                "setClosure" -> "$names: auf ${(position ?: 50).coerceIn(0, 100)} %"
+                else -> "$names: gestoppt"
+            }
+
+            // 1. Try Local Gateway :8443 if local bearer token is present
+            val localToken = ServiceLocator.getSomfyLocalToken()
+            val gwIp = ServiceLocator.getConnexoonIp()
+            val gwPin = ServiceLocator.getConnexoonPin()
+            if (localToken.isNotBlank() && isValidPrivateLanIpv4(gwIp)) {
+                try {
+                    val cm = appCtx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                    val wifiNet = cm?.allNetworks?.firstOrNull { net ->
+                        cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                    }
+                    val conn = openLocalOverkizHttpsConnection(
+                        "https://$gwIp:8443/enduser-mobile-web/1/enduserAPI/exec/apply",
+                        gwPin,
+                        wifiNet
+                    ).apply {
+                        requestMethod = "POST"
+                        doOutput = true
+                        setRequestProperty("Authorization", "Bearer $localToken")
+                        setRequestProperty("Content-Type", "application/json")
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    conn.outputStream.use { it.write(payloadJson.toByteArray(Charsets.UTF_8)) }
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    if (code in 200..299) {
+                        if (newClosure != null) {
+                            val updated = _smartShuttersFlow.value.map { s ->
+                                if (activeTargets.any { it.deviceUrl == s.deviceUrl }) s.copy(closurePercent = newClosure) else s
+                            }
+                            applyRemoteSmartHomeInventory(appCtx, shutters = updated)
+                        }
+                        return@withContext Pair(true, humanSummary)
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // 2. Try Direct Somfy Connexoon Overkiz HTTPS (works in Wi-Fi & 5G without PC!)
+            val somfyEmail = ServiceLocator.getSomfyEmail()
+            val somfyPass = ServiceLocator.getSomfyPassword()
+            if (somfyEmail.isNotBlank() && somfyPass.isNotBlank()) {
+                for (attempt in 0..1) {
+                    val (authOk, cookieOrErr) = authenticateOverkizCloudCookie(somfyEmail, somfyPass, forceReauth = attempt > 0)
+                    if (!authOk) break
+                    try {
+                        val conn = (URL("$OVERKIZ_CLOUD_BASE_URL/exec/apply").openConnection() as HttpsURLConnection).apply {
+                            instanceFollowRedirects = false
+                            requestMethod = "POST"
+                            connectTimeout = 4500
+                            readTimeout = 6500
+                            doOutput = true
+                            useCaches = false
+                            setRequestProperty("Cookie", cookieOrErr)
+                            setRequestProperty("Content-Type", "application/json")
+                            setRequestProperty("Accept", "application/json")
+                        }
+                        conn.outputStream.use { it.write(payloadJson.toByteArray(Charsets.UTF_8)) }
+                        val code = conn.responseCode
+                        conn.disconnect()
+                        if (code == 401 && attempt == 0) continue
+                        if (code in 200..299) {
+                            if (newClosure != null) {
+                                val updated = _smartShuttersFlow.value.map { s ->
+                                    if (activeTargets.any { it.deviceUrl == s.deviceUrl }) s.copy(closurePercent = newClosure) else s
+                                }
+                                applyRemoteSmartHomeInventory(appCtx, shutters = updated)
+                            }
+                            return@withContext Pair(true, humanSummary)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
+        // 3. Fallback to Portal -> Funkenwerk PC SmartHome Relay
+        dispatchSmartHomeRelayCommandSuspend(appCtx, action, target, position)
     }
 
     /**

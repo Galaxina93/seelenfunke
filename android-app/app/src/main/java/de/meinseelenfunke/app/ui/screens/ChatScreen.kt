@@ -43,17 +43,23 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.PushPin
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
 import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import java.io.File
 import de.meinseelenfunke.app.ui.components.formatAgTimestamp
 import de.meinseelenfunke.app.util.AgDirectDisplayItem
 import de.meinseelenfunke.app.util.AgDirectInboxManager
@@ -76,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -137,9 +144,11 @@ fun ChatScreen(
     val coroutineScope = rememberCoroutineScope()
     val agItems by AgDirectInboxManager.itemsFlow.collectAsState()
 
-    LaunchedEffect(Unit) {
-        AgDirectInboxManager.hydrateLocalState(context)
-        AgDirectInboxManager.refreshAsync(context)
+    DisposableEffect(Unit) {
+        AgDirectInboxManager.acquireRealtimeObserver(context)
+        onDispose {
+            AgDirectInboxManager.releaseRealtimeObserver()
+        }
     }
 
     // Auto-scroll to the bottom when new messages arrive
@@ -449,6 +458,47 @@ fun ChatScreen(
                     }
                 }
 
+                var pendingChatCameraUri by remember { mutableStateOf<Uri?>(null) }
+                val chatCameraLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.TakePicture()
+                ) { success ->
+                    val uri = pendingChatCameraUri
+                    pendingChatCameraUri = null
+                    if (success && uri != null) {
+                        val file = getSelectedFileFromUri(context, uri)
+                        viewModel.selectFile(file)
+                    }
+                }
+                val launchChatCamera: () -> Unit = {
+                    try {
+                        val dir = File(context.cacheDir, "camera_captures").apply { mkdirs() }
+                        val outFile = File(dir, "chat_cam_${System.currentTimeMillis()}.jpg")
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+                        pendingChatCameraUri = uri
+                        chatCameraLauncher.launch(uri)
+                    } catch (_: Throwable) {
+                        Toast.makeText(context, "Kamera nicht verfügbar.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                val chatCameraPermLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { granted ->
+                    if (granted) launchChatCamera() else Toast.makeText(context, "Kamera-Berechtigung erforderlich.", Toast.LENGTH_SHORT).show()
+                }
+
+                IconButton(
+                    onClick = {
+                        val hasCam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                        if (hasCam) launchChatCamera() else chatCameraPermLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoCamera,
+                        contentDescription = "Foto aufnehmen",
+                        tint = activeAgentColor
+                    )
+                }
+
                 IconButton(
                     onClick = { imagePickerLauncher.launch("image/*") }
                 ) {
@@ -518,16 +568,13 @@ fun AgLiveTicketStatusBar(
     modifier: Modifier = Modifier
 ) {
     val goItems = remember(items) {
-        items.filter {
-            it.status == AgDirectStatus.AWAITING_GO ||
-                (it.status != AgDirectStatus.COMPLETED && it.executionMode == "concept")
-        }
+        items.filter { it.status == AgDirectStatus.AWAITING_GO }
     }
     val inProgressItems = remember(items) {
         items.filter {
-            it.status != AgDirectStatus.COMPLETED &&
-                it.status != AgDirectStatus.AWAITING_GO &&
-                it.executionMode != "concept"
+            it.status == AgDirectStatus.QUEUED ||
+                it.status == AgDirectStatus.PENDING ||
+                it.status == AgDirectStatus.DELIVERED
         }
     }
     val completedItems = remember(items) {
@@ -598,13 +645,13 @@ fun AgLiveTicketStatusBar(
                     }
                 }
 
-                // Pill 2: In Arbeit (bei Falcone)
+                // Pill 2: Aktiv in Arbeit (Echtzeit-Status)
                 if (inProgressItems.isNotEmpty()) {
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(AppTheme.colors.glassSurface)
-                            .border(1.dp, Color(0xFF818CF8).copy(alpha = 0.65f), RoundedCornerShape(50))
+                            .background(Gold.copy(alpha = 0.14f))
+                            .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(50))
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -612,14 +659,14 @@ fun AgLiveTicketStatusBar(
                         Icon(
                             imageVector = Icons.Default.HourglassEmpty,
                             contentDescription = null,
-                            tint = Color(0xFFA5B4FC),
+                            tint = Gold,
                             modifier = Modifier.size(13.dp)
                         )
                         Text(
-                            text = "${inProgressItems.size} in Arbeit",
+                            text = "⚡ ${inProgressItems.size} arbeitet aktiv",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE0E7FF),
+                            color = AppTheme.colors.textPrimary,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -828,13 +875,13 @@ fun AgLiveTicketStatusBar(
                     }
                 }
 
-                // Gruppe 2: In Arbeit
+                // Gruppe 2: Aktiv in Arbeit
                 if (inProgressItems.isNotEmpty()) {
                     Text(
-                        text = "In Arbeit (${inProgressItems.size})",
+                        text = "⚡ Antigravity arbeitet aktiv (${inProgressItems.size})",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE0E7FF)
+                        color = AppTheme.colors.textPrimary
                     )
                     inProgressItems.forEach { item ->
                         Card(

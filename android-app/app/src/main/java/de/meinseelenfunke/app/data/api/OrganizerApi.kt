@@ -261,6 +261,7 @@ data class CallVerificationReportDto(
 
 data class PhoneSecretaryCallSummaryDto(
     val id: String = "",
+    val client_call_id: String? = null,
     val caller_name: String = "",
     val created_at_label: String = "",
     val duration_seconds: Int = 0,
@@ -351,8 +352,13 @@ data class PhoneConciergeCompleteBody(
     val caller_phone: String? = null,
     val handled_by: String = "android_secretary",
     val summary: String,
+    val rahmenbedingungen: List<String> = emptyList(),
+    val action_required: String? = null,
     val urgency: String = "mittel",
-    val callback_requested: Boolean = true
+    val callback_requested: Boolean = true,
+    val duration_seconds: Int = 0,
+    val transcript: List<String> = emptyList(),
+    val verification: CallVerificationReportDto? = null
 )
 
 data class PhoneConciergeCompleteResponse(

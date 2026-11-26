@@ -212,15 +212,59 @@ Route::prefix('funki/routine')->group(function () {
         return [$email, $pass];
     };
 
-    Route::get('/smarthome-sync', function () use ($defaultSmartHomeConfig, $resolveTapoCredentials) {
+    $resolveSomfyCredentials = function (array $primaryArray, ?string $fallbackKey = null): array {
+        $encEmail = $primaryArray['somfy_email_encrypted'] ?? null;
+        $encPass = $primaryArray['somfy_password_encrypted'] ?? null;
+        $encLocalToken = $primaryArray['somfy_local_token_encrypted'] ?? null;
+        if ((!$encEmail || !$encPass || !$encLocalToken) && $fallbackKey) {
+            $rawFallback = SystemSetting::where('key', $fallbackKey)->value('value');
+            $decFallback = is_string($rawFallback) ? json_decode($rawFallback, true) : null;
+            if (is_array($decFallback)) {
+                $encEmail = $encEmail ?: ($decFallback['somfy_email_encrypted'] ?? null);
+                $encPass = $encPass ?: ($decFallback['somfy_password_encrypted'] ?? null);
+                $encLocalToken = $encLocalToken ?: ($decFallback['somfy_local_token_encrypted'] ?? null);
+            }
+        }
+        $email = null;
+        $pass = null;
+        $localToken = null;
+        if ($encEmail) {
+            try {
+                $email = Crypt::decryptString($encEmail);
+            } catch (\Throwable $e) {}
+        }
+        if ($encPass) {
+            try {
+                $pass = Crypt::decryptString($encPass);
+            } catch (\Throwable $e) {}
+        }
+        if ($encLocalToken) {
+            try {
+                $localToken = Crypt::decryptString($encLocalToken);
+            } catch (\Throwable $e) {}
+        }
+        return [$email, $pass, $localToken];
+    };
+
+    Route::get('/smarthome-sync', function () use ($defaultSmartHomeConfig, $resolveTapoCredentials, $resolveSomfyCredentials) {
         $raw = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         $cfg = is_array($decoded) ? array_merge($defaultSmartHomeConfig(), $decoded) : $defaultSmartHomeConfig();
 
         [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($cfg, 'funki_alarm_sync_package');
-        unset($cfg['tapo_email_encrypted'], $cfg['tapo_password_encrypted']);
+        [$somfyEmail, $somfyPassword, $somfyLocalToken] = $resolveSomfyCredentials($cfg, 'funki_alarm_sync_package');
+        unset(
+            $cfg['tapo_email_encrypted'],
+            $cfg['tapo_password_encrypted'],
+            $cfg['somfy_email_encrypted'],
+            $cfg['somfy_password_encrypted'],
+            $cfg['somfy_local_token_encrypted']
+        );
         $cfg['tapo_email'] = $tapoEmail;
         $cfg['tapo_password'] = $tapoPassword;
+        $cfg['somfy_email'] = $somfyEmail;
+        $cfg['somfy_password'] = $somfyPassword;
+        $cfg['somfy_local_token'] = $somfyLocalToken;
 
         return response()->json([
             'success' => true,
@@ -228,7 +272,7 @@ Route::prefix('funki/routine')->group(function () {
         ]);
     });
 
-    Route::post('/smarthome-sync', function (Request $request) use ($defaultSmartHomeConfig, $defaultAlarmPackage, $resolveTapoCredentials) {
+    Route::post('/smarthome-sync', function (Request $request) use ($defaultSmartHomeConfig, $defaultAlarmPackage, $resolveTapoCredentials, $resolveSomfyCredentials) {
         $raw = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
         $existing = is_string($raw) ? json_decode($raw, true) : null;
         $cfg = is_array($existing) ? array_merge($defaultSmartHomeConfig(), $existing) : $defaultSmartHomeConfig();
@@ -406,6 +450,15 @@ Route::prefix('funki/routine')->group(function () {
         if ($request->filled('tapo_password')) {
             $cfg['tapo_password_encrypted'] = Crypt::encryptString((string) $request->input('tapo_password'));
         }
+        if ($request->filled('somfy_email')) {
+            $cfg['somfy_email_encrypted'] = Crypt::encryptString(substr(trim((string) $request->input('somfy_email')), 0, 140));
+        }
+        if ($request->filled('somfy_password')) {
+            $cfg['somfy_password_encrypted'] = Crypt::encryptString((string) $request->input('somfy_password'));
+        }
+        if ($request->filled('somfy_local_token')) {
+            $cfg['somfy_local_token_encrypted'] = Crypt::encryptString(substr(trim((string) $request->input('somfy_local_token')), 0, 260));
+        }
 
         $cfg['updated_at'] = Carbon::now()->toIso8601String();
 
@@ -414,7 +467,7 @@ Route::prefix('funki/routine')->group(function () {
             ['value' => json_encode($cfg, JSON_UNESCAPED_UNICODE)]
         );
 
-        // Keep funki_alarm_sync_package.smart_plugs, smart_shutters, smart_groups and tapo credentials synchronized automatically
+        // Keep funki_alarm_sync_package.smart_plugs, smart_shutters, smart_groups and credentials synchronized automatically
         $rawAlarm = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $existingAlarm = is_string($rawAlarm) ? json_decode($rawAlarm, true) : null;
         $alarmPkg = is_array($existingAlarm) ? array_merge($defaultAlarmPackage(), $existingAlarm) : $defaultAlarmPackage();
@@ -427,15 +480,34 @@ Route::prefix('funki/routine')->group(function () {
         if (!empty($cfg['tapo_password_encrypted'])) {
             $alarmPkg['tapo_password_encrypted'] = $cfg['tapo_password_encrypted'];
         }
+        if (!empty($cfg['somfy_email_encrypted'])) {
+            $alarmPkg['somfy_email_encrypted'] = $cfg['somfy_email_encrypted'];
+        }
+        if (!empty($cfg['somfy_password_encrypted'])) {
+            $alarmPkg['somfy_password_encrypted'] = $cfg['somfy_password_encrypted'];
+        }
+        if (!empty($cfg['somfy_local_token_encrypted'])) {
+            $alarmPkg['somfy_local_token_encrypted'] = $cfg['somfy_local_token_encrypted'];
+        }
         SystemSetting::updateOrCreate(
             ['key' => 'funki_alarm_sync_package'],
             ['value' => json_encode($alarmPkg, JSON_UNESCAPED_UNICODE)]
         );
 
         [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($cfg, 'funki_alarm_sync_package');
-        unset($cfg['tapo_email_encrypted'], $cfg['tapo_password_encrypted']);
+        [$somfyEmail, $somfyPassword, $somfyLocalToken] = $resolveSomfyCredentials($cfg, 'funki_alarm_sync_package');
+        unset(
+            $cfg['tapo_email_encrypted'],
+            $cfg['tapo_password_encrypted'],
+            $cfg['somfy_email_encrypted'],
+            $cfg['somfy_password_encrypted'],
+            $cfg['somfy_local_token_encrypted']
+        );
         $cfg['tapo_email'] = $tapoEmail;
         $cfg['tapo_password'] = $tapoPassword;
+        $cfg['somfy_email'] = $somfyEmail;
+        $cfg['somfy_password'] = $somfyPassword;
+        $cfg['somfy_local_token'] = $somfyLocalToken;
 
         return response()->json([
             'success' => true,
@@ -480,7 +552,7 @@ Route::prefix('funki/routine')->group(function () {
         ]);
     });
 
-    Route::get('/alarm-sync', function () use ($defaultAlarmPackage, $resolveTapoCredentials) {
+    Route::get('/alarm-sync', function () use ($defaultAlarmPackage, $resolveTapoCredentials, $resolveSomfyCredentials) {
         $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($decoded) ? array_merge($defaultAlarmPackage(), $decoded) : $defaultAlarmPackage();
@@ -515,9 +587,19 @@ Route::prefix('funki/routine')->group(function () {
         unset($pkg['gemini_tts_key']);
 
         [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($pkg, 'funki_smarthome_config');
-        unset($pkg['tapo_email_encrypted'], $pkg['tapo_password_encrypted']);
+        [$somfyEmail, $somfyPassword, $somfyLocalToken] = $resolveSomfyCredentials($pkg, 'funki_smarthome_config');
+        unset(
+            $pkg['tapo_email_encrypted'],
+            $pkg['tapo_password_encrypted'],
+            $pkg['somfy_email_encrypted'],
+            $pkg['somfy_password_encrypted'],
+            $pkg['somfy_local_token_encrypted']
+        );
         $pkg['tapo_email'] = $tapoEmail;
         $pkg['tapo_password'] = $tapoPassword;
+        $pkg['somfy_email'] = $somfyEmail;
+        $pkg['somfy_password'] = $somfyPassword;
+        $pkg['somfy_local_token'] = $somfyLocalToken;
 
         if (empty($pkg['smart_shutters']) || empty($pkg['smart_groups'])) {
             $rawSh = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
@@ -646,7 +728,7 @@ Route::prefix('funki/routine')->group(function () {
         ]);
     })->middleware('throttle:20,1');
 
-    Route::post('/alarm-sync', function (Request $request) use ($defaultAlarmPackage, $resolveTapoCredentials) {
+    Route::post('/alarm-sync', function (Request $request) use ($defaultAlarmPackage, $resolveTapoCredentials, $resolveSomfyCredentials) {
         $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $existing = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($existing) ? array_merge($defaultAlarmPackage(), $existing) : $defaultAlarmPackage();
@@ -812,9 +894,19 @@ Route::prefix('funki/routine')->group(function () {
         $pkg['funkira_voice'] = 'Aoede';
 
         [$tapoEmail, $tapoPassword] = $resolveTapoCredentials($pkg, 'funki_smarthome_config');
-        unset($pkg['tapo_email_encrypted'], $pkg['tapo_password_encrypted']);
+        [$somfyEmail, $somfyPassword, $somfyLocalToken] = $resolveSomfyCredentials($pkg, 'funki_smarthome_config');
+        unset(
+            $pkg['tapo_email_encrypted'],
+            $pkg['tapo_password_encrypted'],
+            $pkg['somfy_email_encrypted'],
+            $pkg['somfy_password_encrypted'],
+            $pkg['somfy_local_token_encrypted']
+        );
         $pkg['tapo_email'] = $tapoEmail;
         $pkg['tapo_password'] = $tapoPassword;
+        $pkg['somfy_email'] = $somfyEmail;
+        $pkg['somfy_password'] = $somfyPassword;
+        $pkg['somfy_local_token'] = $somfyLocalToken;
 
         if (empty($pkg['smart_shutters']) || empty($pkg['smart_groups'])) {
             $rawSh = SystemSetting::where('key', 'funki_smarthome_config')->value('value');

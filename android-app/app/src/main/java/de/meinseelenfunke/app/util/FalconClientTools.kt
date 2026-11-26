@@ -9,14 +9,29 @@ import de.meinseelenfunke.app.data.api.AgDirectApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Calendar
 import java.util.Locale
+
+data class FalconPlaylistSemanticProfile(
+    val playlistId: String,
+    val playlistName: String,
+    val trackCount: Int,
+    val isFavoritesPool: Boolean,
+    val isSingleSongPlaylist: Boolean,
+    val primaryCluster: String,
+    val clusterScores: Map<String, Int>,
+    val seedTrackSummary: String?
+)
 
 data class FalconMusicMatchResult(
     val tracks: List<MusicTrackDto>,
     val playlistId: String,
     val playlistName: String?,
     val shuffle: Boolean,
-    val usedFallbackFavorites: Boolean
+    val usedFallbackFavorites: Boolean,
+    val matchedCluster: String? = null,
+    val isSingleSongSeedMatch: Boolean = false,
+    val singleSongExtendedCount: Int = 0
 )
 
 data class FalconResolvedDestination(
@@ -287,6 +302,10 @@ object FalconClientTools {
         "falcon_camera_control",
         "falcon_smarthome_control",
         "falcon_send_to_antigravity",
+        "falcon_stage_to_package",
+        "falcon_list_draft_packages",
+        "falcon_release_package",
+        "falcon_get_recent_memory",
         "falcon_resolve_antigravity_blockade",
         "falcon_check_antigravity_status",
         "falcon_app_navigate"
@@ -303,7 +322,16 @@ object FalconClientTools {
         "system_open_zentrum",
         "system_close_zentrum",
         "system_close_ui",
-        "falcon_set_emotion"
+        "falcon_set_emotion",
+        "smarthome_control",
+        "smarthome_get_devices_and_groups",
+        "smarthome_control_plug",
+        "smarthome_list_plugs",
+        "music_play",
+        "music_pause",
+        "management_music_play",
+        "management_music_pause",
+        "management_music_control"
     )
 
     const val POST_SPEECH_ECHO_TAIL_SPEAKER_MS = 450L
@@ -417,8 +445,12 @@ object FalconClientTools {
         return name != null && name in LOCAL_TOOL_NAMES
     }
 
-    fun shouldEnterStandbyAfterTool(toolName: String?): Boolean {
+    fun shouldEnterStandbyAfterTool(toolName: String?, action: String? = null): Boolean {
         val clean = toolName?.trim()?.lowercase(Locale.ROOT) ?: return false
+        val cleanAct = action?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        if (cleanAct in setOf("analyze_playlist", "list_playlists", "inspect_playlist")) {
+            return false
+        }
         return clean == "falcon_music_control" ||
             clean.startsWith("music_") ||
             clean.startsWith("management_music_")
@@ -524,12 +556,25 @@ object FalconClientTools {
         }
     }
 
+    fun hasExplicitConceptIntent(title: String?, body: String?): Boolean {
+        val hay = "${title.orEmpty()} ${body.orEmpty()}".lowercase(Locale.GERMAN)
+        return Regex("\\b(konzept|konzeptionieren|erst\\s+planen|nur\\s+konzept|als\\s+konzept)\\b").containsMatchIn(hay)
+    }
+
     fun buildAttachedMediaSystemDirective(staged: PreparedAgAttachment?): String? {
-        if (staged == null) return null
-        return "WICHTIGER APP-STATUS: Alina hat BEREITS ein Foto/Screenshot in der App hinterlegt ('${staged.fileName}')! " +
+        val pool = FalconCameraController.mediaPoolFlow.value
+        if (staged == null && pool.isEmpty()) return null
+        val names = (pool.map { it.fileName } + listOfNotNull(staged?.fileName)).distinct()
+        val hasVideo = pool.any { it.mimeType.startsWith("video/", ignoreCase = true) }
+        val desc = if (hasVideo) {
+            "${names.size} Medien inkl. 20s-Video & Keyframes (${names.joinToString(", ")})"
+        } else {
+            "${names.size} Foto(s)/Screenshot(s) (${names.joinToString(", ")})"
+        }
+        return "WICHTIGER APP-STATUS: Alina hat BEREITS $desc in der App hinterlegt! " +
             "Frage NICHT, ob du ein Foto machen sollst, und rufe NIEMALS falcon_camera_control / take_photo / Kamera-Aufnahme auf, " +
-            "solange sie nicht ausdrücklich 'mach ein neues Foto' verlangt! Nutze direkt das bereits hinterlegte Bild " +
-            "(beim Senden an Antigravity wird es automatisch angehängt)."
+            "solange sie nicht ausdrücklich 'mach ein neues Foto' verlangt! Nutze direkt die hinterlegten Medien " +
+            "(beim Packen oder Senden an Antigravity werden sie automatisch angehängt)."
     }
 
     fun normalizeGermanSmartHomeText(raw: String?): String {
@@ -729,7 +774,7 @@ object FalconClientTools {
     ): String {
         val parts = mutableListOf<String>()
         if (plugs.isNotEmpty()) {
-            parts.add("Steckdosen: " + plugs.joinToString(", ") { it.name })
+            parts.add("Lichterketten & Steckdosen: " + plugs.joinToString(", ") { it.name })
         }
         if (shutters.isNotEmpty()) {
             parts.add("Connexoon Somfy Rollläden: " + shutters.joinToString(", ") { "${it.label} (${it.closurePercent}%)" })
@@ -738,13 +783,13 @@ object FalconClientTools {
         }
         if (groups.isNotEmpty()) {
             parts.add(
-                "SmartHome-Gruppen: " + groups.joinToString(" | ") { g ->
+                "SmartHome-Gruppen (Steckdosen, Rollläden & Hybrid): " + groups.joinToString(" | ") { g ->
                     val members = (g.shutterTargets + g.plugTargets).joinToString(", ")
                     "${g.name} [$members]"
                 }
             )
         }
-        return "AKTIVER SMARTHOME-BESTAND (für Funkira via falcon_smarthome_control): " + parts.joinToString(" · ")
+        return "AKTIVER SMARTHOME-BESTAND (immer lokal via falcon_smarthome_control steuern, inkl. einzelner Lichterketten, 'alle Lichterketten', einzelner Rollläden, Kombis mit 'und' sowie aller Gruppen): " + parts.joinToString(" · ")
     }
 
     fun shouldAttachCapturedPhoto(
@@ -764,11 +809,217 @@ object FalconClientTools {
         return SPORT_KEYWORDS.any { kw -> lower.contains(kw) }
     }
 
+    private val MUSIC_CLUSTER_KEYWORDS: Map<String, List<String>> = mapOf(
+        "sport" to (SPORT_KEYWORDS + listOf("hiit", "joggen", "ausdauer", "krafttraining", "aufwaermen", "warmup")),
+        "rave_energy" to listOf(
+            "rave", "tekk", "hardtekk", "techno", "abriss", "party", "club", "festival", "bass",
+            "wachmacher", "wach", "vollgas", "hardstyle", "scooter", "gebrueder brett", "gebrüder brett",
+            "lilly palmer", "charlotte de witte", "maddix", "neelix", "harris & ford", "timmy trumpet"
+        ),
+        "feelgood_routine" to listOf(
+            "gute laune", "gutelaune", "happy", "positiv", "feelgood", "feel good", "lifeisgood", "life is good",
+            "morgen", "morgenroutine", "aufstehen", "fruehstueck", "frühstück", "tag starten", "alltag",
+            "verpacken", "packtisch", "manufaktur", "pop", "80s", "90s", "dance", "sommer", "sonne",
+            "michael jackson", "abba", "queen", "dua lipa", "ed sheeran", "mark morrison", "froehlich", "fröhlich", "locker"
+        ),
+        "focus_flow" to listOf(
+            "fokus", "focus", "konzentration", "konzentriert", "deep work", "flow", "arbeiten",
+            "buero", "büro", "buchhaltung", "belege", "steuer", "lernen", "produktiv",
+            "instrumental", "lofi", "lo-fi", "hintergrund", "synthwave"
+        ),
+        "calm_evening" to listOf(
+            "ruhig", "chill", "chillout", "entspannung", "entspannt", "entspannen", "feierabend",
+            "abend", "abendroutine", "nacht", "nachtruhe", "schlafen", "einschlafen", "pause",
+            "durchatmen", "runterfahren", "runterkommen", "sanft", "leise", "ambient", "piano",
+            "acoustic", "akustik", "ballade", "meditation", "enya", "ludovico", "relax", "wellness",
+            "gemuetlich", "gemütlich", "only time"
+        )
+    )
+
+    private val GENERIC_MUSIC_QUERIES = setOf(
+        "musik", "music", "passende musik", "spiel musik", "mach musik an", "musik abspielen",
+        "routine", "tagesroutine", "kontext", "etwas passendes", "ueberrasch mich", "überrasch mich",
+        "irgendwas", "smart", "auto"
+    )
+
+    private val EXPLICIT_FAVORITES_QUERIES = listOf(
+        "favorit", "lieblingssong", "lieblingslied", "lieblingsmusik", "meine favoriten", "favorites", "liked"
+    )
+
+    fun isFavoritesPlaylist(pl: MusicPlaylistDto): Boolean {
+        val normName = pl.name.trim().lowercase(Locale.GERMAN)
+        val normId = pl.id.trim().lowercase(Locale.ROOT)
+        return normId == "favorites" ||
+            normId == "all" ||
+            normName in setOf("lieblingssongs", "favoriten", "meine favoriten", "favorites", "liked songs", "alle songs")
+    }
+
+    private fun scoreTextAgainstMusicClusters(rawText: String, weight: Int = 1): Map<String, Int> {
+        val hay = rawText.lowercase(Locale.GERMAN)
+        val scores = LinkedHashMap<String, Int>()
+        for ((cluster, kws) in MUSIC_CLUSTER_KEYWORDS) {
+            var hits = 0
+            for (kw in kws) {
+                if (hay.contains(kw)) hits += weight
+            }
+            scores[cluster] = hits
+        }
+        return scores
+    }
+
+    /**
+     * Deeply analyzes any playlist (including playlists containing only 1 single song!)
+     * by inspecting both playlist metadata AND the embedded track title(s), artist(s), and vibe cues.
+     */
+    fun analyzePlaylistSemanticProfile(pl: MusicPlaylistDto): FalconPlaylistSemanticProfile {
+        val isFav = isFavoritesPlaylist(pl)
+        val isSingle = pl.tracks.size == 1
+        val combinedScores = LinkedHashMap<String, Int>()
+        for (cluster in MUSIC_CLUSTER_KEYWORDS.keys) {
+            combinedScores[cluster] = 0
+        }
+
+        val metaScores = scoreTextAgainstMusicClusters("${pl.name} ${pl.description}", weight = 4)
+        for ((c, s) in metaScores) {
+            combinedScores[c] = (combinedScores[c] ?: 0) + s
+        }
+
+        if (pl.tracks.isNotEmpty() && !isFav) {
+            val perTrackWeight = when {
+                isSingle -> 5
+                pl.tracks.size <= 5 -> 3
+                pl.tracks.size <= 15 -> 2
+                else -> 1
+            }
+            val trackAcc = LinkedHashMap<String, Int>()
+            for (tr in pl.tracks.take(40)) {
+                val tHay = "${tr.title} ${tr.artist}".lowercase(Locale.GERMAN)
+                val ts = scoreTextAgainstMusicClusters(tHay, weight = perTrackWeight)
+                for ((c, s) in ts) {
+                    trackAcc[c] = (trackAcc[c] ?: 0) + s
+                }
+                if (isSingle) {
+                    // Extra subtle song-level mood inference when a 1-song playlist has a neutral playlist title
+                    when {
+                        Regex("\\b(dream|moon|night|slow|soft|rain|ocean|calm|peace|heart|piano|love|time)\\b").containsMatchIn(tHay) ->
+                            trackAcc["calm_evening"] = (trackAcc["calm_evening"] ?: 0) + 3
+                        Regex("\\b(remix|vip|edit|hard|club|drop|kick|rave|tekk|techno)\\b").containsMatchIn(tHay) ->
+                            trackAcc["rave_energy"] = (trackAcc["rave_energy"] ?: 0) + 3
+                        Regex("\\b(sun|good|dance|groove|smile|summer|magic|boogie)\\b").containsMatchIn(tHay) ->
+                            trackAcc["feelgood_routine"] = (trackAcc["feelgood_routine"] ?: 0) + 3
+                    }
+                }
+            }
+            val cap = if (pl.tracks.size > 15) 12 else Int.MAX_VALUE
+            for ((c, s) in trackAcc) {
+                combinedScores[c] = (combinedScores[c] ?: 0) + s.coerceAtMost(cap)
+            }
+        }
+
+        val bestEntry = combinedScores.maxByOrNull { it.value }
+        val primaryCluster = if (bestEntry != null && bestEntry.value > 0) {
+            bestEntry.key
+        } else if (isFav) {
+            "favorites"
+        } else {
+            "feelgood_routine"
+        }
+
+        val seedSummary = when {
+            pl.tracks.size == 1 -> {
+                val t = pl.tracks.first()
+                "1-Song-Seed: '${t.title}' von ${t.artist.ifBlank { "Unbekannt" }}"
+            }
+            pl.tracks.size in 2..3 -> {
+                pl.tracks.joinToString(", ") { "'${it.title}' (${it.artist.ifBlank { "Unbekannt" }})" }
+            }
+            else -> null
+        }
+
+        return FalconPlaylistSemanticProfile(
+            playlistId = pl.id,
+            playlistName = pl.name,
+            trackCount = pl.tracks.size,
+            isFavoritesPool = isFav,
+            isSingleSongPlaylist = isSingle,
+            primaryCluster = primaryCluster,
+            clusterScores = combinedScores,
+            seedTrackSummary = seedSummary
+        )
+    }
+
+    fun buildMusicLibraryLiveDirective(playlists: List<MusicPlaylistDto>): String {
+        val visible = playlists.filter {
+            !it.name.equals("__FUNKENWERK_FAV_SYNC__", ignoreCase = true) && it.tracks.isNotEmpty()
+        }
+        if (visible.isEmpty()) return ""
+        val items = visible.take(14).map { pl ->
+            val prof = analyzePlaylistSemanticProfile(pl)
+            if (prof.seedTrackSummary != null) {
+                "${pl.name} (${pl.tracks.size} Song(s), ${prof.seedTrackSummary}, Vibe: ${prof.primaryCluster})"
+            } else {
+                "${pl.name} (${pl.tracks.size} Songs, Vibe: ${prof.primaryCluster})"
+            }
+        }
+        return "AKTIVE MUSIK-BIBLIOTHEK (für falcon_music_control): " + items.joinToString(" | ") +
+            " · MUSIK-INTELLIGENZ: Wähle Playlists klug nach Kontext, Tageszeit/Routine oder Stimmung (action='play_smart' oder 'play_query') statt pauschal Lieblingssongs abzuspielen! Playlists mit nur 1 Song sind vollwertige Seed-Playlists (du kennst ihren exakten Song & Vibe und kannst sie direkt abspielen oder mit action='analyze_playlist' analysieren)."
+    }
+
+    fun expandSingleSongPlaylistQueue(
+        seedTrack: MusicTrackDto,
+        seedProfile: FalconPlaylistSemanticProfile,
+        consolidatedTracks: List<MusicTrackDto>,
+        maxExtra: Int = 14
+    ): List<MusicTrackDto> {
+        if (consolidatedTracks.size <= 1 || maxExtra <= 0) return listOf(seedTrack)
+        val seedArtistNorm = seedTrack.artist.trim().lowercase(Locale.GERMAN)
+        val targetCluster = seedProfile.primaryCluster
+        val scoredCompanions = consolidatedTracks
+            .filter { it.id != seedTrack.id }
+            .mapNotNull { candidate ->
+                val cHay = "${candidate.title} ${candidate.artist}".lowercase(Locale.GERMAN)
+                val cScores = scoreTextAgainstMusicClusters(cHay, weight = 2)
+                var score = 0
+                if (seedArtistNorm.length >= 3 && candidate.artist.trim().lowercase(Locale.GERMAN).contains(seedArtistNorm)) {
+                    score += 8
+                }
+                val clusterAffinity = cScores[targetCluster] ?: 0
+                score += clusterAffinity
+                if (targetCluster in setOf("calm_evening", "focus_flow") &&
+                    ((cScores["rave_energy"] ?: 0) > 0 || (cScores["sport"] ?: 0) > 0)
+                ) {
+                    score -= 10
+                }
+                if (score > 0) Pair(candidate, score) else null
+            }
+            .sortedByDescending { it.second }
+            .take(maxExtra)
+            .map { it.first }
+
+        return listOf(seedTrack) + scoredCompanions
+    }
+
+    private fun resolveRoutineClusterForHour(hourOfDay: Int, routineContext: String?): List<String> {
+        if (!routineContext.isNullOrBlank()) {
+            val ctxScores = scoreTextAgainstMusicClusters(routineContext, weight = 2)
+            val top = ctxScores.entries.filter { it.value > 0 }.sortedByDescending { it.value }.map { it.key }
+            if (top.isNotEmpty()) return top
+        }
+        return when (hourOfDay) {
+            in 6..11 -> listOf("feelgood_routine", "focus_flow")
+            in 12..17 -> listOf("feelgood_routine", "focus_flow")
+            in 18..20 -> listOf("feelgood_routine", "calm_evening")
+            else -> listOf("calm_evening", "focus_flow")
+        }
+    }
+
     fun matchMusicForFalcon(
         playlists: List<MusicPlaylistDto>,
         allTracks: List<MusicTrackDto>,
         action: String,
-        query: String?
+        query: String?,
+        currentHour: Int = -1,
+        routineContext: String? = null
     ): FalconMusicMatchResult {
         val visiblePlaylists = playlists.filterNot {
             it.name.equals("__FUNKENWERK_FAV_SYNC__", ignoreCase = true)
@@ -781,27 +1032,43 @@ object FalconClientTools {
 
         val cleanAction = action.trim().lowercase(Locale.ROOT)
         val cleanQuery = query?.trim().orEmpty()
+        val lowerQuery = cleanQuery.lowercase(Locale.GERMAN)
+        val profilesById = visiblePlaylists.associate { it.id to analyzePlaylistSemanticProfile(it) }
         val treatAsSport = cleanAction == "play_sport" || isSportQuery(cleanQuery)
 
+        // 1. Explicit Sport / Workout path (also recognizes 1-song sport playlists via track analysis!)
         if (treatAsSport) {
-            val sportPlaylists = visiblePlaylists.filter { pl ->
-                val hay = "${pl.name} ${pl.description}".lowercase(Locale.ROOT)
-                SPORT_KEYWORDS.any { kw -> hay.contains(kw) } && pl.tracks.isNotEmpty()
-            }
+            val sportPlaylists = visiblePlaylists
+                .filter { pl ->
+                    pl.tracks.isNotEmpty() && !isFavoritesPlaylist(pl) &&
+                        ((profilesById[pl.id]?.clusterScores?.get("sport") ?: 0) > 0)
+                }
+                .sortedByDescending { profilesById[it.id]?.clusterScores?.get("sport") ?: 0 }
+
             if (sportPlaylists.isNotEmpty()) {
                 val chosenPl = sportPlaylists.first()
+                val prof = profilesById[chosenPl.id]!!
+                val isSingle = chosenPl.tracks.size == 1
+                val queue = if (isSingle && cleanAction in setOf("play_smart", "play_context", "play_radio")) {
+                    expandSingleSongPlaylistQueue(chosenPl.tracks.first(), prof, consolidatedTracks)
+                } else {
+                    chosenPl.tracks
+                }
                 return FalconMusicMatchResult(
-                    tracks = chosenPl.tracks,
+                    tracks = queue,
                     playlistId = chosenPl.id,
                     playlistName = chosenPl.name,
-                    shuffle = true,
-                    usedFallbackFavorites = false
+                    shuffle = !isSingle,
+                    usedFallbackFavorites = false,
+                    matchedCluster = "sport",
+                    isSingleSongSeedMatch = isSingle,
+                    singleSongExtendedCount = (queue.size - chosenPl.tracks.size).coerceAtLeast(0)
                 )
             }
 
             val sportTracks = consolidatedTracks.filter { tr ->
-                val hay = "${tr.title} ${tr.artist}".lowercase(Locale.ROOT)
-                SPORT_KEYWORDS.any { kw -> hay.contains(kw) }
+                val hay = "${tr.title} ${tr.artist}".lowercase(Locale.GERMAN)
+                (scoreTextAgainstMusicClusters(hay)["sport"] ?: 0) > 0
             }
             if (sportTracks.isNotEmpty()) {
                 return FalconMusicMatchResult(
@@ -809,33 +1076,159 @@ object FalconClientTools {
                     playlistId = "all",
                     playlistName = "Sport-Auswahl",
                     shuffle = true,
-                    usedFallbackFavorites = false
+                    usedFallbackFavorites = false,
+                    matchedCluster = "sport"
                 )
             }
-        } else if (cleanQuery.isNotEmpty()) {
-            val tokens = cleanQuery
-                .lowercase(Locale.ROOT)
+
+            // Explicit sport request with zero sport playlists/tracks -> deterministic fallback to Favorites
+            val favorites = consolidatedTracks.filter { it.isFavorite }
+            val fallbackPool = favorites.ifEmpty { consolidatedTracks }
+            return FalconMusicMatchResult(
+                tracks = fallbackPool,
+                playlistId = if (favorites.isNotEmpty()) "favorites" else "all",
+                playlistName = if (favorites.isNotEmpty()) "Lieblingssongs" else "Alle Songs",
+                shuffle = true,
+                usedFallbackFavorites = true
+            )
+        }
+
+        // 2. Explicit Favorites request ("Spiel meine Lieblingssongs / Favoriten")
+        if (lowerQuery.isNotEmpty() && EXPLICIT_FAVORITES_QUERIES.any { lowerQuery.contains(it) }) {
+            val favPl = visiblePlaylists.firstOrNull { isFavoritesPlaylist(it) && it.tracks.isNotEmpty() }
+            val favorites = favPl?.tracks ?: consolidatedTracks.filter { it.isFavorite }
+            val pool = favorites.ifEmpty { consolidatedTracks }
+            return FalconMusicMatchResult(
+                tracks = pool,
+                playlistId = favPl?.id ?: if (favorites.isNotEmpty()) "favorites" else "all",
+                playlistName = favPl?.name ?: if (favorites.isNotEmpty()) "Lieblingssongs" else "Alle Songs",
+                shuffle = true,
+                usedFallbackFavorites = false,
+                matchedCluster = "favorites"
+            )
+        }
+
+        val isGenericOrEmptyQuery = lowerQuery.isEmpty() || lowerQuery in GENERIC_MUSIC_QUERIES
+
+        // 3. Specific non-generic query: Direct Playlist, 1-Song Playlist Content Match, Semantic Mood/Routine, or Track Search
+        if (!isGenericOrEmptyQuery) {
+            val stopQueryWords = setOf("playlist", "play", "spiele", "spiel", "mach", "bitte", "musik", "songs", "lied", "lieder", "meine", "mein", "von", "mit", "zum", "zur", "fuer", "für")
+            val tokens = lowerQuery
                 .split(Regex("\\s+"))
-                .filter { it.length >= 2 }
-                .ifEmpty { listOf(cleanQuery.lowercase(Locale.ROOT)) }
+                .map { it.trim() }
+                .filter { it.length >= 2 && it !in stopQueryWords }
+                .ifEmpty {
+                    lowerQuery.split(Regex("\\s+")).filter { it.length >= 2 }.ifEmpty { listOf(lowerQuery) }
+                }
 
-            val matchedPl = visiblePlaylists.firstOrNull { pl ->
-                val hay = "${pl.name} ${pl.description}".lowercase(Locale.ROOT)
-                pl.tracks.isNotEmpty() && (hay.contains(cleanQuery.lowercase(Locale.ROOT)) || tokens.all { hay.contains(it) })
+            val wantsRadioExtension = cleanAction in setOf("play_smart", "play_context", "play_radio") ||
+                lowerQuery.contains("radio") || lowerQuery.contains("ähnlich") || lowerQuery.contains("aehnlich") || lowerQuery.contains("weiter")
+
+            // 3a. Direct match on Playlist Name/Description OR (for 1..5 song playlists!) on the Song Title / Artist inside it!
+            val nonFavFirst = visiblePlaylists.sortedBy { if (isFavoritesPlaylist(it)) 1 else 0 }
+            val directPl = nonFavFirst.firstOrNull { pl ->
+                if (pl.tracks.isEmpty()) return@firstOrNull false
+                val metaHay = "${pl.name} ${pl.description}".lowercase(Locale.GERMAN)
+                val smallPlaylistTracksHay = if (!isFavoritesPlaylist(pl) && pl.tracks.size in 1..5) {
+                    pl.tracks.joinToString(" ") { "${it.title} ${it.artist}" }.lowercase(Locale.GERMAN)
+                } else {
+                    ""
+                }
+                val combinedHay = "$metaHay $smallPlaylistTracksHay".trim()
+                combinedHay.contains(lowerQuery) || tokens.all { combinedHay.contains(it) }
             }
-            if (matchedPl != null) {
+            if (directPl != null) {
+                val prof = profilesById[directPl.id] ?: analyzePlaylistSemanticProfile(directPl)
+                val isSingle = directPl.tracks.size == 1
+                val queue = if (isSingle && wantsRadioExtension) {
+                    expandSingleSongPlaylistQueue(directPl.tracks.first(), prof, consolidatedTracks)
+                } else {
+                    directPl.tracks
+                }
                 return FalconMusicMatchResult(
-                    tracks = matchedPl.tracks,
-                    playlistId = matchedPl.id,
-                    playlistName = matchedPl.name,
+                    tracks = queue,
+                    playlistId = directPl.id,
+                    playlistName = directPl.name,
                     shuffle = false,
-                    usedFallbackFavorites = false
+                    usedFallbackFavorites = false,
+                    matchedCluster = prof.primaryCluster,
+                    isSingleSongSeedMatch = isSingle,
+                    singleSongExtendedCount = (queue.size - directPl.tracks.size).coerceAtLeast(0)
                 )
             }
 
+            // 3b. Semantic Mood / Activity / Routine Cluster Match (e.g. "ruhige Musik", "Gute Laune", "Morgenroutine", "Rave", "Fokus")
+            val queryClusterScores = scoreTextAgainstMusicClusters("$lowerQuery ${routineContext.orEmpty()}", weight = 2)
+            val activeQueryClusters = queryClusterScores.entries
+                .filter { it.value > 0 }
+                .sortedByDescending { it.value }
+                .map { it.key }
+
+            if (activeQueryClusters.isNotEmpty()) {
+                val bestSemanticPlaylist = visiblePlaylists
+                    .filter { pl -> pl.tracks.isNotEmpty() && !isFavoritesPlaylist(pl) }
+                    .mapNotNull { pl ->
+                        val prof = profilesById[pl.id] ?: return@mapNotNull null
+                        val affinity = activeQueryClusters.mapIndexed { idx, cl ->
+                            val priorityMul = if (idx == 0) 2 else 1
+                            (prof.clusterScores[cl] ?: 0) * priorityMul
+                        }.sum()
+                        if (affinity > 0) Triple(pl, prof, affinity) else null
+                    }
+                    .maxWithOrNull(compareBy<Triple<MusicPlaylistDto, FalconPlaylistSemanticProfile, Int>> { it.third }
+                        .thenBy { if (it.first.tracks.size >= 2) 1 else 0 })
+
+                if (bestSemanticPlaylist != null) {
+                    val (chosenPl, prof, _) = bestSemanticPlaylist
+                    val isSingle = chosenPl.tracks.size == 1
+                    val queue = if (isSingle) {
+                        expandSingleSongPlaylistQueue(chosenPl.tracks.first(), prof, consolidatedTracks)
+                    } else {
+                        chosenPl.tracks
+                    }
+                    return FalconMusicMatchResult(
+                        tracks = queue,
+                        playlistId = chosenPl.id,
+                        playlistName = chosenPl.name,
+                        shuffle = !isSingle,
+                        usedFallbackFavorites = false,
+                        matchedCluster = activeQueryClusters.first(),
+                        isSingleSongSeedMatch = isSingle,
+                        singleSongExtendedCount = (queue.size - chosenPl.tracks.size).coerceAtLeast(0)
+                    )
+                }
+
+                // Track-level semantic pool when no dedicated playlist exists for that mood (prevents blasting Hardtekk on "ruhige Musik"!)
+                val primaryCluster = activeQueryClusters.first()
+                val semanticTracks = consolidatedTracks.filter { tr ->
+                    val tScores = scoreTextAgainstMusicClusters("${tr.title} ${tr.artist}")
+                    val posHit = (tScores[primaryCluster] ?: 0) > 0
+                    val hardConflict = primaryCluster in setOf("calm_evening", "focus_flow") &&
+                        ((tScores["rave_energy"] ?: 0) > 0 || (tScores["sport"] ?: 0) > 0)
+                    posHit && !hardConflict
+                }
+                if (semanticTracks.isNotEmpty()) {
+                    val label = when (primaryCluster) {
+                        "calm_evening" -> "Ruhige Auswahl"
+                        "focus_flow" -> "Fokus-Auswahl"
+                        "rave_energy" -> "Energie-Auswahl"
+                        else -> "Stimmungs-Auswahl"
+                    }
+                    return FalconMusicMatchResult(
+                        tracks = semanticTracks,
+                        playlistId = "all",
+                        playlistName = label,
+                        shuffle = true,
+                        usedFallbackFavorites = false,
+                        matchedCluster = primaryCluster
+                    )
+                }
+            }
+
+            // 3c. Direct Track / Artist search across consolidated library
             val matchedTracks = consolidatedTracks.filter { tr ->
-                val hay = "${tr.title} ${tr.artist}".lowercase(Locale.ROOT)
-                hay.contains(cleanQuery.lowercase(Locale.ROOT)) || tokens.all { hay.contains(it) }
+                val hay = "${tr.title} ${tr.artist}".lowercase(Locale.GERMAN)
+                hay.contains(lowerQuery) || tokens.all { hay.contains(it) }
             }
             if (matchedTracks.isNotEmpty()) {
                 return FalconMusicMatchResult(
@@ -848,7 +1241,64 @@ object FalconClientTools {
             }
         }
 
-        // Guaranteed immediate music fallback: Shuffle over favorites (or full library)
+        // 4. Contextual Time-of-Day / Routine Selection when query is empty or generic ("Mach Musik an", "Passende Musik")
+        if (isGenericOrEmptyQuery) {
+            val effectiveHour = if (currentHour in 0..23) {
+                currentHour
+            } else {
+                Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            }
+            val preferredClusters = resolveRoutineClusterForHour(effectiveHour, routineContext)
+            val isNightCalmWindow = effectiveHour >= 21 || effectiveHour in 0..5
+
+            val nonFavCandidates = visiblePlaylists.filter { pl ->
+                pl.tracks.isNotEmpty() &&
+                    !isFavoritesPlaylist(pl) &&
+                    pl.id != "local_offline_cache" &&
+                    pl.id != "device_media_music"
+            }
+
+            if (nonFavCandidates.isNotEmpty()) {
+                val scoredContextual = nonFavCandidates.mapNotNull { pl ->
+                    val prof = profilesById[pl.id] ?: analyzePlaylistSemanticProfile(pl)
+                    // Never auto-pick aggressive Rave/Workout playlists late at night unless explicitly requested
+                    if (isNightCalmWindow && prof.primaryCluster in setOf("rave_energy", "sport") &&
+                        (prof.clusterScores["calm_evening"] ?: 0) == 0
+                    ) {
+                        return@mapNotNull null
+                    }
+                    var ctxScore = 1
+                    preferredClusters.forEachIndexed { idx, cl ->
+                        val weight = if (idx == 0) 3 else 1
+                        ctxScore += (prof.clusterScores[cl] ?: 0) * weight
+                        if (prof.primaryCluster == cl) ctxScore += 4
+                    }
+                    Triple(pl, prof, ctxScore)
+                }.maxByOrNull { it.third }
+
+                if (scoredContextual != null) {
+                    val (chosenPl, prof, _) = scoredContextual
+                    val isSingle = chosenPl.tracks.size == 1
+                    val queue = if (isSingle) {
+                        expandSingleSongPlaylistQueue(chosenPl.tracks.first(), prof, consolidatedTracks)
+                    } else {
+                        chosenPl.tracks
+                    }
+                    return FalconMusicMatchResult(
+                        tracks = queue,
+                        playlistId = chosenPl.id,
+                        playlistName = chosenPl.name,
+                        shuffle = !isSingle,
+                        usedFallbackFavorites = false,
+                        matchedCluster = prof.primaryCluster,
+                        isSingleSongSeedMatch = isSingle,
+                        singleSongExtendedCount = (queue.size - chosenPl.tracks.size).coerceAtLeast(0)
+                    )
+                }
+            }
+        }
+
+        // 5. Final guaranteed fallback: Shuffle over favorites (or full library)
         val favorites = consolidatedTracks.filter { it.isFavorite }
         val fallbackPool = favorites.ifEmpty { consolidatedTracks }
         return FalconMusicMatchResult(
@@ -949,7 +1399,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_music_control")
                 addProperty(
                     "description",
-                    "Steuert sofort den lokalen Musikplayer auf Alinas Smartphone (Sportmusik, Playlist/Song-Suche, Pause, Weiter, Zurück, Shuffle, Lautstärke). Bestätige danach nur ultrakurz ohne Gegenfrage, da Funkira direkt in den Ruhemodus wechselt."
+                    "Steuert intelligent den lokalen Musikplayer auf Alinas Smartphone (kontext-/routinebasierte Auswahl, 1-Song-Playlist-Analyse & Seed-Wiedergabe, Sportmusik, Playlist/Song-Suche, Pause, Weiter, Zurück, Shuffle, Lautstärke). Bestätige bei Musikstart danach nur ultrakurz ohne Gegenfrage, da Funkira direkt in den Ruhemodus wechselt."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -958,12 +1408,22 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Aktion: play_sport, play_query, pause, resume, next, previous, shuffle, set_volume"
+                                "Aktion: play_smart, play_query, play_sport, analyze_playlist, list_playlists, pause, resume, next, previous, shuffle, set_volume"
                             )
                         })
                         add("query", JsonObject().apply {
                             addProperty("type", "STRING")
-                            addProperty("description", "Optionaler Suchbegriff für Playlist, Genre, Song oder Künstler.")
+                            addProperty(
+                                "description",
+                                "Optionaler Suchbegriff für Playlist (auch 1-Song-Playlists), Stimmung/Kontext (z. B. ruhig, Gute Laune, Morgenroutine, Fokus, Rave), Song oder Künstler."
+                            )
+                        })
+                        add("routine_context", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty(
+                                "description",
+                                "Optionaler aktueller Routine- oder Aktivitäts-Kontext (z. B. Morgenroutine, Manufaktur Verpacken, Büro Fokus, Feierabend, Nachtruhe)."
+                            )
                         })
                         add("volume_percent", JsonObject().apply {
                             addProperty("type", "INTEGER")
@@ -1012,7 +1472,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_smarthome_control")
                 addProperty(
                     "description",
-                    "Steuert Alinas Smart-Home-Steckdosen (KLAP v2), Connexoon Window Somfy Rollläden UND Geräte-Gruppen / Kombi-Befehle (z. B. Gruppenname oder 'Wohnzimmer und Terrassentür')."
+                    "Steuert direkt auf Alinas Smartphone ALLE Smart-Home-Geräte und Gruppen analog zur Funkenwerk Smart-Home-Sektion: Lichterketten & Steckdosen (KLAP v2, einzeln oder 'alle Lichterketten'), Connexoon Window Somfy Rollläden (einzeln, Kombi mit 'und' oder 'alle') sowie alle SmartHome-Gruppen (Steckdosen-Gruppen, Rollladen-Gruppen und gemischte Hybrid-Gruppen)."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -1021,14 +1481,14 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Aktion: turn_on, turn_off, toggle, turn_all_on, turn_all_off, shutter_open, shutter_close, shutter_stop, shutter_my, shutter_position, group_open, group_close, group_stop, group_my, group_position, group_on, group_off, list_devices"
+                                "Aktion: turn_on, turn_off, toggle, turn_all_on, turn_all_off, shutter_open, shutter_close, shutter_stop, shutter_my, shutter_position, group_open, group_close, group_stop, group_my, group_position, group_on, group_off, group_toggle, list_devices"
                             )
                         })
                         add("device_name", JsonObject().apply {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Name der Steckdose (z. B. Packtisch Warm Licht), des Rollladens (z. B. Wohnzimmer, Terrassentür, alle), einer Gruppe oder Kombi wie 'Wohnzimmer und Terrassentür'."
+                                "Name der Lichterkette/Steckdose (z. B. Lichterkette Fußleiste, Lichterkette Spiegel, alle Lichterketten, Packtisch Warm Licht), des Rollladens (z. B. Wohnzimmer, Terrassentür, alle), einer Gruppe oder Kombi wie 'Wohnzimmer und Terrassentür'."
                             )
                         })
                         add("position_percent", JsonObject().apply {
@@ -1165,6 +1625,107 @@ object FalconClientTools {
             })
         }
 
+        if ("falcon_stage_to_package" !in existing) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "falcon_stage_to_package")
+                addProperty(
+                    "description",
+                    "Sammelt eine oder mehrere destillierte Anforderungen (plus optional ein gerade aufgenommenes oder hinterlegtes Foto) in einem offenen Sammelpaket (Entwurf), OHNE es schon an Antigravity abzuschicken. Standard-Werkzeug zum Buendeln."
+                )
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject().apply {
+                        add("item", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Einzelne klar formulierte Anforderung fuer das Sammelpaket.")
+                        })
+                        add("items", JsonObject().apply {
+                            addProperty("type", "ARRAY")
+                            add("items", JsonObject().apply { addProperty("type", "STRING") })
+                            addProperty("description", "Optional mehrere Anforderungen auf einmal.")
+                        })
+                        add("package_uuid", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Optionale UUID eines bestehenden Sammelpakets zum Erweitern.")
+                        })
+                        add("package_title", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Optionaler Kurztitel des Sammelpakets.")
+                        })
+                        add("channel", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Ziel-Kanal: leitung, shop, android, minipc oder buchhaltung.")
+                        })
+                        add("execution_mode", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "concept (Erst Konzept) oder direct (Direkt umsetzen).")
+                        })
+                        add("attach_captured_photo", JsonObject().apply {
+                            addProperty("type", "BOOLEAN")
+                            addProperty("description", "True, um ein hinterlegtes oder gerade aufgenommenes Foto direkt ins Sammelpaket zu legen.")
+                        })
+                    })
+                    add("required", JsonArray().apply { add("item") })
+                })
+            })
+        }
+
+        if ("falcon_list_draft_packages" !in existing) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "falcon_list_draft_packages")
+                addProperty(
+                    "description",
+                    "Listet alle offenen Sammelpakete (Entwuerfe) inklusive Titel, Kanal, gesammelten Punkten und Foto-Anzahl auf."
+                )
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject())
+                })
+            })
+        }
+
+        if ("falcon_release_package" !in existing) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "falcon_release_package")
+                addProperty(
+                    "description",
+                    "Gibt ein fertiges Sammelpaket geschlossen frei und sendet es als EINEN gebuendelten Master-Auftrag inklusive angehaengter Fotos an Antigravity. Nur auf Alinas ausdruecklichen Absende-Befehl aufrufen."
+                )
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject().apply {
+                        add("package_uuid", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "UUID des Sammelpakets (leer lassen fuer das neueste offene Sammelpaket).")
+                        })
+                        add("execution_mode", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Optionaler Modus: concept oder direct.")
+                        })
+                    })
+                })
+            })
+        }
+
+        if ("falcon_get_recent_memory" !in existing) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "falcon_get_recent_memory")
+                addProperty(
+                    "description",
+                    "Laedt die neuesten gespeicherten Gespraechsverlaeufe, Kernfakten und das exakte letzte Thema aus Funkiras lokalem Kurzzeitgedaechtnis."
+                )
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject().apply {
+                        add("limit", JsonObject().apply {
+                            addProperty("type", "INTEGER")
+                            addProperty("description", "Anzahl der letzten Gespraechs-Turns (Standard 12).")
+                        })
+                    })
+                })
+            })
+        }
+
         if ("falcon_app_navigate" !in existing) {
             decls.add(JsonObject().apply {
                 addProperty("name", "falcon_app_navigate")
@@ -1233,16 +1794,21 @@ object FalconClientTools {
             }
 
             "falcon_music_control" -> {
-                val action = args.optString("action").ifBlank { "resume" }.lowercase(Locale.ROOT)
-                val query = args.optString("query")
+                val action = args.optString("action").ifBlank { "play_smart" }.lowercase(Locale.ROOT)
+                val query = args.optString("query").trim()
+                val routineCtx = args.optString("routine_context").trim().ifBlank { null }
                 val volPercent = args.optInt("volume_percent", -1)
 
                 withContext(Dispatchers.Main.immediate) {
                     MusicPlayerManager.ensureCatalogLoadedFast(appCtx)
                 }
 
-                val musicRes = when (action) {
-                    "pause", "stop" -> {
+                val isPureResume = action == "resume" ||
+                    (action == "play" && query.isBlank() && routineCtx == null &&
+                        MusicPlayerManager.currentTrack.value != null && !MusicPlayerManager.isPlaying.value)
+
+                val musicRes = when {
+                    action in setOf("pause", "stop") -> {
                         withContext(Dispatchers.Main.immediate) {
                             MusicPlayerManager.pauseIfPlaying(appCtx)
                         }
@@ -1253,7 +1819,7 @@ object FalconClientTools {
                         }
                     }
 
-                    "resume", "play" -> {
+                    isPureResume -> {
                         withContext(Dispatchers.Main.immediate) {
                             MusicPlayerManager.resumeOrStart(appCtx)
                         }
@@ -1264,7 +1830,7 @@ object FalconClientTools {
                         }
                     }
 
-                    "next", "skip" -> {
+                    action in setOf("next", "skip") -> {
                         withContext(Dispatchers.Main.immediate) {
                             MusicPlayerManager.playNext(appCtx)
                         }
@@ -1275,7 +1841,7 @@ object FalconClientTools {
                         }
                     }
 
-                    "previous", "prev", "back" -> {
+                    action in setOf("previous", "prev", "back") -> {
                         withContext(Dispatchers.Main.immediate) {
                             MusicPlayerManager.playPrevious(appCtx)
                         }
@@ -1286,7 +1852,7 @@ object FalconClientTools {
                         }
                     }
 
-                    "shuffle" -> {
+                    action == "shuffle" -> {
                         withContext(Dispatchers.Main.immediate) {
                             MusicPlayerManager.setShuffleEnabled(appCtx, true)
                             if (!MusicPlayerManager.isPlaying.value) {
@@ -1302,7 +1868,7 @@ object FalconClientTools {
                         }
                     }
 
-                    "set_volume", "volume" -> {
+                    action in setOf("set_volume", "volume") -> {
                         val applied = MusicPlayerManager.setUserVolumePercent(
                             appCtx,
                             if (volPercent in 0..100) volPercent else 70
@@ -1314,8 +1880,59 @@ object FalconClientTools {
                         }
                     }
 
+                    action in setOf("analyze_playlist", "list_playlists", "inspect_playlist") -> {
+                        var playlists = MusicPlayerManager.playlists.value
+                        var allTracks = MusicPlayerManager.allTracks.value
+                        if (playlists.isEmpty()) {
+                            val loaded = kotlinx.coroutines.CompletableDeferred<Unit>()
+                            withContext(Dispatchers.Main.immediate) {
+                                MusicPlayerManager.fetchPlaylists(appCtx) { loaded.complete(Unit) }
+                            }
+                            withTimeoutOrNull(1800L) { loaded.await() }
+                            playlists = MusicPlayerManager.playlists.value
+                            allTracks = MusicPlayerManager.allTracks.value
+                        }
+                        val visible = playlists.filterNot { it.name.equals("__FUNKENWERK_FAV_SYNC__", ignoreCase = true) }
+                        val filtered = if (query.isNotBlank()) {
+                            val lq = query.lowercase(Locale.GERMAN)
+                            visible.filter { pl ->
+                                "${pl.name} ${pl.description}".lowercase(Locale.GERMAN).contains(lq) ||
+                                    pl.tracks.any { "${it.title} ${it.artist}".lowercase(Locale.GERMAN).contains(lq) }
+                            }.ifEmpty { visible }
+                        } else {
+                            visible
+                        }
+                        val consolidated = if (allTracks.isNotEmpty()) allTracks else visible.flatMap { it.tracks }.distinctBy { it.id }
+                        val plArr = JsonArray()
+                        filtered.forEach { pl ->
+                            val prof = analyzePlaylistSemanticProfile(pl)
+                            plArr.add(JsonObject().apply {
+                                addProperty("id", pl.id)
+                                addProperty("name", pl.name)
+                                addProperty("track_count", pl.tracks.size)
+                                addProperty("is_single_song_playlist", prof.isSingleSongPlaylist)
+                                addProperty("primary_vibe", prof.primaryCluster)
+                                if (prof.seedTrackSummary != null) {
+                                    addProperty("seed_summary", prof.seedTrackSummary)
+                                }
+                                if (prof.isSingleSongPlaylist && pl.tracks.isNotEmpty()) {
+                                    val companions = expandSingleSongPlaylistQueue(pl.tracks.first(), prof, consolidated, maxExtra = 5).drop(1)
+                                    add("recommended_companion_tracks", JsonArray().apply {
+                                        companions.forEach { add("${it.title} (${it.artist})") }
+                                    })
+                                }
+                            })
+                        }
+                        return JsonObject().apply {
+                            addProperty("status", "success")
+                            addProperty("action", action)
+                            addProperty("auto_standby", false)
+                            add("playlists", plArr)
+                        }
+                    }
+
                     else -> {
-                        // play_sport or play_query
+                        // play, play_smart, play_context, play_sport, play_query, play_radio
                         var playlists = MusicPlayerManager.playlists.value
                         var allTracks = MusicPlayerManager.allTracks.value
 
@@ -1335,7 +1952,13 @@ object FalconClientTools {
                             }
                         }
 
-                        val match = matchMusicForFalcon(playlists, allTracks, action, query)
+                        val match = matchMusicForFalcon(
+                            playlists = playlists,
+                            allTracks = allTracks,
+                            action = action,
+                            query = query,
+                            routineContext = routineCtx
+                        )
                         val startedTrack = if (match.tracks.isNotEmpty()) {
                             withContext(Dispatchers.Main.immediate) {
                                 MusicPlayerManager.playQueueFromFalcon(
@@ -1357,6 +1980,11 @@ object FalconClientTools {
                             addProperty("artist", startedTrack?.artist ?: "")
                             addProperty("shuffle", match.shuffle)
                             addProperty("used_favorites_fallback", match.usedFallbackFavorites)
+                            if (match.matchedCluster != null) addProperty("matched_vibe", match.matchedCluster)
+                            addProperty("is_single_song_playlist", match.isSingleSongSeedMatch)
+                            if (match.singleSongExtendedCount > 0) {
+                                addProperty("single_song_companion_tracks_added", match.singleSongExtendedCount)
+                            }
                         }
                     }
                 }
@@ -1464,17 +2092,20 @@ object FalconClientTools {
                 val checklist = args.optStringList("checklist")
                 val rawMode = args.optString("execution_mode")
                 val isVoiceDirect = AgDirectInboxManager.isVoiceDirectExecutionEnabled(appCtx)
-                val mode = if (isVoiceDirect || rawMode.trim().lowercase(Locale.ROOT) == "direct") {
-                    "direct"
-                } else {
-                    AgDirectInboxManager.normalizeExecutionMode(rawMode)
+                val explicitConceptOverride = hasExplicitConceptIntent(title, body)
+                val mode = when {
+                    explicitConceptOverride -> "concept"
+                    isVoiceDirect || rawMode.trim().lowercase(Locale.ROOT) == "direct" -> "direct"
+                    else -> AgDirectInboxManager.normalizeExecutionMode(rawMode)
                 }
                 val channel = AgDirectInboxManager.normalizeChannel(args.optString("channel"))
                 val explicitAttach = args.optNullableBoolean("attach_captured_photo")
 
+                val pooledSnapshot = if (explicitAttach != false) FalconCameraController.mediaPoolFlow.value else emptyList()
                 val stagedAttachment = AgDirectInboxManager.getActiveStagedAttachment()
                 val currentPhoto = FalconCameraController.lastCapturedPhoto.value
                 val preparedAttachment = when {
+                    pooledSnapshot.isNotEmpty() -> pooledSnapshot.first()
                     stagedAttachment != null -> stagedAttachment
                     shouldAttachCapturedPhoto(
                         explicitAttachFlag = explicitAttach,
@@ -1499,6 +2130,19 @@ object FalconClientTools {
                     channel = channel,
                     apiOverride = agApiOverride
                 )
+                if (pooledSnapshot.size > 1) {
+                    pooledSnapshot.drop(1).forEachIndexed { idx, extraAtt ->
+                        AgDirectInboxManager.submitMessage(
+                            context = appCtx,
+                            rawText = "${title.ifBlank { "Direktauftrag" }} (Medien-Anhang #${idx + 2}/${pooledSnapshot.size})\n${extraAtt.fileName}",
+                            checklist = emptyList(),
+                            executionMode = mode,
+                            attachment = extraAtt,
+                            channel = channel,
+                            apiOverride = agApiOverride
+                        )
+                    }
+                }
                 if (preparedAttachment != null) {
                     FalconCameraController.markLastPhotoAttached()
                 }
@@ -1524,11 +2168,12 @@ object FalconClientTools {
             }
 
             "falcon_check_antigravity_status" -> {
-                withTimeoutOrNull(4500L) {
-                    AgDirectInboxManager.syncAll(appCtx, apiOverride = agApiOverride)
+                withTimeoutOrNull(1800L) {
+                    AgDirectInboxManager.syncIfStale(appCtx, maxAgeMs = 2500L, apiOverride = agApiOverride)
                 } ?: AgDirectInboxManager.hydrateLocalState(appCtx)
 
-                val recent = AgDirectInboxManager.itemsFlow.value.take(5)
+                val rt = AgDirectInboxManager.realtimeStatusFlow.value
+                val recent = AgDirectInboxManager.itemsFlow.value.take(6)
                 val itemsArr = JsonArray()
                 recent.forEach { item ->
                     itemsArr.add(JsonObject().apply {
@@ -1536,6 +2181,8 @@ object FalconClientTools {
                         addProperty("title", item.title)
                         addProperty("status", item.status.badgeLabel)
                         addProperty("status_code", item.status.code)
+                        addProperty("is_actively_working", item.status in setOf(AgDirectStatus.QUEUED, AgDirectStatus.PENDING, AgDirectStatus.DELIVERED))
+                        addProperty("is_waiting_for_go", item.status == AgDirectStatus.AWAITING_GO)
                         addProperty("execution_mode", item.executionMode)
                         addProperty("channel", item.channel)
                         addProperty("channel_label", AgDirectInboxManager.resolveChannelEnum(item.channel).chipLabel)
@@ -1547,7 +2194,10 @@ object FalconClientTools {
                 JsonObject().apply {
                     addProperty("status", "success")
                     addProperty("open_count", AgDirectInboxManager.openCountFlow.value)
+                    addProperty("working_count", rt.activeWorkingCount)
                     addProperty("pending_blockades_count", AgDirectInboxManager.pendingBlockadesFlow.value.size)
+                    addProperty("primary_state", rt.primaryState)
+                    addProperty("status_headline", rt.activeHeadline)
                     add("items", itemsArr)
                 }
             }
@@ -1593,6 +2243,146 @@ object FalconClientTools {
                 }
             }
 
+            "falcon_stage_to_package" -> {
+                val singleItem = args.optString("item").trim()
+                val multiItems = args.optStringList("items")
+                val pkgUuid = args.optString("package_uuid").trim().takeIf { it.isNotBlank() }
+                val pkgTitle = args.optString("package_title").trim().takeIf { it.isNotBlank() }
+                val channel = AgDirectInboxManager.normalizeChannel(args.optString("channel"))
+                val rawMode = args.optString("execution_mode")
+                val mode = if (rawMode.isNotBlank()) rawMode else "concept"
+                val explicitAttach = args.optNullableBoolean("attach_captured_photo")
+
+                val pooledItems = if (explicitAttach != false) FalconCameraController.mediaPoolFlow.value else emptyList()
+                val stagedAttachment = AgDirectInboxManager.getActiveStagedAttachment()
+                val currentPhoto = FalconCameraController.lastCapturedPhoto.value
+                val attachmentToPack = when {
+                    pooledItems.isNotEmpty() -> pooledItems.first()
+                    stagedAttachment != null && explicitAttach != false -> stagedAttachment
+                    shouldAttachCapturedPhoto(
+                        explicitAttachFlag = explicitAttach,
+                        photo = currentPhoto,
+                        currentSessionId = chatSessionId
+                    ) && currentPhoto != null -> currentPhoto.toPreparedAgAttachment()
+                    else -> null
+                }
+
+                var stagedPkg = FunkiraPackageStore.stageRequirement(
+                    context = appCtx,
+                    item = singleItem.takeIf { it.isNotBlank() },
+                    items = multiItems,
+                    packageUuid = pkgUuid,
+                    packageTitle = pkgTitle,
+                    channel = channel,
+                    executionMode = mode,
+                    attachment = attachmentToPack,
+                    attachmentCaption = singleItem.ifBlank { pkgTitle.orEmpty() },
+                    source = "live_call"
+                )
+                if (stagedPkg != null && pooledItems.size > 1) {
+                    for (extraAtt in pooledItems.drop(1)) {
+                        stagedPkg = FunkiraPackageStore.attachMediaToPackage(
+                            context = appCtx,
+                            attachment = extraAtt,
+                            caption = extraAtt.fileName,
+                            packageUuid = stagedPkg!!.uuid,
+                            channel = channel
+                        ) ?: stagedPkg
+                    }
+                    FalconCameraController.markLastPhotoAttached()
+                }
+                if (stagedPkg == null) {
+                    JsonObject().apply {
+                        addProperty("status", "error")
+                        addProperty("message", "Mindestens ein Punkt, Titel oder Foto wird fuer das Sammelpaket benoetigt.")
+                    }
+                } else {
+                    JsonObject().apply {
+                        addProperty("status", "success")
+                        addProperty("uuid", stagedPkg.uuid)
+                        addProperty("title", stagedPkg.title)
+                        addProperty("channel", stagedPkg.channel)
+                        addProperty("execution_mode", stagedPkg.executionMode)
+                        addProperty("item_count", stagedPkg.checklist.size)
+                        addProperty("attachment_count", stagedPkg.attachmentCount)
+                        addProperty("photo_attached", attachmentToPack != null)
+                        addProperty(
+                            "reply_rule",
+                            "Bestaetige kurz einmalig, dass der Punkt im Sammelpaket liegt, und frage genau EINMAL ob weiter gesammelt oder abgesendet werden soll. Nicht wiederholen."
+                        )
+                    }
+                }
+            }
+
+            "falcon_list_draft_packages" -> {
+                val drafts = FunkiraPackageStore.hydrate(appCtx)
+                val arr = JsonArray()
+                drafts.take(8).forEach { pkg ->
+                    val itemsArr = JsonArray().apply { pkg.checklist.forEach { add(it) } }
+                    arr.add(JsonObject().apply {
+                        addProperty("uuid", pkg.uuid)
+                        addProperty("title", pkg.title)
+                        addProperty("channel", pkg.channel)
+                        addProperty("execution_mode", pkg.executionMode)
+                        addProperty("item_count", pkg.checklist.size)
+                        addProperty("attachment_count", pkg.attachmentCount)
+                        add("items", itemsArr)
+                    })
+                }
+                JsonObject().apply {
+                    addProperty("status", "success")
+                    addProperty("count", drafts.size)
+                    add("packages", arr)
+                }
+            }
+
+            "falcon_release_package" -> {
+                val pkgUuid = args.optString("package_uuid").trim().takeIf { it.isNotBlank() }
+                val rawMode = args.optString("execution_mode").trim().takeIf { it.isNotBlank() }
+                val rel = FunkiraPackageStore.releasePackage(
+                    context = appCtx,
+                    packageUuid = pkgUuid,
+                    executionModeOverride = rawMode,
+                    apiOverride = agApiOverride
+                )
+                JsonObject().apply {
+                    addProperty("status", if (rel.ok) "success" else "error")
+                    addProperty("sent_live", rel.sentLive)
+                    addProperty("title", rel.packageTitle)
+                    addProperty("item_count", rel.itemCount)
+                    addProperty("attachment_count", rel.attachmentCount)
+                    addProperty("channel", rel.channel)
+                    addProperty("message", rel.message)
+                    if (rel.ok) {
+                        addProperty(
+                            "reply_rule",
+                            "Bestaetige GENAU EINMAL ultrakurz ('Erledigt, Alina! Sammelpaket ist raus.') und schweige sofort danach."
+                        )
+                    }
+                }
+            }
+
+            "falcon_get_recent_memory" -> {
+                val limit = args.optInt("limit", 12).coerceIn(1, FunkiraLocalMemoryStore.MAX_RAW_TURNS)
+                val snap = FunkiraLocalMemoryStore.hydrate(appCtx)
+                val arr = JsonArray()
+                snap.turns.takeLast(limit).forEach { turn ->
+                    arr.add(JsonObject().apply {
+                        addProperty("role", turn.role)
+                        addProperty("mode", turn.mode)
+                        addProperty("time", turn.timeShort)
+                        addProperty("text", turn.body.take(240))
+                    })
+                }
+                JsonObject().apply {
+                    addProperty("status", "success")
+                    addProperty("memory_count", snap.memoryCount)
+                    addProperty("last_topic_summary", snap.lastTopicSummary)
+                    addProperty("rolling_digest", snap.rollingDigest)
+                    add("recent_turns", arr)
+                }
+            }
+
             "falcon_smarthome_control" -> {
                 val rawAction = args.optString("action").trim().lowercase(Locale.ROOT)
                 val deviceQuery = args.optString("device_name").trim()
@@ -1632,12 +2422,12 @@ object FalconClientTools {
                     "toggle", "umschalten", "wechseln", "plug_toggle" -> "toggle"
                     "all_on", "alle_an", "turn_all_on" -> "turn_all_on"
                     "all_off", "alle_aus", "turn_all_off" -> "turn_all_off"
-                    "open", "up", "hoch", "auf", "oeffnen", "shutter_open" -> "shutter_open"
-                    "close", "down", "runter", "zu", "schliessen", "shutter_close" -> "shutter_close"
+                    "open", "up", "hoch", "auf", "oeffnen", "öffnen", "shutter_open" -> "shutter_open"
+                    "close", "down", "runter", "zu", "schliessen", "schließen", "shutter_close" -> "shutter_close"
                     "stop", "halt", "stopp", "shutter_stop" -> "shutter_stop"
-                    "my", "favorit", "shutter_my" -> "shutter_my"
-                    "position", "set_position", "shutter_position" -> "shutter_position"
-                    "group_open", "group_close", "group_stop", "group_my", "group_position", "group_on", "group_off" -> rawAction
+                    "my", "fav", "favorit", "shutter_my" -> "shutter_my"
+                    "position", "set_position", "setclosure", "shutter_position" -> "shutter_position"
+                    "group_open", "group_close", "group_stop", "group_my", "group_position", "group_on", "group_off", "group_toggle" -> rawAction
                     "list", "status", "devices", "list_devices" -> "list_devices"
                     else -> if (rawAction.isBlank()) "list_devices" else rawAction
                 }
@@ -1692,77 +2482,138 @@ object FalconClientTools {
                     }
                 }
 
-                val matchedGroup = findMatchingSmartHomeGroup(savedGroups, deviceQuery)
-                val isExplicitShutterOrGroupAction = normalizedAction.startsWith("shutter_") || normalizedAction.startsWith("group_")
-                val matchedShuttersForQuery = matchSmartShutters(savedShutters, deviceQuery)
-                val looksLikeShutterRoomQuery = normalizeSmartHomeTargetKey(deviceQuery).let { nk ->
-                    nk.contains("rolladen") || nk.contains("wohnzimmer") || nk.contains("terasse") ||
-                        nk.contains("schlafzimmer") || nk.contains("connexoon") || nk.contains("somfy")
+                suspend fun runShutters(
+                    shutterAct: String,
+                    shutterTarget: String,
+                    targets: List<SmartShutterDevice>,
+                    pos: Int?
+                ): Pair<Boolean, String> {
+                    return if (smartHomeRelayExecutorOverride != null) {
+                        smartHomeRelayExecutorOverride(shutterAct, shutterTarget, pos)
+                    } else {
+                        FunkenwerkAlarmManager.executeShuttersOrRelaySuspend(appCtx, shutterAct, shutterTarget, targets, pos)
+                    }
                 }
 
-                // 1. Handle Group or Connexoon Shutter commands (and hybrid groups with both plugs + shutters!)
-                if (isExplicitShutterOrGroupAction ||
-                    (matchedGroup != null && (matchedGroup.shutterTargets.isNotEmpty() || normalizedAction.startsWith("group_"))) ||
-                    (matchedGroup == null && matchSmartHomePlugsWithGroupsAndCompounds(savedDevices, savedGroups, deviceQuery).isEmpty() &&
-                        (matchedShuttersForQuery.isNotEmpty() || looksLikeShutterRoomQuery))
+                suspend fun runPlugsLocal(plugAct: String, plugs: List<SmartPlugDevice>): Pair<Boolean, String> {
+                    val ips = plugs.map { it.ip }
+                    return if (smartHomeExecutorOverride != null) {
+                        smartHomeExecutorOverride(plugAct, ips)
+                    } else {
+                        when (plugAct) {
+                            "turn_on", "turn_all_on", "group_on" ->
+                                FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, ips, turnOn = true)
+                            "turn_off", "turn_all_off", "group_off" ->
+                                FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, ips, turnOn = false)
+                            else ->
+                                FunkenwerkAlarmManager.toggleSmartPlugsSuspend(appCtx, ips)
+                        }
+                    }
+                }
+
+                val matchedGroup = findMatchingSmartHomeGroup(savedGroups, deviceQuery)
+                val groupHasShutters = matchedGroup != null && matchedGroup.shutterTargets.isNotEmpty()
+                val groupHasPlugs = matchedGroup != null && matchedGroup.plugTargets.isNotEmpty()
+                val isPlugOnlyGroup = matchedGroup != null && groupHasPlugs && !groupHasShutters
+
+                val groupResolvedShutters = if (matchedGroup != null && matchedGroup.shutterTargets.isNotEmpty()) {
+                    val map = LinkedHashMap<String, SmartShutterDevice>()
+                    for (st in matchedGroup.shutterTargets) {
+                        matchSmartShutters(savedShutters, st).forEach { s -> map[s.deviceUrl.ifBlank { s.label }] = s }
+                    }
+                    map.values.toList()
+                } else {
+                    emptyList()
+                }
+
+                val matchedShuttersForQuery = if (matchedGroup != null) {
+                    groupResolvedShutters
+                } else {
+                    matchSmartShutters(savedShutters, deviceQuery)
+                }
+
+                val matchedPlugsForQuery = matchSmartHomePlugsWithGroupsAndCompounds(savedDevices, savedGroups, deviceQuery)
+                val looksLikeShutterRoomQuery = normalizeSmartHomeTargetKey(deviceQuery).let { nk ->
+                    nk.contains("rolladen") || nk.contains("wohnzimmer") || nk.contains("terasse") ||
+                        nk.contains("schlafzimmer") || nk.contains("connexoon") || nk.contains("somfy") ||
+                        nk.contains("markise") || nk.contains("dachfenster")
+                }
+                val isExplicitShutterAction = normalizedAction.startsWith("shutter_")
+                val isMixedCompoundQuery = matchedGroup == null &&
+                    splitCompoundSmartHomeTargets(deviceQuery).size > 1 &&
+                    matchedPlugsForQuery.isNotEmpty() &&
+                    matchedShuttersForQuery.isNotEmpty()
+
+                // 1. Handle Shutter, Shutter-Group, Hybrid-Group (Plugs + Shutters), or Mixed Compound commands!
+                //    Note: Plug-only groups (e.g. 'Abendlicht' / 'Lichterketten') route directly to Step 2 even for group_on/group_off!
+                if (!isPlugOnlyGroup && (
+                        isExplicitShutterAction ||
+                            groupHasShutters ||
+                            isMixedCompoundQuery ||
+                            (matchedGroup == null && matchedPlugsForQuery.isEmpty() && (matchedShuttersForQuery.isNotEmpty() || looksLikeShutterRoomQuery))
+                        )
                 ) {
                     val effectiveAction = when {
-                        normalizedAction in setOf("turn_on", "group_on") && matchedGroup != null && matchedGroup.shutterTargets.isNotEmpty() && matchedGroup.plugTargets.isEmpty() ->
-                            "group_open"
-                        normalizedAction in setOf("turn_off", "group_off") && matchedGroup != null && matchedGroup.shutterTargets.isNotEmpty() && matchedGroup.plugTargets.isEmpty() ->
-                            "group_close"
-                        normalizedAction == "turn_on" && !isExplicitShutterOrGroupAction -> "shutter_open"
-                        normalizedAction == "turn_off" && !isExplicitShutterOrGroupAction -> "shutter_close"
+                        matchedGroup != null && normalizedAction in setOf("turn_on", "group_on", "shutter_open", "group_open") -> "group_open"
+                        matchedGroup != null && normalizedAction in setOf("turn_off", "group_off", "shutter_close", "group_close") -> "group_close"
+                        matchedGroup != null && normalizedAction in setOf("toggle", "group_toggle") -> {
+                            val avgClosure = if (groupResolvedShutters.isNotEmpty()) groupResolvedShutters.map { it.closurePercent }.average() else 100.0
+                            if (avgClosure >= 50.0) "group_open" else "group_close"
+                        }
                         matchedGroup != null && normalizedAction.startsWith("shutter_") ->
                             normalizedAction.replaceFirst("shutter_", "group_")
+                        normalizedAction == "turn_on" -> "shutter_open"
+                        normalizedAction == "turn_off" -> "shutter_close"
+                        normalizedAction == "toggle" -> {
+                            val avgClosure = if (matchedShuttersForQuery.isNotEmpty()) matchedShuttersForQuery.map { it.closurePercent }.average() else 100.0
+                            if (avgClosure >= 50.0) "shutter_open" else "shutter_close"
+                        }
                         else -> normalizedAction
                     }
 
                     var localPlugSummary: String? = null
                     var localPlugOk = false
-                    if (matchedGroup != null && matchedGroup.plugTargets.isNotEmpty() &&
-                        effectiveAction in setOf("group_on", "group_off", "turn_on", "turn_off", "group_open", "group_close")
+                    val plugsToAlsoSwitch = when {
+                        groupHasPlugs -> matchedPlugsForQuery
+                        isMixedCompoundQuery -> matchedPlugsForQuery
+                        else -> emptyList()
+                    }
+                    if (plugsToAlsoSwitch.isNotEmpty() &&
+                        normalizedAction in setOf("group_on", "group_off", "group_toggle", "turn_on", "turn_off", "toggle", "group_open", "group_close", "shutter_open", "shutter_close")
                     ) {
-                        val grpPlugs = matchSmartHomePlugsWithGroupsAndCompounds(savedDevices, savedGroups, matchedGroup.name)
-                        if (grpPlugs.isNotEmpty()) {
-                            val plugTurnOn = effectiveAction in setOf("group_on", "turn_on", "group_open")
-                            val plugAct = if (plugTurnOn) "turn_on" else "turn_off"
-                            val (pOk, pMsg) = if (smartHomeExecutorOverride != null) {
-                                smartHomeExecutorOverride(plugAct, grpPlugs.map { it.ip })
-                            } else {
-                                FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, grpPlugs.map { it.ip }, turnOn = plugTurnOn)
-                            }
-                            localPlugOk = pOk
-                            localPlugSummary = pMsg
+                        val plugAct = when (normalizedAction) {
+                            "group_on", "turn_on", "group_open", "shutter_open" -> "turn_on"
+                            "group_off", "turn_off", "group_close", "shutter_close" -> "turn_off"
+                            else -> "toggle"
                         }
+                        val (pOk, pMsg) = runPlugsLocal(plugAct, plugsToAlsoSwitch)
+                        localPlugOk = pOk
+                        localPlugSummary = pMsg
                     }
 
-                    val relayTarget = matchedGroup?.name ?: deviceQuery.ifBlank { "alle" }
+                    val shutterTargetName = matchedGroup?.name ?: deviceQuery.ifBlank { "alle" }
                     val effectivePos = if (effectiveAction in setOf("shutter_position", "group_position")) {
                         (positionPercent ?: 50).coerceIn(0, 100)
                     } else {
                         positionPercent
                     }
 
-                    val needsRelay = matchedGroup == null || matchedGroup.shutterTargets.isNotEmpty() || !localPlugOk
-                    val (relayOk, relayMsg) = if (needsRelay) {
-                        runRelay(effectiveAction, relayTarget, effectivePos)
-                    } else {
-                        Pair(true, localPlugSummary ?: "Gruppe '${matchedGroup?.name}' geschaltet.")
-                    }
-
-                    val combinedOk = localPlugOk || relayOk
+                    val (shutterOk, shutterMsg) = runShutters(effectiveAction, shutterTargetName, matchedShuttersForQuery, effectivePos)
+                    val combinedOk = localPlugOk || shutterOk
                     val combinedMsg = listOfNotNull(
-                        localPlugSummary?.takeIf { localPlugOk && needsRelay },
-                        relayMsg
-                    ).joinToString(" · ").ifBlank { relayMsg }
+                        localPlugSummary?.takeIf { localPlugOk },
+                        shutterMsg
+                    ).joinToString(" · ").ifBlank { shutterMsg }
 
                     return JsonObject().apply {
                         addProperty("status", if (combinedOk) "success" else "error")
                         addProperty("action", effectiveAction)
-                        addProperty("target", relayTarget)
+                        addProperty("target", shutterTargetName)
                         if (effectivePos != null) addProperty("position_percent", effectivePos)
                         if (matchedGroup != null) addProperty("matched_group", matchedGroup.name)
+                        if (plugsToAlsoSwitch.isNotEmpty()) {
+                            add("switched_devices", JsonArray().apply { plugsToAlsoSwitch.forEach { add(it.name) } })
+                        }
                         add("available_devices", availableArr)
                         add("available_shutters", availableShuttersArr)
                         add("available_groups", availableGroupsArr)
@@ -1770,57 +2621,59 @@ object FalconClientTools {
                     }
                 }
 
-                // 2. Handle Smart Plugs (single, 'alle', compound 'Packtisch und Spiegel', or Plug-only Group!)
-                val targetDevices = when (normalizedAction) {
-                    "turn_all_on", "turn_all_off" -> savedDevices
-                    else -> matchSmartHomePlugsWithGroupsAndCompounds(savedDevices, savedGroups, deviceQuery)
+                // 2. Handle Smart Plugs & Lichterketten (single, 'alle Lichterketten', 'alle', compound 'Packtisch und Spiegel', or Plug-only Group!)
+                val effectivePlugAction = when (normalizedAction) {
+                    "group_on", "group_open" -> "turn_on"
+                    "group_off", "group_close" -> "turn_off"
+                    "group_toggle" -> "toggle"
+                    else -> normalizedAction
+                }
+                val normTargetKey = normalizeSmartHomeTargetKey(deviceQuery)
+                val isGlobalAllPlugs = normTargetKey.isEmpty() || normTargetKey in setOf(
+                    "alle", "alles", "beide", "beiden", "alle steckdosen", "alle lichter", "alle lampen", "alle geraete", "ueberall", "komplett"
+                )
+                val targetDevices = when (effectivePlugAction) {
+                    "turn_all_on", "turn_all_off" -> {
+                        if (isGlobalAllPlugs) {
+                            savedDevices
+                        } else {
+                            matchedPlugsForQuery.ifEmpty { savedDevices }
+                        }
+                    }
+                    else -> if (isGlobalAllPlugs && deviceQuery.isNotBlank()) savedDevices else matchedPlugsForQuery
                 }
 
                 if (targetDevices.isEmpty()) {
                     return JsonObject().apply {
                         addProperty("status", "not_found")
-                        addProperty("action", normalizedAction)
+                        addProperty("action", effectivePlugAction)
                         addProperty("requested_device", deviceQuery)
                         add("available_devices", availableArr)
                         add("available_shutters", availableShuttersArr)
                         add("available_groups", availableGroupsArr)
                         addProperty(
                             "message",
-                            "Kein Smart-Home-Gerät oder keine Gruppe passend zu '$deviceQuery' gefunden. Steckdosen: ${savedDevices.joinToString(", ") { it.name }}." +
+                            "Kein Smart-Home-Gerät oder keine Gruppe passend zu '$deviceQuery' gefunden. Lichterketten & Steckdosen: ${savedDevices.joinToString(", ") { it.name }}." +
                                 (if (savedShutters.isNotEmpty()) " Rollläden: ${savedShutters.joinToString(", ") { it.label }}." else "") +
                                 (if (savedGroups.isNotEmpty()) " Gruppen: ${savedGroups.joinToString(", ") { it.name }}." else "")
                         )
                     }
                 }
 
-                val targetIps = targetDevices.map { it.ip }
                 val switchedNames = JsonArray().apply {
                     targetDevices.forEach { add(it.name) }
                 }
 
-                var (anySuccess, summary) = if (smartHomeExecutorOverride != null) {
-                    smartHomeExecutorOverride(normalizedAction, targetIps)
-                } else {
-                    when (normalizedAction) {
-                        "turn_on", "turn_all_on" ->
-                            FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, targetIps, turnOn = true)
-                        "turn_off", "turn_all_off" ->
-                            FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, targetIps, turnOn = false)
-                        "toggle" ->
-                            FunkenwerkAlarmManager.toggleSmartPlugsSuspend(appCtx, targetIps)
-                        else ->
-                            Pair(false, "Unbekannte Smart-Home-Aktion: $normalizedAction")
-                    }
-                }
+                var (anySuccess, summary) = runPlugsLocal(effectivePlugAction, targetDevices)
 
                 // Remote out-of-home fallback: if local Wi-Fi KLAP failed and no test override was injected, relay via Portal to PC Funkenwerk SmartHome!
                 if (!anySuccess && smartHomeExecutorOverride == null) {
-                    val relayPlugAction = when (normalizedAction) {
+                    val relayPlugAction = when (effectivePlugAction) {
                         "turn_on", "turn_all_on" -> if (matchedGroup != null) "group_on" else "plug_on"
                         "turn_off", "turn_all_off" -> if (matchedGroup != null) "group_off" else "plug_off"
                         else -> "plug_toggle"
                     }
-                    val relayTarget = matchedGroup?.name ?: if (normalizedAction.contains("_all_")) "alle" else deviceQuery
+                    val relayTarget = matchedGroup?.name ?: if (effectivePlugAction.contains("_all_") && isGlobalAllPlugs) "alle" else deviceQuery
                     val (rOk, rMsg) = runRelay(relayPlugAction, relayTarget, null)
                     if (rOk) {
                         anySuccess = true
@@ -1828,7 +2681,7 @@ object FalconClientTools {
                     }
                 }
 
-                val desiredStateLabel = when (normalizedAction) {
+                val desiredStateLabel = when (effectivePlugAction) {
                     "turn_on", "turn_all_on" -> "on"
                     "turn_off", "turn_all_off" -> "off"
                     else -> "toggled"
@@ -1836,7 +2689,7 @@ object FalconClientTools {
 
                 JsonObject().apply {
                     addProperty("status", if (anySuccess) "success" else "error")
-                    addProperty("action", normalizedAction)
+                    addProperty("action", effectivePlugAction)
                     addProperty("new_state", desiredStateLabel)
                     if (matchedGroup != null) addProperty("matched_group", matchedGroup.name)
                     add("switched_devices", switchedNames)

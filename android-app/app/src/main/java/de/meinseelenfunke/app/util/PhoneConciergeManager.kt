@@ -264,7 +264,9 @@ object PhoneConciergeManager {
         } else {
             buildCarrierForwardingDisableMmi()
         }
-        setCarrierForwardingConfirmed(ctx, activate)
+        if (!activate) {
+            setCarrierForwardingConfirmed(ctx, false)
+        }
         appendDiagnosticTrace(ctx, "Wählfeld geöffnet ($mmi)")
         try {
             // Uri.fromParts encodes trailing '#' as '%23' so Pixel Phone preserves the full GSM MMI string
@@ -758,18 +760,28 @@ object PhoneConciergeManager {
         verifications: Map<String, CallVerificationReportDto>,
         edits: Map<String, LocalNoteEdit>
     ): List<PhoneSecretaryCallSummaryDto> {
-        val remoteIds = remoteCalls.mapNotNull { it.id.takeIf(String::isNotBlank) }.toSet()
+        val remoteIds = buildSet {
+            remoteCalls.forEach { call ->
+                if (call.id.isNotBlank()) add(call.id)
+                call.client_call_id?.takeIf { it.isNotBlank() }?.let { add(it) }
+            }
+        }
         val combined = mutableListOf<PhoneSecretaryCallSummaryDto>()
         localCalls.forEach { local ->
-            if (local.id.isNotBlank() && local.id !in remoteIds) {
+            val localKeyPresent = (local.id.isNotBlank() && local.id in remoteIds) ||
+                (!local.client_call_id.isNullOrBlank() && local.client_call_id in remoteIds)
+            if (local.id.isNotBlank() && !localKeyPresent) {
                 combined.add(local)
             }
         }
         combined.addAll(remoteCalls)
 
         return combined.map { call ->
-            val ver = verifications[call.id] ?: call.verification
+            val ver = verifications[call.id]
+                ?: call.client_call_id?.let { verifications[it] }
+                ?: call.verification
             val edit = edits[call.id]
+                ?: call.client_call_id?.let { edits[it] }
             val effectiveSummary = when {
                 edit != null && edit.summary.isNotBlank() -> edit.summary
                 ver != null && ver.status == CallNoteVerificationEngine.STATUS_CORRECTED && ver.corrected_summary.isNotBlank() ->
@@ -1186,6 +1198,7 @@ object PhoneConciergeManager {
         }
         val entry = PhoneSecretaryCallSummaryDto(
             id = note.callId,
+            client_call_id = note.callId,
             caller_name = displayLabel,
             created_at_label = formatLocalCallTimeLabel(note.createdAtIso),
             duration_seconds = note.durationSeconds,
@@ -1257,7 +1270,23 @@ object PhoneConciergeManager {
     private suspend fun sendSingleCompletionToServer(ctx: Context, note: PendingPhoneSecretaryNote): Boolean {
         val cleanUrgency = normalizeUrgency(note.urgency)
         val cleanContactId = note.contactId?.takeUnless { it == "default-papa" || it.isBlank() }
-        val serverSummary = buildEnrichedServerSummary(note)
+        val cleanSummary = CallNoteVerificationEngine.sanitizeCleanText(note.summary)
+            .ifBlank { "Anruf entgegengenommen." }
+            .take(1950)
+        val cleanRahmen = note.rahmenbedingungen
+            .map { CallNoteVerificationEngine.sanitizeCleanText(it).take(280) }
+            .filter { it.isNotBlank() }
+            .take(30)
+        val cleanAction = CallNoteVerificationEngine.sanitizeCleanText(note.actionRequired)
+            .ifBlank {
+                if (note.callbackRequested) "${note.greetingName.ifBlank { note.callerName }} zurückrufen." else "Zur Kenntnis nehmen."
+            }
+            .take(480)
+        val cleanTranscript = note.transcript
+            .map { it.trim().take(1950) }
+            .filter { it.isNotBlank() }
+            .take(120)
+        val serverSummaryFallback = buildEnrichedServerSummary(note)
         try {
             val res = ServiceLocator.getOrganizerApi().completePhoneConciergeCall(
                 PhoneConciergeCompleteBody(
@@ -1268,9 +1297,14 @@ object PhoneConciergeManager {
                     greeting_name = note.greetingName.ifBlank { note.callerName },
                     caller_phone = note.callerPhone,
                     handled_by = "android_secretary",
-                    summary = serverSummary,
+                    summary = cleanSummary,
+                    rahmenbedingungen = cleanRahmen,
+                    action_required = cleanAction,
                     urgency = cleanUrgency,
-                    callback_requested = note.callbackRequested
+                    callback_requested = note.callbackRequested,
+                    duration_seconds = note.durationSeconds.coerceAtLeast(0),
+                    transcript = cleanTranscript,
+                    verification = note.verification
                 )
             )
             if (res.success) return true
@@ -1285,7 +1319,7 @@ object PhoneConciergeManager {
                     }
                     val prio = if (cleanUrgency == "hoch" || note.callbackRequested) "hoch" else cleanUrgency
                     val args = JsonObject().apply {
-                        addProperty("title", "📞 Anruf von $displayLabel: $serverSummary".take(235))
+                        addProperty("title", "📞 Anruf von $displayLabel: $serverSummaryFallback".take(235))
                         addProperty("priority", prio)
                     }
                     val fallbackRes = ServiceLocator.aiRepository.executeTool("task_create", args, "android_secretary_${note.callId}")

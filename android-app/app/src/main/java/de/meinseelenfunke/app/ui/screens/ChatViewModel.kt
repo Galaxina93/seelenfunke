@@ -53,6 +53,7 @@ class ChatViewModel : ViewModel() {
 
     companion object {
         private const val LEGACY_ERROR_BUBBLE = "[Fehler beim Laden der Antwort]"
+        const val AG_LIVE_STATUS_PREFIX = "[Antigravity Echtzeit]"
 
         fun cleanAssistantText(raw: String): String {
             return raw
@@ -66,8 +67,8 @@ class ChatViewModel : ViewModel() {
             overrideLastUserPrompt: String? = null
         ): List<ChatMessage> {
             val filtered = messages.filterNot { msg ->
-                msg.role.equals("assistant", ignoreCase = true) &&
-                    msg.content.trim() == LEGACY_ERROR_BUBBLE
+                (msg.role.equals("assistant", ignoreCase = true) &&
+                    (msg.content.trim() == LEGACY_ERROR_BUBBLE || msg.content.trim().startsWith(AG_LIVE_STATUS_PREFIX)))
             }
             if (filtered.isEmpty()) {
                 return if (!overrideLastUserPrompt.isNullOrBlank()) {
@@ -127,6 +128,20 @@ class ChatViewModel : ViewModel() {
     }
 
     init {
+        try {
+            de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.hydrate(ServiceLocator.context)
+            de.meinseelenfunke.app.util.FunkiraPackageStore.hydrate(ServiceLocator.context)
+        } catch (_: Throwable) {
+        }
+        viewModelScope.launch {
+            de.meinseelenfunke.app.util.AgDirectInboxManager.statusTransitionEvents.collect { ev ->
+                val text = "$AG_LIVE_STATUS_PREFIX ${ev.toHumanEventLine()}"
+                val current = _messages.value
+                if (current.lastOrNull()?.content != text) {
+                    _messages.value = current + ChatMessage(role = "assistant", content = text)
+                }
+            }
+        }
         loadAgents()
         loadChatHistory()
     }
@@ -247,6 +262,16 @@ class ChatViewModel : ViewModel() {
         _canRetryLastMessage.value = false
         _selectedFile.value = null // Clear selected file
 
+        try {
+            de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.recordTurn(
+                context = ServiceLocator.context,
+                role = "user",
+                body = displayContent,
+                mode = "chat"
+            )
+        } catch (_: Throwable) {
+        }
+
         if (_agents.value.isEmpty()) {
             loadAgents()
         }
@@ -295,6 +320,15 @@ class ChatViewModel : ViewModel() {
                             ?: "Keine Antwort erhalten."
                         val cleanResponse = cleanAssistantText(rawResponse)
                         _messages.value = _messages.value + ChatMessage("assistant", cleanResponse)
+                        try {
+                            de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.recordTurn(
+                                context = ServiceLocator.context,
+                                role = "funkira",
+                                body = cleanResponse,
+                                mode = "chat"
+                            )
+                        } catch (_: Throwable) {
+                        }
 
                         // If base64 TTS audio exists, play it!
                         chatResponse.audio?.let { audioBase64 ->

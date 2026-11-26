@@ -2,8 +2,11 @@ package de.meinseelenfunke.app.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -82,6 +85,18 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import de.meinseelenfunke.app.util.AgDirectInboxManager
+import de.meinseelenfunke.app.util.FalconCameraController
+import de.meinseelenfunke.app.util.FunkiraLocalMemoryStore
+import de.meinseelenfunke.app.util.FunkiraPackageStore
+import de.meinseelenfunke.app.util.PendingCameraAction
+import java.io.File
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -121,6 +136,88 @@ fun FunkiraLiveScreen(
 
     val activeAgentName = selectedAgent?.name ?: "Funkira"
     val activeAgentColor = parseAgentColor(selectedAgent?.color)
+    val draftPackages by FunkiraPackageStore.packagesFlow.collectAsState()
+    val memoryCount by FunkiraLocalMemoryStore.memoryCountFlow.collectAsState()
+    val stagedAttachment by AgDirectInboxManager.stagedAttachmentFlow.collectAsState()
+    val totalPoolPhotos = draftPackages.sumOf { it.attachmentCount } + (if (stagedAttachment != null) 1 else 0)
+
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraAction by remember { mutableStateOf<PendingCameraAction?>(null) }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = pendingCameraUri
+        pendingCameraUri = null
+        if (success && uri != null) {
+            coroutineScope.launch {
+                val photo = FalconCameraController.importPhotoFromUri(context, uri)
+                if (photo != null) {
+                    Toast.makeText(context, "✓ Foto für Funkira hinterlegt", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val launchCameraCapture: () -> Unit = {
+        try {
+            val dir = File(context.cacheDir, "camera_captures").apply { mkdirs() }
+            val outFile = File(dir, "live_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
+        } catch (e: Throwable) {
+            Toast.makeText(context, "Kamera nicht verfügbar.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val action = pendingCameraAction
+        pendingCameraAction = null
+        if (granted) {
+            if (action == null) {
+                launchCameraCapture()
+            } else {
+                coroutineScope.launch {
+                    when (action.action) {
+                        "take_photo" -> FalconCameraController.captureHighResPhoto(context, action.lens)
+                        "switch_camera" -> FalconCameraController.switchCameraAsync(context, action.lens)
+                        else -> FalconCameraController.startVision(context, action.lens ?: "back")
+                    }
+                }
+            }
+        } else {
+            Toast.makeText(context, "Kamera-Berechtigung erforderlich.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val galleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            coroutineScope.launch {
+                var importedCount = 0
+                for (u in uris.take(FalconCameraController.MAX_POOL_IMAGES + 1)) {
+                    val media = FalconCameraController.importMediaFromUri(context, u)
+                    if (media != null) importedCount++
+                }
+                if (importedCount > 0) {
+                    Toast.makeText(context, "✓ $importedCount Medium/Medien für Funkira hinterlegt", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        FunkiraPackageStore.hydrate(context)
+        FunkiraLocalMemoryStore.hydrate(context)
+        FalconCameraController.permissionRequestEvents.collect { req ->
+            pendingCameraAction = req
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     // Request permissions launcher
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -157,9 +254,13 @@ fun FunkiraLiveScreen(
         }
     }
 
-    // Disconnect when leaving screen
+    val agItems by de.meinseelenfunke.app.util.AgDirectInboxManager.itemsFlow.collectAsState()
+
+    // Disconnect when leaving screen & run adaptive realtime Antigravity status sync
     DisposableEffect(Unit) {
+        de.meinseelenfunke.app.util.AgDirectInboxManager.acquireRealtimeObserver(context)
         onDispose {
+            de.meinseelenfunke.app.util.AgDirectInboxManager.releaseRealtimeObserver()
             viewModel.disconnectLiveChat()
         }
     }
@@ -398,6 +499,108 @@ fun FunkiraLiveScreen(
                         )
                     }
                 }
+
+                // Live Antigravity Ticket Status Bar directly inside the Live-Call stream
+                AgLiveTicketStatusBar(
+                    items = agItems,
+                    onGrantGo = { item ->
+                        coroutineScope.launch {
+                            val ok = de.meinseelenfunke.app.util.AgDirectInboxManager.resolveBlockade(
+                                context = context,
+                                itemId = item.id,
+                                decision = "approved",
+                                answerText = "Go erteilt"
+                            )
+                            Toast.makeText(
+                                context,
+                                if (ok) "✓ Go an Antigravity übermittelt!" else "Offline gespeichert",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    onReplyAndApprove = { item, answer ->
+                        coroutineScope.launch {
+                            val ok = de.meinseelenfunke.app.util.AgDirectInboxManager.resolveBlockade(
+                                context = context,
+                                itemId = item.id,
+                                decision = "info_provided",
+                                answerText = answer
+                            )
+                            Toast.makeText(
+                                context,
+                                if (ok) "✓ Antwort & Freigabe übermittelt!" else "Offline gespeichert",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                )
+
+                // Compact Sammelpaket & Memory indicator pill
+                if (draftPackages.isNotEmpty() || memoryCount > 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (draftPackages.isNotEmpty()) {
+                            val topPkg = draftPackages.first()
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Slate900.copy(alpha = 0.9f))
+                                    .border(1.dp, Gold.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Default.Inventory2, contentDescription = null, tint = Gold, modifier = Modifier.size(15.dp))
+                                Text(
+                                    text = "${topPkg.title.take(26)} (${topPkg.itemCount})",
+                                    color = Slate50,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            val res = FunkiraPackageStore.releasePackage(context, topPkg.uuid)
+                                            Toast.makeText(
+                                                context,
+                                                if (res.sentLive) "✓ Paket gesendet" else "Offline gespeichert",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(26.dp)
+                                ) {
+                                    Text("Senden", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        } else if (memoryCount > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(GlassWhite10)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Psychology, contentDescription = null, tint = Gold, modifier = Modifier.size(13.dp))
+                                Text(
+                                    text = "Gedächtnis ($memoryCount)",
+                                    color = Slate400,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // Call Actions Control Bar
@@ -425,7 +628,7 @@ fun FunkiraLiveScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(32.dp))
+                Spacer(modifier = Modifier.width(20.dp))
 
                 // Hang Up Button
                 IconButton(
@@ -447,6 +650,70 @@ fun FunkiraLiveScreen(
                         contentDescription = "Auflegen",
                         tint = Slate50,
                         modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(20.dp))
+
+                // Camera Photo Capture Button (with badge)
+                Box {
+                    IconButton(
+                        onClick = {
+                            pendingCameraAction = null
+                            val hasCam = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasCam) launchCameraCapture() else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        },
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(GlassWhite10)
+                            .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Foto aufnehmen",
+                            tint = Gold,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    if (totalPoolPhotos > 0) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(Gold)
+                        ) {
+                            Text(
+                                text = totalPoolPhotos.toString(),
+                                color = SpaceBlack,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Gallery Picker Button (Multi-Photo & Short Video Pool)
+                IconButton(
+                    onClick = { galleryPickerLauncher.launch(arrayOf("image/*", "video/*")) },
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(GlassWhite10)
+                        .border(1.dp, GlassWhite20, CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = "Bild aus Galerie",
+                        tint = Slate50,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

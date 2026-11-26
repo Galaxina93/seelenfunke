@@ -138,6 +138,8 @@ fun SettingsScreen(
     val autoVerifyNotes by viewModel.autoVerifyNotes.collectAsState()
     val whitelistContacts by viewModel.whitelistContacts.collectAsState()
     var showPhoneInfoDialog by remember { mutableStateOf(false) }
+    var showCarrierConfirmDialog by remember { mutableStateOf(false) }
+    var awaitingCarrierConfirm by remember { mutableStateOf(false) }
     var showOtaInfoDialog by remember { mutableStateOf(false) }
     var permCheckTick by remember { mutableIntStateOf(0) }
     var contactSearchQuery by remember { mutableStateOf("") }
@@ -158,6 +160,10 @@ fun SettingsScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permCheckTick++
+                if (awaitingCarrierConfirm) {
+                    awaitingCarrierConfirm = false
+                    showCarrierConfirmDialog = true
+                }
                 if (isAdmin) {
                     viewModel.refreshPhoneConcierge()
                     viewModel.refreshKdriveConfig()
@@ -213,6 +219,47 @@ fun SettingsScreen(
         ) {
             micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
+    }
+
+    if (showCarrierConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCarrierConfirmDialog = false },
+            containerColor = AppTheme.colors.cardBackground,
+            title = {
+                Text(
+                    text = "Rufumleitung aktiv?",
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+            },
+            text = {
+                Text(
+                    text = "Hat dein Mobilfunknetz die Rufumleitung nach dem grünen Hörer bestätigt?",
+                    fontSize = 13.sp,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.confirmCarrierForwarding(false)
+                        showCarrierConfirmDialog = false
+                    }
+                ) {
+                    Text("Noch nicht", color = AppTheme.colors.textSecondary)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.confirmCarrierForwarding(true)
+                        showCarrierConfirmDialog = false
+                    }
+                ) {
+                    Text("Ja, aktiv", color = Gold, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 
     if (showPhoneInfoDialog) {
@@ -1497,6 +1544,7 @@ fun SettingsScreen(
 
                     OutlinedButton(
                         onClick = {
+                            awaitingCarrierConfirm = true
                             PhoneConciergeManager.openCarrierForwardingDialer(context, activate = true)
                             viewModel.refreshCarrierForwardingState()
                         },

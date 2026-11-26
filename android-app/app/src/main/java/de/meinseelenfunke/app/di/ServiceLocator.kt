@@ -101,6 +101,11 @@ object ServiceLocator {
     private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
     private const val KEY_TAPO_EMAIL = "tapo_encrypted_email"
     private const val KEY_TAPO_PASS = "tapo_encrypted_password"
+    private const val KEY_SOMFY_EMAIL = "somfy_encrypted_email"
+    private const val KEY_SOMFY_PASS = "somfy_encrypted_password"
+    private const val KEY_SOMFY_LOCAL_TOKEN = "somfy_encrypted_local_token"
+    private const val KEY_CONNEXOON_IP = "connexoon_encrypted_ip"
+    private const val KEY_CONNEXOON_PIN = "connexoon_encrypted_pin"
     private const val KEY_INTERNAL_INTENT_TOKEN = "internal_intent_token_v1"
     private const val KEY_TLS_URL_MIGRATED_V1 = "tls_url_migrated_v1"
     private const val KEY_HEY_FALCON_DEFAULT_MIGRATED_V182 = "hey_falcon_default_migrated_v182"
@@ -543,6 +548,46 @@ object ServiceLocator {
 
     fun saveTapoPassword(password: String) {
         putEncryptedString(KEY_TAPO_PASS, password)
+    }
+
+    fun getSomfyEmail(): String {
+        return getDecryptedString(KEY_SOMFY_EMAIL, "") ?: ""
+    }
+
+    fun saveSomfyEmail(email: String) {
+        putEncryptedString(KEY_SOMFY_EMAIL, email.trim())
+    }
+
+    fun getSomfyPassword(): String {
+        return getDecryptedString(KEY_SOMFY_PASS, "") ?: ""
+    }
+
+    fun saveSomfyPassword(password: String) {
+        putEncryptedString(KEY_SOMFY_PASS, password)
+    }
+
+    fun getSomfyLocalToken(): String {
+        return getDecryptedString(KEY_SOMFY_LOCAL_TOKEN, "") ?: ""
+    }
+
+    fun saveSomfyLocalToken(token: String) {
+        putEncryptedString(KEY_SOMFY_LOCAL_TOKEN, token.trim())
+    }
+
+    fun getConnexoonIp(): String {
+        return getDecryptedString(KEY_CONNEXOON_IP, "192.168.188.29")?.ifBlank { "192.168.188.29" } ?: "192.168.188.29"
+    }
+
+    fun saveConnexoonIp(ip: String) {
+        putEncryptedString(KEY_CONNEXOON_IP, ip.trim())
+    }
+
+    fun getConnexoonPin(): String {
+        return getDecryptedString(KEY_CONNEXOON_PIN, "0813-5321-9574")?.ifBlank { "0813-5321-9574" } ?: "0813-5321-9574"
+    }
+
+    fun saveConnexoonPin(pin: String) {
+        putEncryptedString(KEY_CONNEXOON_PIN, pin.trim())
     }
 
     fun getGeminiApiKey(): String {

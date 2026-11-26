@@ -16,17 +16,17 @@ class AntigravityDirectInboxService
 
     public const MAX_ITEMS = 200;
     public const COMPLETED_RETENTION_DAYS = 30;
-    public const MAX_ATTACHMENT_BYTES = 8388608; // 8 MB
+    public const MAX_ATTACHMENT_BYTES = 12582912; // 12 MB (inkl. kurze 20s-MP4-Handyvideos)
     public const MAX_CHECKLIST_ITEMS = 25;
     public const MAX_CHECKLIST_ITEM_LENGTH = 300;
 
     public const ALLOWED_EXECUTION_MODES = ['concept', 'direct'];
     public const ALLOWED_CHANNELS = ['leitung', 'tickets', 'shop', 'android', 'minipc', 'buchhaltung', 'new'];
-    public const ALLOWED_STATUSES = ['pending', 'delivered', 'awaiting_go', 'completed'];
+    public const ALLOWED_STATUSES = ['draft', 'pending', 'delivered', 'awaiting_go', 'completed'];
     public const ALLOWED_DECISIONS = ['approved', 'info_provided', 'dismissed', 'deferred'];
     public const ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
     public const ALLOWED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
-    public const ALLOWED_AUDIO_EXTENSIONS = ['m4a', 'mp3', 'wav', 'ogg', 'aac', 'opus', 'webm'];
+    public const ALLOWED_AUDIO_EXTENSIONS = ['m4a', 'mp3', 'wav', 'ogg', 'aac', 'opus', 'webm', 'mp4'];
     public const ALLOWED_AUDIO_MIMES = [
         'audio/mp4',
         'audio/x-m4a',
@@ -44,7 +44,7 @@ class AntigravityDirectInboxService
         'video/webm',
         'video/mp4',
     ];
-    public const ALLOWED_ATTACHMENT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'm4a', 'mp3', 'wav', 'ogg', 'aac', 'opus', 'webm'];
+    public const ALLOWED_ATTACHMENT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'm4a', 'mp3', 'wav', 'ogg', 'aac', 'opus', 'webm', 'mp4'];
     public const ALLOWED_ATTACHMENT_MIMES = [
         'image/png',
         'image/jpeg',
@@ -398,7 +398,10 @@ class AntigravityDirectInboxService
                 throw new InvalidArgumentException('Abweichung zwischen MIME-Header und Bild-Container erkannt.');
             }
         } else {
-            // Audio-Validierung: kein getimagesizefromstring aufrufen
+            // Audio/Video-Validierung: bei MP4 zwingend ISO-BMFF 'ftyp'-Signatur prüfen
+            if (($realMime === 'video/mp4' || $origExt === 'mp4') && (strlen($rawBytes) < 12 || substr($rawBytes, 4, 4) !== 'ftyp')) {
+                throw new InvalidArgumentException('Ungültiger MP4-Container: ISO-BMFF ftyp-Header fehlt.');
+            }
             $canonicalExt = match ($realMime) {
                 'audio/mpeg', 'audio/mp3' => 'mp3',
                 'audio/wav', 'audio/x-wav' => 'wav',
@@ -406,7 +409,8 @@ class AntigravityDirectInboxService
                 'audio/opus' => 'opus',
                 'audio/webm', 'video/webm' => 'webm',
                 'audio/aac', 'audio/x-aac' => 'aac',
-                'audio/mp4', 'audio/x-m4a', 'audio/m4a', 'video/mp4' => 'm4a',
+                'video/mp4' => ($origExt === 'm4a' ? 'm4a' : 'mp4'),
+                'audio/mp4', 'audio/x-m4a', 'audio/m4a' => 'm4a',
                 default => in_array($origExt, self::ALLOWED_AUDIO_EXTENSIONS, true) ? $origExt : 'm4a',
             };
 

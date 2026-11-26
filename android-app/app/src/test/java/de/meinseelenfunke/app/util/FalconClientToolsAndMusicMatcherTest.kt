@@ -1172,4 +1172,269 @@ class FalconClientToolsAndMusicMatcherTest {
         assertEquals("happy", FalconClientTools.inferEmotionFromLiveTurn("Mach ich super gerne für dich.", null))
         assertEquals("focused", FalconClientTools.inferEmotionFromLiveTurn(null, "falcon_send_to_antigravity"))
     }
+
+    @Test
+    fun intelligentMusicMatcher_selectsContextRoutinePlaylistsAndAnalyzesSingleSongPlaylistsWithoutFavoritesBias() {
+        val tFavHardtekk = MusicTrackDto("t_fav_1", "pl_fav", "Tekk Abriss", "Die Gebrüder Brett", 190, 1000L, true, 0)
+        val tFeelGood1 = MusicTrackDto("t_fg_1", "pl_life", "Billie Jean", "Michael Jackson", 290, 1000L, true, 0)
+        val tFeelGood2 = MusicTrackDto("t_fg_2", "pl_life", "Return of the Mack", "Mark Morrison", 215, 1000L, false, 1)
+        val tRave1 = MusicTrackDto("t_rave_1", "pl_rave", "Overdrive", "Charlotte de Witte", 310, 1000L, false, 0)
+        val tSingleCalmSeed = MusicTrackDto("t_seed_1", "pl_single_vibe", "Only Time", "Enya", 218, 1000L, false, 0)
+        val tCalmCompanion = MusicTrackDto("t_calm_2", "all", "River Flows Piano", "Ludovico Acoustic", 205, 1000L, false, 0)
+
+        val playlists = listOf(
+            MusicPlaylistDto("favorites", "Lieblingssongs", "Alle gemerkten Favoriten", listOf(tFavHardtekk, tFeelGood1)),
+            MusicPlaylistDto("pl_life", "LifeIsGood", "Pop & Feelgood Alltag", listOf(tFeelGood1, tFeelGood2)),
+            MusicPlaylistDto("pl_rave", "Hardtekk, Tekk & Rave (Abriss)", "Vollgas Bass", listOf(tRave1, tFavHardtekk)),
+            MusicPlaylistDto("pl_single_vibe", "Mein Vibe", "", listOf(tSingleCalmSeed))
+        )
+        val allTracks = listOf(tFavHardtekk, tFeelGood1, tFeelGood2, tRave1, tSingleCalmSeed, tCalmCompanion)
+
+        // 1. Deep analysis of a 1-song playlist with neutral title ("Mein Vibe") must infer calm_evening from 'Only Time' by Enya
+        val singleProfile = FalconClientTools.analyzePlaylistSemanticProfile(playlists.last())
+        assertTrue(singleProfile.isSingleSongPlaylist)
+        assertFalse(singleProfile.isFavoritesPool)
+        assertEquals("calm_evening", singleProfile.primaryCluster)
+        assertTrue(singleProfile.seedTrackSummary.orEmpty().contains("Only Time"))
+        assertTrue(singleProfile.seedTrackSummary.orEmpty().contains("Enya"))
+
+        // 2. Live music directive exposes the 1-song playlist's exact song & artist to Funkira
+        val libDirective = FalconClientTools.buildMusicLibraryLiveDirective(playlists)
+        assertTrue(libDirective.contains("Mein Vibe"))
+        assertTrue(libDirective.contains("Only Time"))
+        assertTrue(libDirective.contains("LifeIsGood"))
+
+        // 3. Generic morning/routine playback (08:30, blank query) selects LifeIsGood instead of static Favorites!
+        val morningSmart = FalconClientTools.matchMusicForFalcon(
+            playlists = playlists,
+            allTracks = allTracks,
+            action = "play_smart",
+            query = "",
+            currentHour = 8,
+            routineContext = "Morgenroutine & Packtisch"
+        )
+        assertEquals("pl_life", morningSmart.playlistId)
+        assertFalse("Must not blindly fall back to static Favorites when contextual playlist exists", morningSmart.usedFallbackFavorites)
+
+        // 4. Late-night / calm mood request selects the 1-song calm playlist, puts 'Only Time' at #1, and appends calm companions (NEVER Hardtekk!)
+        val nightCalm = FalconClientTools.matchMusicForFalcon(
+            playlists = playlists,
+            allTracks = allTracks,
+            action = "play_smart",
+            query = "ruhige Musik zum Entspannen",
+            currentHour = 22
+        )
+        assertEquals("pl_single_vibe", nightCalm.playlistId)
+        assertTrue(nightCalm.isSingleSongSeedMatch)
+        assertFalse(nightCalm.shuffle)
+        assertEquals("t_seed_1", nightCalm.tracks.first().id)
+        assertTrue("Expected calm companion track to extend 1-song seed queue", nightCalm.tracks.any { it.id == "t_calm_2" })
+        assertFalse("Hardtekk track must NEVER be appended to calm 1-song seed queue", nightCalm.tracks.any { it.id == "t_fav_1" || it.id == "t_rave_1" })
+
+        // 5. Direct query by the single song's artist ("Enya") matches the 1-song playlist directly
+        val bySingleArtist = FalconClientTools.matchMusicForFalcon(
+            playlists = playlists,
+            allTracks = allTracks,
+            action = "play_query",
+            query = "Playlist mit Enya"
+        )
+        assertEquals("pl_single_vibe", bySingleArtist.playlistId)
+        assertEquals(listOf("t_seed_1"), bySingleArtist.tracks.map { it.id })
+
+        // 6. Explicit Favorites request still plays Lieblingssongs intentionally
+        val explicitFav = FalconClientTools.matchMusicForFalcon(
+            playlists = playlists,
+            allTracks = allTracks,
+            action = "play_query",
+            query = "Spiel meine Lieblingssongs"
+        )
+        assertEquals("favorites", explicitFav.playlistId)
+        assertFalse(explicitFav.usedFallbackFavorites)
+
+        // 7. analyze_playlist does not disconnect Live-Call into Ruhemodus, whereas playback does
+        assertFalse(FalconClientTools.shouldEnterStandbyAfterTool("falcon_music_control", "analyze_playlist"))
+        assertFalse(FalconClientTools.shouldEnterStandbyAfterTool("falcon_music_control", "list_playlists"))
+        assertTrue(FalconClientTools.shouldEnterStandbyAfterTool("falcon_music_control", "play_smart"))
+    }
+
+    @Test
+    fun smartHomeLiveCall_controlsLichterkettenShuttersPlugGroupsShutterGroupsHybridGroupsAndPrunesServerDuplicates() = runBlocking {
+        // 1. Server duplicate smarthome_* tools must be pruned so Android Live-Call ALWAYS executes local falcon_smarthome_control
+        val serverDecls = JsonArray().apply {
+            add(JsonObject().apply { addProperty("name", "smarthome_control") })
+            add(JsonObject().apply { addProperty("name", "smarthome_get_devices_and_groups") })
+            add(JsonObject().apply { addProperty("name", "calendar_get_events") })
+        }
+        FalconClientTools.appendFalconToolDeclarations(serverDecls)
+        val declNames = (0 until serverDecls.size()).map { serverDecls.get(it).asJsonObject.get("name").asString }.toSet()
+        assertFalse(declNames.contains("smarthome_control"))
+        assertFalse(declNames.contains("smarthome_get_devices_and_groups"))
+        assertTrue(declNames.contains("falcon_smarthome_control"))
+
+        // 2. Placeholder "Steckdose 1/2" self-heals to canonical "Lichterkette Fußleiste" & "Packtisch Warm Licht"
+        val healedPlugs = FunkenwerkAlarmManager.normalizeSmartPlugs(
+            listOf(
+                SmartPlugDevice(name = "Steckdose 1", ip = "192.168.188.109"),
+                SmartPlugDevice(name = "Steckdose 2", ip = "192.168.188.110"),
+                SmartPlugDevice(name = "Lichterkette Spiegel", ip = "192.168.188.123")
+            )
+        )
+        assertEquals(
+            listOf("Lichterkette Fußleiste", "Packtisch Warm Licht", "Lichterkette Spiegel"),
+            healedPlugs.map { it.name }
+        )
+
+        // 3. Overkiz Connexoon JSON parser extracts io & RTS shutters while ignoring sensors
+        val sampleOverkizJson = """
+            [
+              {"deviceURL":"io://0813-5321-9574/101","label":"Wohnzimmer","controllableName":"io:RollerShutterGenericIOComponent","available":true,"definition":{"uiClass":"RollerShutter"},"states":[{"name":"core:ClosureState","value":25}]},
+              {"deviceURL":"rts://0813-5321-9574/202","label":"Terrassentür","controllableName":"rts:RollerShutterRTSComponent","available":true,"definition":{"uiClass":"RollerShutter"},"states":[{"name":"core:OpenClosedState","value":"closed"}]},
+              {"deviceURL":"io://0813-5321-9574/999","label":"Fenstergriff","controllableName":"io:ThreeWayWindowHandleIOSystemSensor","definition":{"uiClass":"WindowHandle"}}
+            ]
+        """.trimIndent()
+        val parsedShutters = FunkenwerkAlarmManager.parseOverkizDevicesJson(sampleOverkizJson)
+        assertEquals(2, parsedShutters.size)
+        assertEquals("Terrassentür", parsedShutters[0].label)
+        assertFalse(parsedShutters[0].supportsPosition)
+        assertEquals(100, parsedShutters[0].closurePercent)
+        assertEquals("Wohnzimmer", parsedShutters[1].label)
+        assertTrue(parsedShutters[1].supportsPosition)
+        assertEquals(25, parsedShutters[1].closurePercent)
+
+        // 4. Configure inventory with Lichterketten, Shutters, Plug-Group, Shutter-Group & Hybrid-Group!
+        val groups = listOf(
+            SmartHomeGroupDto(
+                id = "grp_lichterketten",
+                name = "Gemütliches Licht",
+                shutterTargets = emptyList(),
+                plugTargets = listOf("Lichterkette Fußleiste", "Lichterkette Spiegel")
+            ),
+            SmartHomeGroupDto(
+                id = "grp_hybrid_abend",
+                name = "Abendmodus Wohnbereich",
+                shutterTargets = listOf("Wohnzimmer", "Terrassentür"),
+                plugTargets = listOf("Lichterkette Fußleiste", "Lichterkette Spiegel")
+            )
+        )
+        FunkenwerkAlarmManager.setSmartHomeInventoryForTests(
+            plugs = healedPlugs,
+            shutters = parsedShutters,
+            groups = groups
+        )
+
+        try {
+            // 4a. "turn_all_on" with device_name="alle Lichterketten" MUST switch ONLY the 2 Lichterketten, NOT Packtisch!
+            var switchedPlugIps: List<String> = emptyList()
+            var relayCalledCount = 0
+            val resAllLichterketten = FalconClientTools.executeLocalFalconTool(
+                context = context,
+                toolName = "falcon_smarthome_control",
+                argsElement = JsonObject().apply {
+                    addProperty("action", "turn_all_on")
+                    addProperty("device_name", "alle Lichterketten")
+                },
+                chatSessionId = "s-sh-lk",
+                onEmotionChanged = {},
+                onNavigate = {},
+                smartHomeExecutorOverride = { _, ips ->
+                    switchedPlugIps = ips
+                    Pair(true, "Lichterketten eingeschaltet")
+                },
+                smartHomeRelayExecutorOverride = { _, _, _ ->
+                    relayCalledCount++
+                    Pair(true, "relay")
+                }
+            )
+            assertEquals("success", resAllLichterketten.get("status").asString)
+            assertEquals(listOf("192.168.188.109", "192.168.188.123"), switchedPlugIps)
+            assertEquals(0, relayCalledCount)
+
+            // 4b. Plug-only group called with action="group_on" switches local plugs directly with 0 unnecessary shutter relay!
+            switchedPlugIps = emptyList()
+            val resPlugGroupOn = FalconClientTools.executeLocalFalconTool(
+                context = context,
+                toolName = "falcon_smarthome_control",
+                argsElement = JsonObject().apply {
+                    addProperty("action", "group_on")
+                    addProperty("device_name", "Gemütliches Licht")
+                },
+                chatSessionId = "s-sh-pg",
+                onEmotionChanged = {},
+                onNavigate = {},
+                smartHomeExecutorOverride = { _, ips ->
+                    switchedPlugIps = ips
+                    Pair(true, "Gruppe Gemütliches Licht eingeschaltet")
+                },
+                smartHomeRelayExecutorOverride = { _, _, _ ->
+                    relayCalledCount++
+                    Pair(true, "relay")
+                }
+            )
+            assertEquals("success", resPlugGroupOn.get("status").asString)
+            assertEquals("Gemütliches Licht", resPlugGroupOn.get("matched_group").asString)
+            assertEquals(listOf("192.168.188.109", "192.168.188.123"), switchedPlugIps)
+            assertEquals(0, relayCalledCount)
+
+            // 4c. Hybrid Group ("Abendmodus Wohnbereich": Shutters + Lichterketten) executes BOTH plugs AND shutters!
+            switchedPlugIps = emptyList()
+            var lastShutterAction: Triple<String, String, Int?>? = null
+            val resHybrid = FalconClientTools.executeLocalFalconTool(
+                context = context,
+                toolName = "falcon_smarthome_control",
+                argsElement = JsonObject().apply {
+                    addProperty("action", "group_close")
+                    addProperty("device_name", "Abendmodus Wohnbereich")
+                },
+                chatSessionId = "s-sh-hyb",
+                onEmotionChanged = {},
+                onNavigate = {},
+                smartHomeExecutorOverride = { act, ips ->
+                    assertEquals("turn_off", act)
+                    switchedPlugIps = ips
+                    Pair(true, "Lichterketten AUS")
+                },
+                smartHomeRelayExecutorOverride = { act, target, pos ->
+                    lastShutterAction = Triple(act, target, pos)
+                    Pair(true, "Rollläden geschlossen")
+                }
+            )
+            assertEquals("success", resHybrid.get("status").asString)
+            assertEquals(listOf("192.168.188.109", "192.168.188.123"), switchedPlugIps)
+            assertEquals("group_close", lastShutterAction?.first)
+            assertEquals("Abendmodus Wohnbereich", lastShutterAction?.second)
+
+            // 4d. Mixed compound command ("Rollladen Wohnzimmer und Lichterkette Spiegel" -> shutter_open + plug turn_on)
+            switchedPlugIps = emptyList()
+            lastShutterAction = null
+            val resMixedCompound = FalconClientTools.executeLocalFalconTool(
+                context = context,
+                toolName = "falcon_smarthome_control",
+                argsElement = JsonObject().apply {
+                    addProperty("action", "shutter_open")
+                    addProperty("device_name", "Rollladen Wohnzimmer und Lichterkette Spiegel")
+                },
+                chatSessionId = "s-sh-mix",
+                onEmotionChanged = {},
+                onNavigate = {},
+                smartHomeExecutorOverride = { act, ips ->
+                    assertEquals("turn_on", act)
+                    switchedPlugIps = ips
+                    Pair(true, "Lichterkette Spiegel EIN")
+                },
+                smartHomeRelayExecutorOverride = { act, target, pos ->
+                    lastShutterAction = Triple(act, target, pos)
+                    Pair(true, "Wohnzimmer geöffnet")
+                }
+            )
+            assertEquals("success", resMixedCompound.get("status").asString)
+            assertEquals(listOf("192.168.188.123"), switchedPlugIps)
+            assertEquals("shutter_open", lastShutterAction?.first)
+        } finally {
+            FunkenwerkAlarmManager.setSmartHomeInventoryForTests(
+                plugs = FunkenwerkAlarmManager.defaultSmartPlugs(),
+                shutters = emptyList(),
+                groups = emptyList()
+            )
+        }
+    }
 }

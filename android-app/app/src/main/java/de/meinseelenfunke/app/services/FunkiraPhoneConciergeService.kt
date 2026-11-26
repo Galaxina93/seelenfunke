@@ -15,6 +15,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.telecom.TelecomManager
 import android.telecom.VideoProfile
 import android.telephony.SubscriptionManager
@@ -35,12 +36,15 @@ import de.meinseelenfunke.app.util.PhoneConciergeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Foreground Phone-Concierge & Standalone Smartphone Secretary Service:
@@ -136,6 +140,19 @@ class FunkiraPhoneConciergeService : Service() {
             }
         }
 
+        internal fun shouldTreatAsSoftOffhookAfterAccept(
+            telecomInCall: Boolean,
+            audioMode: Int,
+            unifiedState: Int,
+            elapsedSinceAcceptMs: Long
+        ): Boolean {
+            if (unifiedState == TelephonyManager.CALL_STATE_OFFHOOK) return true
+            if (!telecomInCall) return false
+            if (unifiedState == TelephonyManager.CALL_STATE_IDLE) return false
+            if (audioMode == AudioManager.MODE_RINGTONE) return false
+            return elapsedSinceAcceptMs >= 2_200L
+        }
+
         fun startForIncomingWhitelistCall(
             context: Context,
             matched: CachedWhitelistContact,
@@ -143,6 +160,15 @@ class FunkiraPhoneConciergeService : Service() {
             sourceTag: String
         ) {
             val appCtx = context.applicationContext
+            val pm = appCtx.getSystemService(PowerManager::class.java)
+            val handoffWakeLock = try {
+                pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "funkenwerk:concierge_handoff")?.apply {
+                    setReferenceCounted(false)
+                    acquire(6_000L)
+                }
+            } catch (_: Exception) {
+                null
+            }
             val svcIntent = Intent(appCtx, FunkiraPhoneConciergeService::class.java).apply {
                 action = ACTION_INCOMING_WHITELIST_CALL
                 putExtra(EXTRA_CONTACT_ID, matched.id)
@@ -161,6 +187,13 @@ class FunkiraPhoneConciergeService : Service() {
                     appCtx.startService(svcIntent)
                 }
             } catch (e: Exception) {
+                try {
+                    if (handoffWakeLock?.isHeld == true) handoffWakeLock.release()
+                } catch (_: Exception) { }
+                PhoneConciergeManager.appendDiagnosticTrace(
+                    appCtx,
+                    "Service-Start fehlgeschlagen ($sourceTag): ${e.javaClass.simpleName}"
+                )
                 ErrorSentinelReporter.captureError(
                     context = appCtx,
                     tag = sourceTag,
@@ -248,12 +281,31 @@ class FunkiraPhoneConciergeService : Service() {
         val telephony = getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
         val telecom = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val lifecycleWakeLock = try {
+            powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "funkenwerk:concierge_lifecycle")?.apply {
+                setReferenceCounted(false)
+                acquire(130_000L)
+            }
+        } catch (_: Exception) {
+            null
+        }
         val subStates = ConcurrentHashMap<Int, Int>()
         val registeredCallbacks = registerAllSubscriptionCallStateListeners(telephony, subStates)
         var secretaryAudioOverrideActive = false
         val miniPcBtAvailableAtRing = isMiniPcBluetoothScoAvailable()
         var signalledMiniPcRinging = false
         var preWarmStarted = false
+        var reachedOffhook = false
+        var notePersisted = false
+        val partialTranscriptRef = AtomicReference<List<String>>(emptyList())
+        val greetingName = nickname.trim()
+            .split(',', '/')
+            .firstOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: callerName.trim().split(' ').firstOrNull().orEmpty().ifBlank { displayLabel }
+        val callStartedAtMs = android.os.SystemClock.elapsedRealtime()
 
         try {
             PhoneConciergeManager.appendDiagnosticTrace(
@@ -287,12 +339,12 @@ class FunkiraPhoneConciergeService : Service() {
                 }
             }
 
-            // Phase 1: Wait up to 2.2s for Telecom / eSIM / Wi-Fi Calling to report RINGING (via TelecomManager.isInCall,
+            // Phase 1: Wait up to 4.0s for Telecom / eSIM / Wi-Fi Calling to report RINGING (via TelecomManager.isInCall,
             // AudioManager, or per-subscription TelephonyCallback).
             var ringingStartedElapsedMs = 0L
             var sawRingingOnce = false
             val waitRingStartMs = android.os.SystemClock.elapsedRealtime()
-            while ((android.os.SystemClock.elapsedRealtime() - waitRingStartMs) < 2_200L) {
+            while ((android.os.SystemClock.elapsedRealtime() - waitRingStartMs) < 4_000L) {
                 val st = readUnifiedCallState(telephony, telecom, audioManager, subStates, secretaryAudioOverrideActive)
                 if (st == TelephonyManager.CALL_STATE_RINGING) {
                     ringingStartedElapsedMs = android.os.SystemClock.elapsedRealtime()
@@ -328,7 +380,7 @@ class FunkiraPhoneConciergeService : Service() {
                 }
             }
 
-            // Phase 2: Wait effective ring duration ("Sofort" = 450ms settle so Telecom finishes binding InCallService;
+            // Phase 2: Wait effective ring duration ("Sofort" = settle so Telecom finishes binding InCallService;
             // >0s = exact ringDelaySec countdown), aborting immediately if Alina answers or declines!
             val targetRingWaitMs = computeEffectiveRingWaitMs(ringDelaySec)
             val preWarmAtRemainingMs = 3_500L
@@ -388,21 +440,25 @@ class FunkiraPhoneConciergeService : Service() {
             }
             PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "acceptRingingCall() gesendet")
 
-            // Phase 3: Wait up to 5.0s for 5G/VoLTE/Wi-Fi Calling IMS to confirm OFFHOOK (AudioManager.MODE_IN_CALL or sub OFFHOOK).
-            // Retry acceptIncomingCallSafe() at 950ms and 2100ms if still ringing!
-            var reachedOffhook = false
+            // Phase 3: Wait up to 5.0s for 5G/VoLTE/Wi-Fi Calling IMS to confirm OFFHOOK (AudioManager.MODE_IN_CALL,
+            // sub OFFHOOK, or soft-OFFHOOK when Telecom stays active after acceptRingingCall).
+            // Retry acceptIncomingCallSafe() at 950ms, 2100ms, 3400ms if still ringing!
             var retryCount = 0
             val acceptStartMs = android.os.SystemClock.elapsedRealtime()
             while ((android.os.SystemClock.elapsedRealtime() - acceptStartMs) < 5_000L) {
+                val inCallNow = readTelecomInCallSafe(telecom)
+                val modeNow = try { audioManager?.mode ?: AudioManager.MODE_NORMAL } catch (_: Exception) { AudioManager.MODE_NORMAL }
                 val st = readUnifiedCallState(telephony, telecom, audioManager, subStates, secretaryAudioOverrideActive)
-                if (st == TelephonyManager.CALL_STATE_OFFHOOK) {
+                val elapsedAccept = android.os.SystemClock.elapsedRealtime() - acceptStartMs
+                if (st == TelephonyManager.CALL_STATE_OFFHOOK ||
+                    shouldTreatAsSoftOffhookAfterAccept(inCallNow, modeNow, st, elapsedAccept)
+                ) {
                     reachedOffhook = true
                     break
                 }
                 if (sawRingingOnce && st == TelephonyManager.CALL_STATE_IDLE) {
                     break
                 }
-                val elapsedAccept = android.os.SystemClock.elapsedRealtime() - acceptStartMs
                 if (retryCount == 0 && elapsedAccept >= 950L && st == TelephonyManager.CALL_STATE_RINGING) {
                     retryCount = 1
                     acceptIncomingCallSafe()
@@ -470,6 +526,12 @@ class FunkiraPhoneConciergeService : Service() {
                             readUnifiedCallState(telephony, telecom, audioManager, subStates, false) != TelephonyManager.CALL_STATE_IDLE
                         }
                     )
+                    if (handledByMiniPc) {
+                        notePersisted = true
+                        serviceScope.launch {
+                            try { PhoneConciergeManager.fetchRecentCalls(applicationContext) } catch (_: Exception) { }
+                        }
+                    }
                 }
                 if (!handledByMiniPc) {
                     restoreAudioRouting()
@@ -477,7 +539,7 @@ class FunkiraPhoneConciergeService : Service() {
             }
 
             // Standalone Smartphone Live Secretary Mode (default whenever Mini-PC is asleep, away, or unlinked!)
-            val activeBeforeSecretary = readUnifiedCallState(telephony, telecom, audioManager, subStates, false) != TelephonyManager.CALL_STATE_IDLE
+            val activeBeforeSecretary = readUnifiedCallState(telephony, telecom, audioManager, subStates, true) != TelephonyManager.CALL_STATE_IDLE
             if (!handledByMiniPc && activeBeforeSecretary) {
                 if (signalledMiniPcRinging) {
                     serviceScope.launch {
@@ -487,13 +549,6 @@ class FunkiraPhoneConciergeService : Service() {
                     }
                 }
 
-                val greetingName = nickname.trim()
-                    .split(',', '/')
-                    .firstOrNull()
-                    ?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                    ?: callerName.trim().split(' ').firstOrNull().orEmpty().ifBlank { displayLabel }
-
                 secretaryAudioOverrideActive = true
                 val result = StandalonePhoneSecretaryEngine.runSecretaryCall(
                     context = applicationContext,
@@ -502,6 +557,7 @@ class FunkiraPhoneConciergeService : Service() {
                     greetingName = greetingName,
                     relationType = relationType,
                     systemInstructions = systemInstructions,
+                    onTranscriptUpdated = { lines -> partialTranscriptRef.set(lines) },
                     isCallStillOffhook = {
                         readUnifiedCallState(telephony, telecom, audioManager, subStates, true) == TelephonyManager.CALL_STATE_OFFHOOK
                     }
@@ -523,7 +579,10 @@ class FunkiraPhoneConciergeService : Service() {
                     transcript = result.transcript,
                     verification = result.verification
                 )
-                PhoneConciergeManager.persistOrQueueSecretaryCompletion(applicationContext, note)
+                withContext(NonCancellable) {
+                    PhoneConciergeManager.persistOrQueueSecretaryCompletion(applicationContext, note)
+                    notePersisted = true
+                }
                 val statusHint = when (result.verification?.status) {
                     CallNoteVerificationEngine.STATUS_CORRECTED -> " (KI-korrigiert)"
                     CallNoteVerificationEngine.STATUS_UNCERTAIN -> " (Bitte prüfen)"
@@ -553,10 +612,43 @@ class FunkiraPhoneConciergeService : Service() {
                 hangUpCallIfOffhook()
             }
         } finally {
+            // Sicherheitsnetz: Jeder angenommene Anruf MUSS protokolliert werden, selbst bei Abbruch oder Exception!
+            if (reachedOffhook && !notePersisted) {
+                withContext(NonCancellable) {
+                    try {
+                        val partialLines = partialTranscriptRef.get().orEmpty()
+                        val callerRaw = CallNoteVerificationEngine.extractCallerLines(partialLines).joinToString(" ")
+                        val fallbackSum = StandalonePhoneSecretaryEngine.buildFallbackSummaryFromTranscript(callerRaw, greetingName)
+                        val durSec = kotlin.math.max(1, ((android.os.SystemClock.elapsedRealtime() - callStartedAtMs) / 1000L).toInt())
+                        val fallbackNote = PendingPhoneSecretaryNote(
+                            callId = callId,
+                            contactId = contactId,
+                            callerName = callerName,
+                            greetingName = greetingName,
+                            callerPhone = callerPhone,
+                            summary = fallbackSum,
+                            urgency = "mittel",
+                            callbackRequested = true,
+                            actionRequired = "$greetingName zurückrufen.",
+                            durationSeconds = durSec,
+                            transcript = partialLines
+                        )
+                        PhoneConciergeManager.persistOrQueueSecretaryCompletion(applicationContext, fallbackNote)
+                        postSummaryNotification(displayLabel, fallbackSum)
+                        PhoneConciergeManager.appendDiagnosticTrace(
+                            applicationContext,
+                            "Notfall-Protokoll gespeichert (${partialLines.size} Zeilen)"
+                        )
+                    } catch (_: Exception) { }
+                }
+            }
             NavigationBridge.isLiveCallActive = false
             unregisterAllSubscriptionCallStateListeners(registeredCallbacks)
             currentFgsIncludesMic = false
             restoreAudioRouting()
+            try {
+                if (lifecycleWakeLock?.isHeld == true) lifecycleWakeLock.release()
+            } catch (_: Exception) { }
             stopSelf()
         }
     }

@@ -754,4 +754,81 @@ class FunkiraResilienceAndSecretaryTest {
         assertTrue(serverSummary.contains("Kaffee vorbereiten"))
         assertFalse(serverSummary.contains(" \u2013 "))
     }
+
+    @Test
+    fun softOffhookAndClientCallIdDeduplication_preventMissedVoWifiPickupAndDuplicateLogs() {
+        // 1. Soft-OFFHOOK accepts VoWiFi/Bluetooth calls staying in MODE_NORMAL after 2.2s when Telecom stays active,
+        //    but strictly rejects MODE_RINGTONE or inactive Telecom.
+        assertTrue(
+            FunkiraPhoneConciergeService.shouldTreatAsSoftOffhookAfterAccept(
+                telecomInCall = true,
+                audioMode = android.media.AudioManager.MODE_NORMAL,
+                unifiedState = android.telephony.TelephonyManager.CALL_STATE_RINGING,
+                elapsedSinceAcceptMs = 2_300L
+            )
+        )
+        assertFalse(
+            FunkiraPhoneConciergeService.shouldTreatAsSoftOffhookAfterAccept(
+                telecomInCall = true,
+                audioMode = android.media.AudioManager.MODE_RINGTONE,
+                unifiedState = android.telephony.TelephonyManager.CALL_STATE_RINGING,
+                elapsedSinceAcceptMs = 2_500L
+            )
+        )
+        assertFalse(
+            FunkiraPhoneConciergeService.shouldTreatAsSoftOffhookAfterAccept(
+                telecomInCall = false,
+                audioMode = android.media.AudioManager.MODE_NORMAL,
+                unifiedState = android.telephony.TelephonyManager.CALL_STATE_IDLE,
+                elapsedSinceAcceptMs = 2_500L
+            )
+        )
+
+        // 2. Local UUID call is deduplicated when the backend returns the persisted SupportTelephonyCall row with client_call_id,
+        //    while keeping local verification & user edits mapped via client_call_id!
+        val uuid = "550e8400-e29b-41d4-a716-446655440000"
+        val localEntry = PhoneSecretaryCallSummaryDto(
+            id = uuid,
+            client_call_id = uuid,
+            caller_name = "Papa (Jan Steinhauer)",
+            summary = "Vorläufige Notiz",
+            handled_by = "android_secretary"
+        )
+        val serverEntry = PhoneSecretaryCallSummaryDto(
+            id = "42",
+            client_call_id = uuid,
+            caller_name = "Papa (Jan Steinhauer)",
+            summary = "Server-Notiz",
+            duration_seconds = 31,
+            transcript = listOf("Funkira: Hallo Papa", "Anrufer: Komm heute um 18 Uhr"),
+            handled_by = "android_secretary"
+        )
+        val verifications = mapOf(
+            uuid to CallVerificationReportDto(
+                status = CallNoteVerificationEngine.STATUS_VERIFIED,
+                confidence_score = 98,
+                verification_summary = "Geprüft"
+            )
+        )
+        val edits = mapOf(
+            uuid to LocalNoteEdit(
+                summary = "Alinas korrigierte Notiz",
+                actionRequired = "18:00 Uhr zurückrufen",
+                rahmenbedingungen = listOf("Heute, 18:00 Uhr")
+            )
+        )
+
+        val merged = PhoneConciergeManager.applyLocalEnhancementsToCalls(
+            remoteCalls = listOf(serverEntry),
+            localCalls = listOf(localEntry),
+            verifications = verifications,
+            edits = edits
+        )
+
+        assertEquals(1, merged.size)
+        assertEquals("42", merged[0].id)
+        assertEquals("Alinas korrigierte Notiz", merged[0].summary)
+        assertEquals("18:00 Uhr zurückrufen", merged[0].action_required)
+        assertEquals(CallNoteVerificationEngine.STATUS_VERIFIED, merged[0].verification?.status)
+    }
 }

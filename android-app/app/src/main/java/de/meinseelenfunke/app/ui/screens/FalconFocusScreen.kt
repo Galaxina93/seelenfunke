@@ -7,6 +7,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
@@ -59,9 +60,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
@@ -101,6 +104,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -116,6 +121,8 @@ import de.meinseelenfunke.app.util.AgDirectInboxManager
 import de.meinseelenfunke.app.util.AgDirectStatus
 import de.meinseelenfunke.app.util.FalconCameraController
 import de.meinseelenfunke.app.util.FalconClientTools
+import de.meinseelenfunke.app.util.FunkiraLocalMemoryStore
+import de.meinseelenfunke.app.util.FunkiraPackageStore
 import de.meinseelenfunke.app.util.MusicPlayerManager
 import de.meinseelenfunke.app.util.NavigationBridge
 import de.meinseelenfunke.app.util.PendingCameraAction
@@ -171,6 +178,9 @@ fun FalconFocusScreen(
     val agOpenCount by AgDirectInboxManager.openCountFlow.collectAsState()
     val agItems by AgDirectInboxManager.itemsFlow.collectAsState()
     val pendingBlockades by AgDirectInboxManager.pendingBlockadesFlow.collectAsState()
+    val agRealtimeStatus by AgDirectInboxManager.realtimeStatusFlow.collectAsState()
+    val draftPackages by FunkiraPackageStore.packagesFlow.collectAsState()
+    val memoryCount by FunkiraLocalMemoryStore.memoryCountFlow.collectAsState()
     val agGoCount = remember(agItems, pendingBlockades) {
         pendingBlockades.size
     }
@@ -227,14 +237,54 @@ fun FalconFocusScreen(
         }
     }
 
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
+    var pendingVideoCaptureUri by remember { mutableStateOf<Uri?>(null) }
+    val videoCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = pendingVideoCaptureUri
+        pendingVideoCaptureUri = null
+        if (result.resultCode == Activity.RESULT_OK && uri != null) {
             scope.launch {
-                val imported = FalconCameraController.importPhotoFromUri(context, it)
-                if (imported != null) {
-                    Toast.makeText(context, "✓ Bild hinterlegt", Toast.LENGTH_SHORT).show()
+                val storyboard = FalconCameraController.importVideoWithKeyframes(context, uri)
+                if (storyboard != null) {
+                    Toast.makeText(context, "✓ Video + 4 Keyframes hinterlegt", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Video max. 20 Sek. / 12 MB erlaubt.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val launchShortVideoCapture: () -> Unit = {
+        try {
+            val dir = File(context.cacheDir, "camera_captures").apply { mkdirs() }
+            val tempMp4 = File.createTempFile("funkira_clip_", ".mp4", dir).apply { deleteOnExit() }
+            val uri = FileProvider.getUriForFile(context, "de.meinseelenfunke.app.fileprovider", tempMp4)
+            pendingVideoCaptureUri = uri
+            val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
+                putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                putExtra(MediaStore.EXTRA_DURATION_LIMIT, 20)
+                putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 0)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            videoCaptureLauncher.launch(intent)
+        } catch (_: Exception) {
+            Toast.makeText(context, "Video-Kamera konnte nicht gestartet werden.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val multiMediaPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                var importedCount = 0
+                for (u in uris.take(FalconCameraController.MAX_POOL_IMAGES + 1)) {
+                    val imported = FalconCameraController.importMediaFromUri(context, u)
+                    if (imported != null) importedCount++
+                }
+                if (importedCount > 0) {
+                    Toast.makeText(context, "✓ $importedCount Medium/Medien hinterlegt", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -276,6 +326,8 @@ fun FalconFocusScreen(
 
     LaunchedEffect(Unit) {
         AgDirectInboxManager.hydrateLocalState(context)
+        FunkiraPackageStore.hydrate(context)
+        FunkiraLocalMemoryStore.hydrate(context)
         AgDirectInboxManager.refreshAsync(context)
         MusicPlayerManager.ensureCatalogLoadedFast(context)
         if (de.meinseelenfunke.app.di.ServiceLocator.isWakeWordEnabled()) {
@@ -327,6 +379,13 @@ fun FalconFocusScreen(
     LaunchedEffect(errorText) {
         if (!errorText.isNullOrBlank()) {
             Toast.makeText(context, errorText, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        AgDirectInboxManager.acquireRealtimeObserver(context)
+        onDispose {
+            AgDirectInboxManager.releaseRealtimeObserver()
         }
     }
 
@@ -481,7 +540,7 @@ fun FalconFocusScreen(
                     )
                 }
 
-                // Option 2: Bild wählen & an Antigravity senden
+                // Option 2: Kurzes Video aufnehmen (max. 20s + 4 Keyframes)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -490,7 +549,44 @@ fun FalconFocusScreen(
                         .border(1.dp, Gold.copy(alpha = 0.40f), RoundedCornerShape(14.dp))
                         .clickable {
                             showCameraSourceMenu = false
-                            imagePickerLauncher.launch("image/*")
+                            launchShortVideoCapture()
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Videocam,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "Kurzes Video aufnehmen (max. 20s)",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFF8FAFC)
+                    )
+                }
+
+                // Option 3: Aus Galerie wählen (mehrere Fotos, Screenshots oder kurzes Video)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x22FFFFFF))
+                        .border(1.dp, Gold.copy(alpha = 0.40f), RoundedCornerShape(14.dp))
+                        .clickable {
+                            showCameraSourceMenu = false
+                            multiMediaPickerLauncher.launch(arrayOf("image/*", "video/*"))
                         }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -511,7 +607,44 @@ fun FalconFocusScreen(
                         )
                     }
                     Text(
-                        text = "Bild aus Galerie hinterlegen",
+                        text = "Aus Galerie wählen (Fotos / Video)",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFF8FAFC)
+                    )
+                }
+
+                // Option 4: Live-Kamera-Blick ein-/ausschalten
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x22FFFFFF))
+                        .border(1.dp, Gold.copy(alpha = 0.40f), RoundedCornerShape(14.dp))
+                        .clickable {
+                            showCameraSourceMenu = false
+                            FalconCameraController.toggleVisionAsync(context)
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isVisionActive) Icons.Default.VideocamOff else Icons.Default.Videocam,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = if (isVisionActive) "Live-Kamera-Blick beenden" else "Live-Kamera-Blick starten",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFFF8FAFC)
@@ -685,6 +818,30 @@ fun FalconFocusScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (memoryCount > 0) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Gold.copy(alpha = 0.16f))
+                                .clickable { showDirectInboxSheet = true }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Psychology,
+                                contentDescription = "Gedächtnis",
+                                tint = Gold,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = memoryCount.toString(),
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Gold
+                            )
+                        }
+                    }
                 }
 
                 AnimatedVisibility(
@@ -720,6 +877,38 @@ fun FalconFocusScreen(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Gold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = agRealtimeStatus.activeWorkingCount > 0,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    val workCount = agRealtimeStatus.activeWorkingCount
+                    val workLabel = if (workCount == 1) "⚡ Antigravity arbeitet" else "⚡ Antigravity arbeitet ($workCount)"
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Emerald500.copy(alpha = 0.16f + 0.08f * chipPulseFactor))
+                            .border(
+                                1.1.dp,
+                                Emerald500.copy(alpha = 0.65f + 0.25f * chipPulseFactor),
+                                RoundedCornerShape(50)
+                            )
+                            .clickable { showDirectInboxSheet = true }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = workLabel,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Emerald500,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1199,6 +1388,117 @@ fun FalconFocusScreen(
                 }
             }
 
+            // Active Sammelpaket Staging Dock (1-tap release or edit)
+            if (draftPackages.isNotEmpty()) {
+                val topPkg = draftPackages.first()
+                val pointCount = maxOf(1, topPkg.checklist.size)
+                val channelChip = AgDirectInboxManager.resolveChannelEnum(topPkg.channel).chipLabel
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(stageHudBg)
+                        .border(1.dp, Gold, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 13.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Inventory2,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = "SAMMELPAKET · $channelChip · $pointCount PUNKTE" +
+                                    if (topPkg.attachmentCount > 0) " · ${topPkg.attachmentCount} FOTOS" else "",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Gold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (draftPackages.size > 1) {
+                            Text(
+                                text = "+${draftPackages.size - 1}",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = stageHudMuted
+                            )
+                        }
+                    }
+                    Text(
+                        text = topPkg.title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = stageHudText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    topPkg.checklist.take(2).forEachIndexed { idx, bullet ->
+                        Text(
+                            text = "${idx + 1}. $bullet",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFE2E8F0),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    val res = FunkiraPackageStore.releasePackage(context, topPkg.uuid)
+                                    Toast.makeText(
+                                        context,
+                                        if (res.sentLive) "✓ Sammelpaket an Antigravity gesendet" else "Offline gespeichert (Wartet)",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Gold,
+                                contentColor = SpaceBlack
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                        ) {
+                            Text("Paket absenden", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { showDirectInboxSheet = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0x22FFFFFF),
+                                contentColor = stageHudText
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .weight(0.85f)
+                                .height(34.dp)
+                        ) {
+                            Text("Bearbeiten", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
             // Bottom Command Dock
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1226,7 +1526,7 @@ fun FalconFocusScreen(
                                 .combinedClickable(
                                     enabled = !isCapturingPhoto,
                                     onClick = { showCameraSourceMenu = true },
-                                    onLongClick = { imagePickerLauncher.launch("image/*") }
+                                    onLongClick = { multiMediaPickerLauncher.launch(arrayOf("image/*", "video/*")) }
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1305,14 +1605,26 @@ fun FalconFocusScreen(
                                     .clip(CircleShape)
                                     .background(Gold)
                                     .border(1.dp, SpaceBlack, CircleShape)
-                                    .clickable { showDirectInboxSheet = true },
+                                    .clickable {
+                                        val pkg = FunkiraPackageStore.attachMediaToPackage(
+                                            context = context,
+                                            attachment = activePhoto.toPreparedAgAttachment(),
+                                            caption = "Kamera-Aufnahme",
+                                            packageUuid = draftPackages.firstOrNull()?.uuid
+                                        )
+                                        if (pkg != null) {
+                                            Toast.makeText(context, "✓ Foto ins Sammelpaket gelegt", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            showDirectInboxSheet = true
+                                        }
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = "An Antigravity senden",
+                                    imageVector = Icons.Default.Inventory2,
+                                    contentDescription = "Ins Sammelpaket legen",
                                     tint = SpaceBlack,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
                             }
                         }

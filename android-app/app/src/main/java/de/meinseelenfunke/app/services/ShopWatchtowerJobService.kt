@@ -4,6 +4,7 @@ import android.app.job.JobParameters
 import android.app.job.JobService
 import de.meinseelenfunke.app.util.AgDirectInboxManager
 import de.meinseelenfunke.app.util.ErrorSentinelReporter
+import de.meinseelenfunke.app.util.PhoneConciergeManager
 import de.meinseelenfunke.app.util.ShopWatchtowerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,10 @@ class ShopWatchtowerJobService : JobService() {
                 ErrorSentinelReporter.triggerAsyncFlush(applicationContext)
                 try {
                     AgDirectInboxManager.flushOutbox(applicationContext)
+                } catch (_: Throwable) {
+                }
+                try {
+                    PhoneConciergeManager.flushPendingCompletions(applicationContext)
                 } catch (_: Throwable) {
                 }
                 ShopWatchtowerManager.runCheckNow(applicationContext)

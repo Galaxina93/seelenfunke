@@ -6,9 +6,13 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.graphics.YuvImage
 import android.hardware.camera2.CameraCaptureSession
@@ -20,6 +24,7 @@ import android.hardware.camera2.CaptureRequest
 import android.media.ExifInterface
 import android.media.Image
 import android.media.ImageReader
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
@@ -128,6 +133,14 @@ object FalconCameraController {
     private val _lastCapturedPhoto = MutableStateFlow<FalconCapturedPhoto?>(null)
     val lastCapturedPhoto: StateFlow<FalconCapturedPhoto?> = _lastCapturedPhoto.asStateFlow()
 
+    const val MAX_POOL_IMAGES = 6
+    const val MAX_VIDEO_BYTES = 12 * 1024 * 1024 // 12 MB
+    const val MAX_VIDEO_DURATION_MS = 24_000L // ~20s limit (+ encoder tail tolerance)
+
+    private val poolLock = Any()
+    private val _mediaPoolFlow = MutableStateFlow<List<PreparedAgAttachment>>(emptyList())
+    val mediaPoolFlow: StateFlow<List<PreparedAgAttachment>> = _mediaPoolFlow.asStateFlow()
+
     private val _permissionRequestEvents = MutableSharedFlow<PendingCameraAction>(extraBufferCapacity = 2)
     val permissionRequestEvents: SharedFlow<PendingCameraAction> = _permissionRequestEvents.asSharedFlow()
 
@@ -150,12 +163,64 @@ object FalconCameraController {
         return if (_isVisionActive.value) latestVisionJpegBase64 else null
     }
 
+    fun addAttachmentToPool(attachment: PreparedAgAttachment) {
+        synchronized(poolLock) {
+            val current = _mediaPoolFlow.value.toMutableList()
+            val isVideo = attachment.mimeType.startsWith("video/", ignoreCase = true)
+            if (isVideo) {
+                current.removeAll { it.mimeType.startsWith("video/", ignoreCase = true) }
+                current.add(attachment)
+            } else {
+                current.removeAll { it.fileName == attachment.fileName && it.base64Jpeg.take(64) == attachment.base64Jpeg.take(64) }
+                val existingVideos = current.filter { it.mimeType.startsWith("video/", ignoreCase = true) }
+                val existingImages = current.filterNot { it.mimeType.startsWith("video/", ignoreCase = true) }
+                val trimmedImages = (existingImages + attachment).takeLast(MAX_POOL_IMAGES)
+                current.clear()
+                current.addAll(trimmedImages)
+                current.addAll(existingVideos.takeLast(1))
+            }
+            _mediaPoolFlow.value = current.toList()
+        }
+    }
+
+    fun removePoolItemAt(index: Int) {
+        synchronized(poolLock) {
+            val current = _mediaPoolFlow.value.toMutableList()
+            if (index in current.indices) {
+                current.removeAt(index)
+                _mediaPoolFlow.value = current.toList()
+            }
+            if (_mediaPoolFlow.value.isEmpty()) {
+                _lastCapturedPhoto.value = null
+                AgDirectInboxManager.clearStagedAttachment()
+            } else {
+                val latestImg = _mediaPoolFlow.value.lastOrNull { !it.mimeType.startsWith("video/", ignoreCase = true) }
+                    ?: _mediaPoolFlow.value.last()
+                AgDirectInboxManager.setStagedAttachment(latestImg)
+            }
+        }
+    }
+
+    fun consumeMediaPool(): List<PreparedAgAttachment> {
+        return synchronized(poolLock) {
+            val snapshot = _mediaPoolFlow.value
+            _mediaPoolFlow.value = emptyList()
+            snapshot
+        }
+    }
+
     fun clearLastCapturedPhoto() {
+        synchronized(poolLock) {
+            _mediaPoolFlow.value = emptyList()
+        }
         _lastCapturedPhoto.value = null
         AgDirectInboxManager.clearStagedAttachment()
     }
 
     fun markLastPhotoAttached() {
+        synchronized(poolLock) {
+            _mediaPoolFlow.value = emptyList()
+        }
         _lastCapturedPhoto.value = _lastCapturedPhoto.value?.copy(attachedToInbox = true)
         AgDirectInboxManager.clearStagedAttachment()
     }
@@ -314,7 +379,9 @@ object FalconCameraController {
 
                 if (photo != null) {
                     _lastCapturedPhoto.value = photo
-                    AgDirectInboxManager.setStagedAttachment(photo.toPreparedAgAttachment())
+                    val prep = photo.toPreparedAgAttachment()
+                    AgDirectInboxManager.setStagedAttachment(prep)
+                    addAttachmentToPool(prep)
                     try {
                         SoundManager.playSound(R.raw.click_file_in_project_brain)
                     } catch (_: Throwable) {
@@ -350,7 +417,9 @@ object FalconCameraController {
                 attachedToInbox = false
             )
             _lastCapturedPhoto.value = photo
-            AgDirectInboxManager.setStagedAttachment(photo.toPreparedAgAttachment())
+            val prep = photo.toPreparedAgAttachment()
+            AgDirectInboxManager.setStagedAttachment(prep)
+            addAttachmentToPool(prep)
             try {
                 SoundManager.playSound(R.raw.click_file_in_project_brain)
             } catch (_: Throwable) {
@@ -358,6 +427,168 @@ object FalconCameraController {
             photo
         } catch (_: Throwable) {
             null
+        }
+    }
+
+    /**
+     * Composes up to 4 extracted video keyframes into a crisp 2x2 Storyboard Bitmap
+     * so Funkira & Antigravity see Start / Mitte / Ende of a 20s video in 1 lightweight JPEG.
+     */
+    internal fun buildVideoKeyframeStoryboardBitmap(frames: List<Bitmap>): Bitmap? {
+        if (frames.isEmpty()) return null
+        val cellW = 540
+        val cellH = 360
+        val cols = if (frames.size == 1) 1 else 2
+        val rows = if (frames.size <= 2) 1 else 2
+        val out = Bitmap.createBitmap(cellW * cols, cellH * rows, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        canvas.drawColor(Color.rgb(12, 14, 20))
+
+        val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(195, 12, 14, 20)
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(212, 175, 55)
+            textSize = 24f
+            isFakeBoldText = true
+        }
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(110, 197, 160, 89)
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+        }
+
+        val labels = listOf("#1 Start", "#2 Verlauf", "#3 Verlauf", "#4 Ende")
+        frames.take(4).forEachIndexed { idx, bmp ->
+            val col = idx % cols
+            val row = idx / cols
+            val left = col * cellW
+            val top = row * cellH
+            val dst = Rect(left + 4, top + 4, left + cellW - 4, top + cellH - 4)
+            canvas.drawBitmap(bmp, null, dst, null)
+            canvas.drawRect(dst, borderPaint)
+            val label = labels.getOrElse(idx) { "#${idx + 1}" }
+            val badgeRect = RectF((left + 14).toFloat(), (top + 14).toFloat(), (left + 168).toFloat(), (top + 52).toFloat())
+            canvas.drawRoundRect(badgeRect, 10f, 10f, badgePaint)
+            canvas.drawText(label, (left + 26).toFloat(), (top + 41).toFloat(), textPaint)
+        }
+        return out
+    }
+
+    /**
+     * Imports a short handset video (max 20s / 12 MB), automatically extracts 4 sharp keyframes
+     * (5%, 35%, 65%, 92%) into a Storyboard JPEG for zero-token-explosion Live-Call vision,
+     * and stages both the Storyboard JPEG and the raw MP4 into FalconCameraController.mediaPoolFlow.
+     */
+    suspend fun importVideoWithKeyframes(
+        context: Context,
+        uri: Uri,
+        sessionId: String? = null,
+        keyframeExtractorOverride: ((Uri) -> Pair<Long, List<Bitmap>>)? = null
+    ): FalconCapturedPhoto? = withContext(Dispatchers.IO) {
+        try {
+            val appCtx = context.applicationContext
+            val rawBytes = appCtx.contentResolver.openInputStream(uri)?.use { stream ->
+                val buf = ByteArrayOutputStream()
+                val chunk = ByteArray(16_384)
+                var total = 0
+                while (true) {
+                    val read = stream.read(chunk)
+                    if (read <= 0) break
+                    total += read
+                    if (total > MAX_VIDEO_BYTES) return@withContext null
+                    buf.write(chunk, 0, read)
+                }
+                buf.toByteArray()
+            } ?: return@withContext null
+
+            if (rawBytes.size < 16) return@withContext null
+
+            val (durationMs, extractedFrames) = if (keyframeExtractorOverride != null) {
+                keyframeExtractorOverride(uri)
+            } else {
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(appCtx, uri)
+                    val durMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        ?.toLongOrNull()?.coerceAtLeast(500L) ?: 4_000L
+                    if (durMs > MAX_VIDEO_DURATION_MS) {
+                        return@withContext null
+                    }
+                    val ratios = listOf(0.05, 0.35, 0.65, 0.92)
+                    val bitmaps = ratios.mapNotNull { r ->
+                        val timeUs = (durMs * 1000.0 * r).toLong()
+                        retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                            ?: retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
+                    }
+                    Pair(durMs, bitmaps)
+                } finally {
+                    try { retriever.release() } catch (_: Throwable) {}
+                }
+            }
+
+            if (durationMs > MAX_VIDEO_DURATION_MS || extractedFrames.isEmpty()) {
+                return@withContext null
+            }
+
+            val storyboardBmp = buildVideoKeyframeStoryboardBitmap(extractedFrames) ?: return@withContext null
+            val storyboardBytes = ByteArrayOutputStream().use { out ->
+                storyboardBmp.compress(Bitmap.CompressFormat.JPEG, 84, out)
+                out.toByteArray()
+            }
+            val storyboardB64 = Base64.getEncoder().encodeToString(storyboardBytes)
+            val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val storyboardName = "video_keyframes_$stamp.jpg"
+            val mp4Name = "funkira_clip_$stamp.mp4"
+            val previewImg = storyboardBmp.asImageBitmap()
+
+            val storyboardPhoto = FalconCapturedPhoto(
+                base64Jpeg = storyboardB64,
+                mimeType = "image/jpeg",
+                fileName = storyboardName,
+                previewBitmap = previewImg,
+                width = storyboardBmp.width,
+                height = storyboardBmp.height,
+                capturedAtMs = System.currentTimeMillis(),
+                sessionId = sessionId,
+                attachedToInbox = false
+            )
+            val storyboardAttachment = storyboardPhoto.toPreparedAgAttachment()
+            val mp4Attachment = PreparedAgAttachment(
+                base64Jpeg = Base64.getEncoder().encodeToString(rawBytes),
+                mimeType = "video/mp4",
+                fileName = mp4Name,
+                previewBitmap = previewImg,
+                width = storyboardBmp.width,
+                height = storyboardBmp.height
+            )
+
+            _lastCapturedPhoto.value = storyboardPhoto
+            AgDirectInboxManager.setStagedAttachment(storyboardAttachment)
+            addAttachmentToPool(storyboardAttachment)
+            addAttachmentToPool(mp4Attachment)
+            try {
+                SoundManager.playSound(R.raw.click_file_in_project_brain)
+            } catch (_: Throwable) {}
+            storyboardPhoto
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    suspend fun importMediaFromUri(
+        context: Context,
+        uri: Uri,
+        sessionId: String? = null
+    ): FalconCapturedPhoto? {
+        val appCtx = context.applicationContext
+        val mime = try { appCtx.contentResolver.getType(uri)?.lowercase(Locale.ROOT).orEmpty() } catch (_: Throwable) { "" }
+        val pathLower = uri.toString().lowercase(Locale.ROOT)
+        return if (mime.startsWith("video/") || pathLower.endsWith(".mp4") || pathLower.endsWith(".mov") || pathLower.endsWith(".webm")) {
+            importVideoWithKeyframes(appCtx, uri, sessionId)
+        } else {
+            importPhotoFromUri(appCtx, uri, sessionId)
         }
     }
 

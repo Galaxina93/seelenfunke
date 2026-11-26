@@ -306,6 +306,20 @@ object StandalonePhoneSecretaryEngine {
         }
     }
 
+    private fun optStringSafe(obj: JsonObject?, key: String): String {
+        if (obj == null || !obj.has(key)) return ""
+        val el = obj.get(key) ?: return ""
+        if (el.isJsonNull || !el.isJsonPrimitive) return ""
+        return try { el.asString.orEmpty() } catch (_: Exception) { "" }
+    }
+
+    private fun optBooleanSafe(obj: JsonObject?, key: String, default: Boolean): Boolean {
+        if (obj == null || !obj.has(key)) return default
+        val el = obj.get(key) ?: return default
+        if (el.isJsonNull || !el.isJsonPrimitive) return default
+        return try { el.asBoolean } catch (_: Exception) { default }
+    }
+
     suspend fun runSecretaryCall(
         context: Context,
         callId: String,
@@ -313,6 +327,7 @@ object StandalonePhoneSecretaryEngine {
         greetingName: String,
         relationType: String?,
         systemInstructions: String?,
+        onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
     ): SecretarySessionResult {
         val appCtx = context.applicationContext
@@ -357,6 +372,7 @@ object StandalonePhoneSecretaryEngine {
                     systemInstruction = prompt,
                     candidate = candidate,
                     attemptIndex = idx,
+                    onTranscriptUpdated = onTranscriptUpdated,
                     isCallStillOffhook = isCallStillOffhook
                 )
                 if (liveResult != null) {
@@ -488,6 +504,7 @@ object StandalonePhoneSecretaryEngine {
         systemInstruction: String,
         candidate: WsCandidate,
         attemptIndex: Int,
+        onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
     ): SecretarySessionResult? {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -511,17 +528,27 @@ object StandalonePhoneSecretaryEngine {
         val completedUrgency = AtomicReference("mittel")
         val completedCallback = AtomicBoolean(true)
 
+        fun snapshotTranscriptWithPending(): List<String> {
+            val out = synchronized(transcriptLines) { transcriptLines.toMutableList() }
+            val uPending = currentCallerTurn.toString().replace(Regex("\\s+"), " ").trim()
+            if (uPending.isNotEmpty()) out.add("Anrufer: $uPending")
+            val aPending = currentAiTurn.toString().replace(Regex("\\s+"), " ").trim()
+            if (aPending.isNotEmpty()) out.add("Funkira: $aPending")
+            return out
+        }
+
         fun flushPendingTurns(interruptedAi: Boolean = false) {
-            val uTxt = currentCallerTurn.toString().trim()
+            val uTxt = currentCallerTurn.toString().replace(Regex("\\s+"), " ").trim()
             if (uTxt.isNotEmpty()) {
                 transcriptLines.add("Anrufer: $uTxt")
                 currentCallerTurn.setLength(0)
             }
-            val aTxt = currentAiTurn.toString().trim()
+            val aTxt = currentAiTurn.toString().replace(Regex("\\s+"), " ").trim()
             if (aTxt.isNotEmpty()) {
                 transcriptLines.add(if (interruptedAi) "Funkira: $aTxt (unterbrochen)" else "Funkira: $aTxt")
                 currentAiTurn.setLength(0)
             }
+            onTranscriptUpdated?.invoke(synchronized(transcriptLines) { transcriptLines.toList() })
         }
 
         val audioTrack = createSecretaryAudioTrack()
@@ -637,35 +664,29 @@ object StandalonePhoneSecretaryEngine {
                     if (root.has("serverContent")) {
                         val sc = root.getAsJsonObject("serverContent")
                         val inTr = when {
-                            sc.has("inputTranscription") -> sc.getAsJsonObject("inputTranscription")
-                            sc.has("inputAudioTranscription") -> sc.getAsJsonObject("inputAudioTranscription")
+                            sc.has("inputTranscription") && sc.get("inputTranscription").isJsonObject -> sc.getAsJsonObject("inputTranscription")
+                            sc.has("inputAudioTranscription") && sc.get("inputAudioTranscription").isJsonObject -> sc.getAsJsonObject("inputAudioTranscription")
                             else -> null
                         }
-                        if (inTr != null && inTr.has("text")) {
-                            val t = inTr.get("text").asString
-                            if (!t.isNullOrBlank()) {
-                                val cleanChunk = t.trim()
-                                callerFullTranscript.append(' ').append(cleanChunk)
-                                if (currentCallerTurn.isNotEmpty()) currentCallerTurn.append(' ')
-                                currentCallerTurn.append(cleanChunk)
-                            }
+                        val inText = optStringSafe(inTr, "text")
+                        if (inText.isNotEmpty()) {
+                            callerFullTranscript.append(inText)
+                            currentCallerTurn.append(inText)
+                            onTranscriptUpdated?.invoke(snapshotTranscriptWithPending())
                         }
 
                         val outTr = when {
-                            sc.has("outputTranscription") -> sc.getAsJsonObject("outputTranscription")
-                            sc.has("outputAudioTranscription") -> sc.getAsJsonObject("outputAudioTranscription")
+                            sc.has("outputTranscription") && sc.get("outputTranscription").isJsonObject -> sc.getAsJsonObject("outputTranscription")
+                            sc.has("outputAudioTranscription") && sc.get("outputAudioTranscription").isJsonObject -> sc.getAsJsonObject("outputAudioTranscription")
                             else -> null
                         }
-                        if (outTr != null && outTr.has("text")) {
-                            val t = outTr.get("text").asString
-                            if (!t.isNullOrBlank()) {
-                                val cleanChunk = t.trim()
-                                if (currentAiTurn.isNotEmpty()) currentAiTurn.append(' ')
-                                currentAiTurn.append(cleanChunk)
-                            }
+                        val outText = optStringSafe(outTr, "text")
+                        if (outText.isNotEmpty()) {
+                            currentAiTurn.append(outText)
+                            onTranscriptUpdated?.invoke(snapshotTranscriptWithPending())
                         }
 
-                        if (sc.has("interrupted") && sc.get("interrupted").asBoolean) {
+                        if (optBooleanSafe(sc, "interrupted", false)) {
                             playbackActiveUntilMs.set(0L)
                             flushPendingTurns(interruptedAi = true)
                             try {
@@ -676,25 +697,27 @@ object StandalonePhoneSecretaryEngine {
                             }
                         }
 
-                        if (sc.has("modelTurn")) {
+                        if (sc.has("modelTurn") && sc.get("modelTurn").isJsonObject) {
                             val parts = sc.getAsJsonObject("modelTurn")?.getAsJsonArray("parts")
                             parts?.forEach { p ->
-                                val pObj = p.asJsonObject
-                                if (pObj.has("inlineData")) {
-                                    val b64 = pObj.getAsJsonObject("inlineData")?.get("data")?.asString
-                                    if (!b64.isNullOrBlank()) {
-                                        val pcm = Base64.decode(b64, Base64.NO_WRAP)
-                                        firstModelAudioArrived.set(true)
-                                        if (finishToolTriggered.get()) {
-                                            goodbyeAudioArrived.set(true)
+                                if (p.isJsonObject) {
+                                    val pObj = p.asJsonObject
+                                    if (pObj.has("inlineData") && pObj.get("inlineData").isJsonObject) {
+                                        val b64 = optStringSafe(pObj.getAsJsonObject("inlineData"), "data")
+                                        if (b64.isNotBlank()) {
+                                            val pcm = Base64.decode(b64, Base64.NO_WRAP)
+                                            firstModelAudioArrived.set(true)
+                                            if (finishToolTriggered.get()) {
+                                                goodbyeAudioArrived.set(true)
+                                            }
+                                            writePcm24k(pcm)
                                         }
-                                        writePcm24k(pcm)
                                     }
                                 }
                             }
                         }
 
-                        if (sc.has("turnComplete") && sc.get("turnComplete").asBoolean) {
+                        if (optBooleanSafe(sc, "turnComplete", false)) {
                             flushPendingTurns(interruptedAi = false)
                             if (finishToolTriggered.get()) {
                                 goodbyeTurnDone.set(true)
@@ -702,28 +725,28 @@ object StandalonePhoneSecretaryEngine {
                         }
                     }
 
-                    if (root.has("toolCall")) {
+                    if (root.has("toolCall") && root.get("toolCall").isJsonObject) {
                         val calls = root.getAsJsonObject("toolCall")?.getAsJsonArray("functionCalls")
                         calls?.forEach { c ->
+                            if (!c.isJsonObject) return@forEach
                             val cObj = c.asJsonObject
-                            val fnName = cObj.get("name")?.asString.orEmpty()
-                            val fnId = cObj.get("id")?.asString.orEmpty()
+                            val fnName = optStringSafe(cObj, "name")
+                            val fnId = optStringSafe(cObj, "id")
                             if (fnName == "phone_secretary_finish") {
                                 val args = if (cObj.has("args") && cObj.get("args").isJsonObject) {
                                     cObj.getAsJsonObject("args")
                                 } else null
-                                val sum = CallNoteVerificationEngine.sanitizeCleanText(args?.get("summary")?.asString)
-                                val actionReq = CallNoteVerificationEngine.sanitizeCleanText(args?.get("action_required")?.asString)
+                                val sum = CallNoteVerificationEngine.sanitizeCleanText(optStringSafe(args, "summary"))
+                                val actionReq = CallNoteVerificationEngine.sanitizeCleanText(optStringSafe(args, "action_required"))
                                 val rahmen = if (args != null && args.has("rahmenbedingungen") && args.get("rahmenbedingungen").isJsonArray) {
                                     args.getAsJsonArray("rahmenbedingungen")
+                                        .filter { el -> !el.isJsonNull && el.isJsonPrimitive }
                                         .mapNotNull { el -> CallNoteVerificationEngine.sanitizeCleanText(el.asString).takeIf { it.isNotBlank() } }
                                 } else {
                                     emptyList()
                                 }
-                                val urg = PhoneConciergeManager.normalizeUrgency(args?.get("urgency")?.asString)
-                                val cb = if (args != null && args.has("callback_requested")) {
-                                    try { args.get("callback_requested").asBoolean } catch (_: Exception) { true }
-                                } else true
+                                val urg = PhoneConciergeManager.normalizeUrgency(optStringSafe(args, "urgency"))
+                                val cb = optBooleanSafe(args, "callback_requested", true)
 
                                 if (sum.isNotBlank()) {
                                     completedSummary.set(sum)
@@ -777,7 +800,7 @@ object StandalonePhoneSecretaryEngine {
         try {
             wsRef = wsHttpClient.newWebSocket(reqBuilder.build(), listener)
 
-            val ready = withTimeoutOrNull(3_200L) { setupReady.await() } == true
+            val ready = withTimeoutOrNull(5_500L) { setupReady.await() } == true
             if (!ready) {
                 return null
             }
@@ -853,7 +876,10 @@ object StandalonePhoneSecretaryEngine {
                 null
             }
 
-            val useCorrected = verification != null && verification.status == CallNoteVerificationEngine.STATUS_CORRECTED
+            val useCorrected = verification != null && (
+                verification.status == CallNoteVerificationEngine.STATUS_CORRECTED ||
+                    (!finishToolTriggered.get() && verification.corrected_summary.isNotBlank())
+                )
             val finalSummary = if (useCorrected && verification!!.corrected_summary.isNotBlank()) {
                 verification.corrected_summary
             } else {
@@ -952,6 +978,8 @@ object StandalonePhoneSecretaryEngine {
 
             // 640 samples @ 16 kHz = crisp 40 ms real-time frames with zero extra sleep latency
             val pcmShortBuf = ShortArray(640)
+            var consecutiveZeroFrames = 0
+            var reportedZeroMicWarning = false
             while (!closedFlag.get() && isCallStillOffhook()) {
                 val read = record.read(pcmShortBuf, 0, pcmShortBuf.size)
                 if (read <= 0) {
@@ -960,7 +988,7 @@ object StandalonePhoneSecretaryEngine {
                 }
 
                 // Opening-Greeting Anti-Barge-In Guard + Software Echo Gate:
-                // 1) During the first ~1.8s after pickup while Gemini generates its opening greeting, do not let
+                // 1) During the first ~1.2s after pickup while Gemini generates its opening greeting, do not let
                 //    call-connect clicks or an early "Hallo?" abort Funkira's self-introduction before she speaks.
                 // 2) While Funkira's 24 kHz voice is playing on speakerphone, suppress echo back into Gemini VAD.
                 val now = SystemClock.uptimeMillis()
@@ -970,6 +998,31 @@ object StandalonePhoneSecretaryEngine {
                 }
                 if (now < (playbackActiveUntilMs.get() + ECHO_TAIL_GUARD_MS)) {
                     continue
+                }
+
+                var hasNonZeroSample = false
+                for (i in 0 until read) {
+                    if (pcmShortBuf[i].toInt() != 0) {
+                        hasNonZeroSample = true
+                        break
+                    }
+                }
+                if (!hasNonZeroSample) {
+                    consecutiveZeroFrames++
+                    if (!reportedZeroMicWarning && consecutiveZeroFrames >= 65) {
+                        reportedZeroMicWarning = true
+                        PhoneConciergeManager.appendDiagnosticTrace(
+                            appCtx,
+                            "Warnung: Mikrofon liefert reine Stille (OS-Hintergrundsperre?)"
+                        )
+                        ErrorSentinelReporter.captureError(
+                            context = appCtx,
+                            tag = "phone_secretary_mic",
+                            message = "AudioRecord lieferte >2,5s lang ausschließlich Null-Samples während des Anrufs."
+                        )
+                    }
+                } else {
+                    consecutiveZeroFrames = 0
                 }
 
                 val outBytes = ByteArray(read * 2)
