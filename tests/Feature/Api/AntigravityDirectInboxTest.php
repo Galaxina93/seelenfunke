@@ -496,4 +496,36 @@ class AntigravityDirectInboxTest extends TestCase
         ])['item'];
         $this->assertSame('minipc', $kioskItem['channel']);
     }
+
+    public function test_direct_rollout_summary_quoting_ui_labels_completes_cleanly_while_real_questions_still_await_go(): void
+    {
+        $directItem = ['execution_mode' => 'direct', 'title' => 'Echtzeit-Status im Live-Call'];
+
+        $this->assertFalse(
+            AntigravityDirectInboxService::requiresGoOrDecision(
+                $directItem,
+                "Erledigt & direkt in Funkenwerk v1.9.7 (Build 48) auf Stage + OTA mit ausgerollt: saubere Trennung zwischen 'arbeitet aktiv' und 'wartet auf Go'."
+            )
+        );
+        $this->assertFalse(
+            AntigravityDirectInboxService::requiresGoOrDecision(
+                $directItem,
+                'Feature fertiggestellt, Label "wartet auf Freigabe" wird korrekt angezeigt.'
+            )
+        );
+
+        // Echte unzitierte Rückfrage im Direktmodus triggert weiterhin zuverlässig awaiting_go
+        $this->assertTrue(
+            AntigravityDirectInboxService::requiresGoOrDecision(
+                $directItem,
+                'Rückfrage: Sollen wir den Timer auf 3 oder 5 Sekunden stellen?'
+            )
+        );
+        $this->assertTrue(
+            AntigravityDirectInboxService::requiresGoOrDecision(
+                $directItem,
+                'Ich warte auf dein Go für den Umbau der Datenbank.'
+            )
+        );
+    }
 }

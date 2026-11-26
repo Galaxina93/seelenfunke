@@ -873,13 +873,25 @@ class AntigravityDirectInboxService
             return true;
         }
 
+        // Wenn eine Direkt-Zusammenfassung explizit meldet "Erledigt & ... ausgerollt" (ohne Fragezeichen),
+        // handelt es sich um einen finalen Abschlussbericht und niemals um eine offene Blockade.
+        if (preg_match('/^erledigt\s*(?:&|und|,|\.)[^?]{0,120}\bausgerollt\b/iu', $trimmed) === 1) {
+            return false;
+        }
+
         // Im Direkt-Umsetzungsmodus ("direct") nicht fälschlich auf awaiting_go blockieren,
-        // wenn lediglich der Lokal-First-Hinweis ("bereit für Stage-Rollout auf dein Go") am Ende steht.
+        // wenn lediglich der Lokal-First-Hinweis ("bereit für Stage-Rollout auf dein Go") steht
+        // oder ein UI-Label in Anführungszeichen (z. B. 'wartet auf Go') zitiert wird.
+        $sanitizedForCheck = (string) (preg_replace(
+            '/(?:\'[^\'\n]{1,80}\'|"[^"\n]{1,80}"|„[^“\n]{1,80}“|`[^`\n]{1,80}`)/u',
+            ' ',
+            $trimmed
+        ) ?? $trimmed);
         $sanitizedForCheck = (string) (preg_replace(
             '/bereit\s+f(?:ü|ue)r\s+(?:stage|live)[^.!?\n]{0,60}\b(?:dein|ihr)?\s*go\b/iu',
             '',
-            $trimmed
-        ) ?? $trimmed);
+            $sanitizedForCheck
+        ) ?? $sanitizedForCheck);
         $sanitizedForCheck = (string) (preg_replace(
             '/(?:stage|live)[-\s]*(?:rollout|deploy|push)[^.!?\n]{0,60}\b(?:dein|ihr)?\s*go\b/iu',
             '',
