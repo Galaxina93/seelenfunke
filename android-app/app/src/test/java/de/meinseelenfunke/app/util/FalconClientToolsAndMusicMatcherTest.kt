@@ -26,6 +26,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -1435,6 +1436,138 @@ class FalconClientToolsAndMusicMatcherTest {
                 shutters = emptyList(),
                 groups = emptyList()
             )
+        }
+    }
+
+    @Test
+    fun liveCallZeroThinkingSetupAndDeviceReflexFastLane_executesImmediatelyAndDeduplicatesToolCall() = runBlocking {
+        // 1. Gemini 3.1 Live setup receives thinkingLevel='minimal', 2.5 receives thinkingBudget=0, fallback omits cleanly
+        val cfg31 = FalconClientTools.buildLiveThinkingConfig("models/gemini-3.1-flash-live-preview", true)
+        assertNotNull(cfg31)
+        assertEquals("minimal", cfg31!!.get("thinkingLevel").asString)
+
+        val cfgVertex31 = FalconClientTools.buildLiveThinkingConfig(
+            "projects/mein-seelenfunke/locations/europe-west1/publishers/google/models/gemini-3.1-flash-live-preview",
+            true
+        )
+        assertNotNull(cfgVertex31)
+        assertEquals("minimal", cfgVertex31!!.get("thinkingLevel").asString)
+
+        val cfg25 = FalconClientTools.buildLiveThinkingConfig("models/gemini-2.5-flash-native-audio", true)
+        assertNotNull(cfg25)
+        assertEquals(0, cfg25!!.get("thinkingBudget").asInt)
+
+        assertNull(FalconClientTools.buildLiveThinkingConfig("models/gemini-3.1-flash-live-preview", false))
+
+        // 2. Deterministic reflex matches crisp German imperatives and strictly rejects negations/questions/concepts
+        val lkOn = FalconClientTools.matchDeterministicDeviceReflex("Mach bitte alle Lichterketten an!")
+        assertNotNull(lkOn)
+        assertEquals("falcon_smarthome_control", lkOn!!.first)
+        assertEquals("turn_on", lkOn.second.get("action").asString)
+        assertEquals("alle Lichterketten", lkOn.second.get("device_name").asString)
+
+        val camOn = FalconClientTools.matchDeterministicDeviceReflex("Kamera an")
+        assertNotNull(camOn)
+        assertEquals("falcon_camera_control", camOn!!.first)
+        assertEquals("enable_vision", camOn.second.get("action").asString)
+
+        val camOff = FalconClientTools.matchDeterministicDeviceReflex("Mach die Kamera wieder aus")
+        assertNotNull(camOff)
+        assertEquals("falcon_camera_control", camOff!!.first)
+        assertEquals("disable_vision", camOff.second.get("action").asString)
+
+        val shutterDown = FalconClientTools.matchDeterministicDeviceReflex("Fahr den Rollladen im Wohnzimmer runter")
+        assertNotNull(shutterDown)
+        assertEquals("falcon_smarthome_control", shutterDown!!.first)
+        assertEquals("shutter_close", shutterDown.second.get("action").asString)
+        assertEquals("Wohnzimmer", shutterDown.second.get("device_name").asString)
+
+        assertNull(FalconClientTools.matchDeterministicDeviceReflex("Mach die Kamera nicht an"))
+        assertNull(FalconClientTools.matchDeterministicDeviceReflex("Erstelle ein Konzept fuer die Kamera"))
+        assertNull(FalconClientTools.matchDeterministicDeviceReflex("Sind die Lichterketten an?"))
+        assertNull(FalconClientTools.matchDeterministicDeviceReflex("Schalte um 20 Uhr die Lichterketten ein"))
+
+        // 3. Single-flight coalescing cache executes hardware ONCE when reflex fires first and Gemini toolCall arrives 200ms later,
+        //    and opposite command ('aus') immediately evicts 'an' so rapid reversal works without stale cache!
+        FalconClientTools.clearDeviceReflexCacheForTests()
+        FunkenwerkAlarmManager.setSmartHomeInventoryForTests(
+            plugs = FunkenwerkAlarmManager.defaultSmartPlugs(),
+            shutters = emptyList(),
+            groups = emptyList()
+        )
+        var hardwareExecutionCount = 0
+        try {
+            val t0 = 100_000L
+            val reflexRes = FalconClientTools.executeDeviceToolWithReflexDedupe(
+                context = context,
+                toolName = lkOn.first,
+                argsElement = lkOn.second,
+                chatSessionId = "s-reflex-1",
+                nowMs = t0,
+                smartHomeExecutorOverride = { _, _ ->
+                    hardwareExecutionCount++
+                    Pair(true, "Lichterketten eingeschaltet")
+                }
+            )
+            assertEquals("success", reflexRes.get("status").asString)
+            assertEquals(1, hardwareExecutionCount)
+
+            // Gemini emits slightly different phrasing ("turn_all_on", "Lichterketten") 250ms later -> coalesced in 0ms!
+            val geminiCallRes = FalconClientTools.executeDeviceToolWithReflexDedupe(
+                context = context,
+                toolName = "falcon_smarthome_control",
+                argsElement = JsonObject().apply {
+                    addProperty("action", "turn_all_on")
+                    addProperty("device_name", "Lichterketten")
+                },
+                chatSessionId = "s-reflex-1",
+                nowMs = t0 + 250L,
+                smartHomeExecutorOverride = { _, _ ->
+                    hardwareExecutionCount++
+                    Pair(true, "Lichterketten eingeschaltet")
+                }
+            )
+            assertEquals("success", geminiCallRes.get("status").asString)
+            assertTrue(geminiCallRes.get("coalesced_fast_lane").asBoolean)
+            assertEquals("Hardware must execute strictly ONCE across reflex + Gemini toolCall", 1, hardwareExecutionCount)
+
+            // Immediate opposite command ('turn_off') executes fresh hardware and evicts 'on' cache
+            val offRes = FalconClientTools.executeDeviceToolWithReflexDedupe(
+                context = context,
+                toolName = "falcon_smarthome_control",
+                argsElement = JsonObject().apply {
+                    addProperty("action", "turn_off")
+                    addProperty("device_name", "alle Lichterketten")
+                },
+                chatSessionId = "s-reflex-1",
+                nowMs = t0 + 800L,
+                smartHomeExecutorOverride = { _, _ ->
+                    hardwareExecutionCount++
+                    Pair(true, "Lichterketten ausgeschaltet")
+                }
+            )
+            assertEquals("success", offRes.get("status").asString)
+            assertEquals(2, hardwareExecutionCount)
+
+            // Turning back ON right after OFF must execute fresh hardware (3rd call) because OFF evicted ON!
+            val onAgainRes = FalconClientTools.executeDeviceToolWithReflexDedupe(
+                context = context,
+                toolName = "falcon_smarthome_control",
+                argsElement = JsonObject().apply {
+                    addProperty("action", "turn_on")
+                    addProperty("device_name", "alle Lichterketten")
+                },
+                chatSessionId = "s-reflex-1",
+                nowMs = t0 + 1400L,
+                smartHomeExecutorOverride = { _, _ ->
+                    hardwareExecutionCount++
+                    Pair(true, "Lichterketten eingeschaltet")
+                }
+            )
+            assertEquals("success", onAgainRes.get("status").asString)
+            assertEquals(3, hardwareExecutionCount)
+        } finally {
+            FalconClientTools.clearDeviceReflexCacheForTests()
         }
     }
 }

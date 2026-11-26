@@ -313,6 +313,341 @@ object FalconClientTools {
 
     val LOCAL_TOOL_NAMES = DECLARED_WS_LOCAL_TOOL_NAMES + "falcon_set_emotion"
 
+    const val DEVICE_REFLEX_COALESCE_WINDOW_MS = 4_500L
+
+    private data class ReflexInFlightEntry(
+        val startedAtMs: Long,
+        val deferred: kotlinx.coroutines.CompletableDeferred<JsonObject>
+    )
+
+    private val reflexCacheLock = Any()
+    private val recentDeviceReflexCache = LinkedHashMap<String, ReflexInFlightEntry>()
+
+    fun clearDeviceReflexCacheForTests() {
+        synchronized(reflexCacheLock) {
+            recentDeviceReflexCache.clear()
+        }
+    }
+
+    fun buildLiveThinkingConfig(modelName: String, includeThinkingConfig: Boolean = true): JsonObject? {
+        if (!includeThinkingConfig) return null
+        val lower = modelName.trim().lowercase(Locale.ROOT)
+        return when {
+            lower.contains("2.5") -> JsonObject().apply {
+                addProperty("thinkingBudget", 0)
+            }
+            lower.contains("3.1") || lower.contains("gemini-3") -> JsonObject().apply {
+                addProperty("thinkingLevel", "minimal")
+            }
+            else -> null
+        }
+    }
+
+    private fun normalizeReflexText(raw: String): String {
+        return raw.lowercase(Locale.GERMAN)
+            .replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("ß", "ss")
+            .replace(Regex("""[,.;:!\-_/()\[\]"']"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+    }
+
+    fun canonicalDeviceReflexKey(toolName: String, args: JsonObject): String? {
+        return when (toolName) {
+            "falcon_camera_control" -> {
+                val act = args.optString("action").ifBlank { "enable_vision" }.trim().lowercase(Locale.ROOT)
+                val lens = args.optString("lens").trim().lowercase(Locale.ROOT)
+                when (act) {
+                    "disable_vision", "off", "stop" -> "cam:off"
+                    "switch_camera", "flip" -> "cam:switch:${lens.ifBlank { "toggle" }}"
+                    "take_photo", "photo", "snapshot" -> "cam:photo:${lens.ifBlank { "default" }}"
+                    else -> "cam:on:${lens.ifBlank { "back" }}"
+                }
+            }
+
+            "falcon_smarthome_control" -> {
+                val rawAct = args.optString("action").trim().lowercase(Locale.ROOT)
+                val rawTarget = args.optString("device_name").trim()
+                    .ifBlank { args.optString("target").trim() }
+                val rawPos = args.optInt("position_percent", args.optInt("position", -1))
+
+                if (rawAct in setOf("", "toggle", "plug_toggle", "group_toggle", "umschalten", "wechseln", "list", "status", "devices", "list_devices")) {
+                    return null
+                }
+
+                val intent = when (rawAct) {
+                    "on", "ein", "einschalten", "turn_on", "plug_on", "all_on", "alle_an", "turn_all_on", "group_on",
+                    "open", "up", "hoch", "auf", "oeffnen", "öffnen", "shutter_open", "group_open" -> "on_open"
+                    "off", "aus", "ausschalten", "turn_off", "plug_off", "all_off", "alle_aus", "turn_all_off", "group_off",
+                    "close", "down", "runter", "zu", "schliessen", "schließen", "shutter_close", "group_close" -> "off_close"
+                    "stop", "halt", "stopp", "shutter_stop", "group_stop" -> "stop"
+                    "my", "fav", "favorit", "shutter_my", "group_my" -> "my"
+                    "position", "set_position", "setclosure", "shutter_position", "group_position" ->
+                        "pos:${rawPos.coerceIn(0, 100)}"
+                    else -> return null
+                }
+
+                val normTarget = normalizeReflexText(rawTarget)
+                    .split(" ")
+                    .filterNot {
+                        it in setOf(
+                            "alle", "beide", "beiden", "die", "den", "das", "der", "meine",
+                            "bitte", "mal", "kurz", "rollladen", "rolllaeden", "rolladen", "rollaeden", "gruppe"
+                        )
+                    }
+                    .joinToString(" ")
+                    .trim()
+
+                val canonicalTarget = when {
+                    normTarget.contains("lichterkette") -> when {
+                        normTarget.contains("spiegel") && !normTarget.contains("fussleiste") -> "lichterkettespiegel"
+                        normTarget.contains("fussleiste") && !normTarget.contains("spiegel") -> "lichterkettefussleiste"
+                        else -> "all_lichterketten"
+                    }
+                    normTarget.contains("spiegel") -> "lichterkettespiegel"
+                    normTarget.contains("fussleiste") -> "lichterkettefussleiste"
+                    normTarget.contains("packtisch") -> "packtisch"
+                    normTarget.isEmpty() || normTarget in setOf("steckdosen", "steckdose", "lichter", "lampen", "geraete", "alles", "ueberall", "komplett") -> {
+                        if (rawAct.contains("shutter") || rawTarget.lowercase(Locale.ROOT).contains("roll")) {
+                            "all_shutters"
+                        } else {
+                            "all_plugs"
+                        }
+                    }
+                    else -> normTarget.replace(" ", "")
+                }
+
+                "sh:$intent:$canonicalTarget"
+            }
+
+            else -> null
+        }
+    }
+
+    private fun evictOppositeReflexKeysLocked(canonicalKey: String) {
+        when {
+            canonicalKey == "cam:off" -> {
+                val toRemove = recentDeviceReflexCache.keys.filter { it.startsWith("cam:on:") }
+                toRemove.forEach { recentDeviceReflexCache.remove(it) }
+            }
+            canonicalKey.startsWith("cam:on:") -> {
+                recentDeviceReflexCache.remove("cam:off")
+            }
+            canonicalKey.startsWith("sh:on_open:") -> {
+                val target = canonicalKey.removePrefix("sh:on_open:")
+                recentDeviceReflexCache.remove("sh:off_close:$target")
+                recentDeviceReflexCache.remove("sh:stop:$target")
+            }
+            canonicalKey.startsWith("sh:off_close:") -> {
+                val target = canonicalKey.removePrefix("sh:off_close:")
+                recentDeviceReflexCache.remove("sh:on_open:$target")
+                recentDeviceReflexCache.remove("sh:stop:$target")
+            }
+            canonicalKey.startsWith("sh:stop:") -> {
+                val target = canonicalKey.removePrefix("sh:stop:")
+                recentDeviceReflexCache.remove("sh:on_open:$target")
+                recentDeviceReflexCache.remove("sh:off_close:$target")
+            }
+        }
+    }
+
+    fun matchDeterministicDeviceReflex(utterance: String): Pair<String, JsonObject>? {
+        val raw = utterance.trim()
+        if (raw.isEmpty() || raw.length > 72 || raw.contains('?')) return null
+
+        val norm = normalizeReflexText(raw)
+        if (norm.isEmpty()) return null
+        if (norm.any { it.isDigit() }) return null
+
+        val rawTokens = norm.split(" ").filter { it.isNotEmpty() }
+        val blockedWords = setOf(
+            "nicht", "kein", "keine", "keinen", "keiner", "niemals", "nie", "ohne",
+            "warte", "spaeter", "morgen", "gestern", "warum", "wieso", "weshalb", "wann",
+            "welche", "welcher", "welches", "wieviel", "status", "konzept", "antigravity",
+            "ticket", "paket", "sammelpaket", "fehler", "problem", "erklaer", "erklaere",
+            "pruef", "pruefe", "check", "wenn", "falls", "obwohl", "oder", "aber", "und"
+        )
+        if (rawTokens.any { it in blockedWords }) return null
+
+        val fillerPrefixAndMid = setOf(
+            "hey", "hi", "hallo", "funkira", "falcone", "falcon", "bitte", "mal",
+            "kurz", "schnell", "sofort", "direkt", "jetzt", "eben", "kannst", "koenntest", "du", "mir"
+        )
+        val cleaned = rawTokens.filterNot { it in fillerPrefixAndMid }.joinToString(" ").trim()
+        if (cleaned.isEmpty()) return null
+
+        // 1. Camera deterministic imperatives
+        Regex("""^(?:(?:mach|mache|schalt|schalte) )?(?:die )?kamera (?:wieder )?(?:aus|ausschalten|stopp|stoppen|beenden)$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply { addProperty("action", "disable_vision") }
+        }
+        Regex("""^schliess(?:e)? (?:die )?kamera$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply { addProperty("action", "disable_vision") }
+        }
+        Regex("""^(?:(?:wechsel|wechsle|dreh|drehe) (?:die )?kamera(?: um)?|kamera (?:wechseln|umdrehen))$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply { addProperty("action", "switch_camera") }
+        }
+        Regex("""^(?:(?:mach|mache|schalt|schalte|wechsel auf) )?(?:die )?(?:frontkamera|selfiekamera|vorderkamera)(?: an| ein)?$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply {
+                addProperty("action", "switch_camera")
+                addProperty("lens", "front")
+            }
+        }
+        Regex("""^(?:(?:mach|mache|schalt|schalte|wechsel auf) )?(?:die )?(?:rueckkamera|hauptkamera)(?: an| ein)?$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply {
+                addProperty("action", "switch_camera")
+                addProperty("lens", "back")
+            }
+        }
+        Regex("""^(?:(?:mach|mache|schiess|schiesse|nimm) (?:ein )?(?:foto|bild)(?: auf)?|foto (?:machen|aufnehmen))$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply { addProperty("action", "take_photo") }
+        }
+        Regex("""^(?:(?:mach|mache|schalt|schalte) )?(?:die )?kamera (?:an|ein|einschalten|starten|aktivieren)$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply { addProperty("action", "enable_vision") }
+        }
+        Regex("""^oeffne (?:die )?kamera$""").matchEntire(cleaned)?.let {
+            return "falcon_camera_control" to JsonObject().apply { addProperty("action", "enable_vision") }
+        }
+
+        // 2. SmartHome deterministic imperatives (idempotent states only)
+        Regex("""^(?:(?:mach|mache|schalt|schalte) )?(?:(?:alle|beide|die) )?lichterketten (an|ein|einschalten|aus|ausschalten)$""").matchEntire(cleaned)?.let { m ->
+            val turnOn = m.groupValues[1] in setOf("an", "ein", "einschalten")
+            return "falcon_smarthome_control" to JsonObject().apply {
+                addProperty("action", if (turnOn) "turn_on" else "turn_off")
+                addProperty("device_name", "alle Lichterketten")
+            }
+        }
+
+        Regex("""^(?:(?:mach|mache|schalt|schalte) )?(?:(?:die|das|den) )?(lichterkette spiegel|spiegel lichterkette|lichterkette fussleiste|fussleiste lichterkette|packtisch warm licht|packtisch licht|packtisch) (an|ein|einschalten|aus|ausschalten)$""").matchEntire(cleaned)?.let { m ->
+            val rawDev = m.groupValues[1]
+            val turnOn = m.groupValues[2] in setOf("an", "ein", "einschalten")
+            val canonicalDev = when {
+                rawDev.contains("spiegel") -> "Lichterkette Spiegel"
+                rawDev.contains("fussleiste") -> "Lichterkette Fußleiste"
+                else -> "Packtisch Warm Licht"
+            }
+            return "falcon_smarthome_control" to JsonObject().apply {
+                addProperty("action", if (turnOn) "turn_on" else "turn_off")
+                addProperty("device_name", canonicalDev)
+            }
+        }
+
+        Regex("""^(?:(?:mach|mache|schalt|schalte) )?alle (?:steckdosen|lichter|lampen) (an|ein|einschalten|aus|ausschalten)$""").matchEntire(cleaned)?.let { m ->
+            val turnOn = m.groupValues[1] in setOf("an", "ein", "einschalten")
+            return "falcon_smarthome_control" to JsonObject().apply {
+                addProperty("action", if (turnOn) "turn_all_on" else "turn_all_off")
+                addProperty("device_name", "alle")
+            }
+        }
+
+        Regex("""^(?:(?:mach|mache|fahr|fahre) )?(?:(?:den|die) )?(alle )?(?:rollladen|rolllaeden|rolladen|rollaeden)(?: (?:im|in der|am|an der))?(?: ([a-z]+))? (hoch|auf|oeffnen|runter|zu|schliessen|stopp|stop|halt)$""").matchEntire(cleaned)?.let { m ->
+            val roomToken = m.groupValues[2].trim()
+            val verb = m.groupValues[3]
+            val action = when (verb) {
+                "hoch", "auf", "oeffnen" -> "shutter_open"
+                "runter", "zu", "schliessen" -> "shutter_close"
+                else -> "shutter_stop"
+            }
+            val targetName = when {
+                roomToken == "terrassentuer" || roomToken == "terasse" || roomToken == "terrasse" -> "Terrassentür"
+                roomToken == "wohnzimmer" -> "Wohnzimmer"
+                roomToken == "schlafzimmer" -> "Schlafzimmer"
+                roomToken.isNotBlank() -> roomToken.replaceFirstChar { it.titlecase(Locale.GERMAN) }
+                else -> "alle"
+            }
+            return "falcon_smarthome_control" to JsonObject().apply {
+                addProperty("action", action)
+                addProperty("device_name", targetName)
+            }
+        }
+
+        return null
+    }
+
+    suspend fun executeDeviceToolWithReflexDedupe(
+        context: Context,
+        toolName: String,
+        argsElement: JsonElement?,
+        chatSessionId: String,
+        onEmotionChanged: (String) -> Unit = {},
+        onNavigate: (FalconResolvedDestination) -> Unit = {},
+        nowMs: Long = System.currentTimeMillis(),
+        smartHomeExecutorOverride: (suspend (action: String, ips: List<String>) -> Pair<Boolean, String>)? = null,
+        smartHomeRelayExecutorOverride: (suspend (action: String, target: String, position: Int?) -> Pair<Boolean, String>)? = null
+    ): JsonObject {
+        val argsObj = if (argsElement != null && argsElement.isJsonObject) argsElement.asJsonObject else JsonObject()
+        val key = canonicalDeviceReflexKey(toolName, argsObj)
+            ?: return executeLocalFalconToolInternal(
+                context = context,
+                toolName = toolName,
+                args = argsObj,
+                chatSessionId = chatSessionId,
+                onEmotionChanged = onEmotionChanged,
+                onNavigate = onNavigate,
+                agApiOverride = null,
+                smartHomeExecutorOverride = smartHomeExecutorOverride,
+                smartHomeRelayExecutorOverride = smartHomeRelayExecutorOverride
+            )
+
+        var existingDeferred: kotlinx.coroutines.CompletableDeferred<JsonObject>? = null
+        val ownDeferred = kotlinx.coroutines.CompletableDeferred<JsonObject>()
+        synchronized(reflexCacheLock) {
+            val staleKeys = recentDeviceReflexCache.entries
+                .filter { (nowMs - it.value.startedAtMs) > DEVICE_REFLEX_COALESCE_WINDOW_MS && it.value.deferred.isCompleted }
+                .map { it.key }
+            staleKeys.forEach { recentDeviceReflexCache.remove(it) }
+
+            evictOppositeReflexKeysLocked(key)
+
+            val existing = recentDeviceReflexCache[key]
+            if (existing != null && (nowMs - existing.startedAtMs) <= DEVICE_REFLEX_COALESCE_WINDOW_MS) {
+                existingDeferred = existing.deferred
+            } else {
+                recentDeviceReflexCache[key] = ReflexInFlightEntry(nowMs, ownDeferred)
+            }
+        }
+
+        existingDeferred?.let { shared ->
+            val cached = shared.await()
+            return gson.fromJson(gson.toJson(cached), JsonObject::class.java).apply {
+                addProperty("coalesced_fast_lane", true)
+            }
+        }
+
+        return try {
+            val fresh = executeLocalFalconToolInternal(
+                context = context,
+                toolName = toolName,
+                args = argsObj,
+                chatSessionId = chatSessionId,
+                onEmotionChanged = onEmotionChanged,
+                onNavigate = onNavigate,
+                agApiOverride = null,
+                smartHomeExecutorOverride = smartHomeExecutorOverride,
+                smartHomeRelayExecutorOverride = smartHomeRelayExecutorOverride
+            )
+            val statusStr = fresh.optString("status")
+            if (statusStr == "error" || statusStr == "not_found") {
+                synchronized(reflexCacheLock) {
+                    if (recentDeviceReflexCache[key]?.deferred === ownDeferred) {
+                        recentDeviceReflexCache.remove(key)
+                    }
+                }
+            }
+            ownDeferred.complete(fresh)
+            fresh
+        } catch (t: Throwable) {
+            synchronized(reflexCacheLock) {
+                if (recentDeviceReflexCache[key]?.deferred === ownDeferred) {
+                    recentDeviceReflexCache.remove(key)
+                }
+            }
+            ownDeferred.completeExceptionally(t)
+            throw t
+        }
+    }
+
     val SUPERSEDED_SERVER_LIVE_TOOLS = setOf(
         "ag_send_to_antigravity",
         "ag_check_antigravity_status",
@@ -1764,8 +2099,45 @@ object FalconClientTools {
         smartHomeExecutorOverride: (suspend (action: String, ips: List<String>) -> Pair<Boolean, String>)? = null,
         smartHomeRelayExecutorOverride: (suspend (action: String, target: String, position: Int?) -> Pair<Boolean, String>)? = null
     ): JsonObject {
-        val appCtx = context.applicationContext
         val args = if (argsElement != null && argsElement.isJsonObject) argsElement.asJsonObject else JsonObject()
+        if ((toolName == "falcon_smarthome_control" || toolName == "falcon_camera_control") &&
+            smartHomeExecutorOverride == null &&
+            smartHomeRelayExecutorOverride == null
+        ) {
+            return executeDeviceToolWithReflexDedupe(
+                context = context,
+                toolName = toolName,
+                argsElement = args,
+                chatSessionId = chatSessionId,
+                onEmotionChanged = onEmotionChanged,
+                onNavigate = onNavigate
+            )
+        }
+        return executeLocalFalconToolInternal(
+            context = context,
+            toolName = toolName,
+            args = args,
+            chatSessionId = chatSessionId,
+            onEmotionChanged = onEmotionChanged,
+            onNavigate = onNavigate,
+            agApiOverride = agApiOverride,
+            smartHomeExecutorOverride = smartHomeExecutorOverride,
+            smartHomeRelayExecutorOverride = smartHomeRelayExecutorOverride
+        )
+    }
+
+    private suspend fun executeLocalFalconToolInternal(
+        context: Context,
+        toolName: String,
+        args: JsonObject,
+        chatSessionId: String,
+        onEmotionChanged: (String) -> Unit,
+        onNavigate: (FalconResolvedDestination) -> Unit,
+        agApiOverride: AgDirectApi? = null,
+        smartHomeExecutorOverride: (suspend (action: String, ips: List<String>) -> Pair<Boolean, String>)? = null,
+        smartHomeRelayExecutorOverride: (suspend (action: String, target: String, position: Int?) -> Pair<Boolean, String>)? = null
+    ): JsonObject {
+        val appCtx = context.applicationContext
 
         return when (toolName) {
             "falcon_set_emotion" -> {
@@ -2076,11 +2448,12 @@ object FalconClientTools {
                     }
 
                     else -> {
-                        val started = FalconCameraController.startVision(appCtx, lens ?: "back")
+                        val cleanLens = if (lens?.trim().equals("front", ignoreCase = true)) "front" else "back"
+                        FalconCameraController.startVisionAsync(appCtx, cleanLens)
                         JsonObject().apply {
-                            addProperty("status", if (started) "success" else "error")
-                            addProperty("vision_active", started)
-                            addProperty("lens", FalconCameraController.activeLens.value)
+                            addProperty("status", "success")
+                            addProperty("vision_active", true)
+                            addProperty("lens", cleanLens)
                         }
                     }
                 }
@@ -2391,12 +2764,22 @@ object FalconClientTools {
                 val positionPercent: Int? = if (rawPos in 0..100) rawPos else null
 
                 FunkenwerkAlarmManager.ensureInitialized(appCtx)
-                if (FunkenwerkAlarmManager.smartShuttersFlow.value.isEmpty() &&
+                val preliminaryPlugs = FunkenwerkAlarmManager.smartPlugsFlow.value
+                    .ifEmpty { FunkenwerkAlarmManager.defaultSmartPlugs() }
+                val preliminaryLocalPlugHit = matchSmartHomePlugsWithGroupsAndCompounds(
+                    preliminaryPlugs,
+                    FunkenwerkAlarmManager.smartGroupsFlow.value,
+                    deviceQuery
+                ).isNotEmpty()
+                val syncStale = (System.currentTimeMillis() - FunkenwerkAlarmManager.lastPortalSmartHomeSyncMs) > 60_000L
+                if (!preliminaryLocalPlugHit &&
+                    syncStale &&
+                    FunkenwerkAlarmManager.smartShuttersFlow.value.isEmpty() &&
                     FunkenwerkAlarmManager.smartGroupsFlow.value.isEmpty() &&
                     smartHomeExecutorOverride == null &&
                     smartHomeRelayExecutorOverride == null
                 ) {
-                    withTimeoutOrNull(2000L) {
+                    withTimeoutOrNull(1200L) {
                         FunkenwerkAlarmManager.refreshSmartHomeInventoryFromPortalSuspend(appCtx)
                     }
                 }

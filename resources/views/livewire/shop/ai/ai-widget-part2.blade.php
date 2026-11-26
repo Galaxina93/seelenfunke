@@ -2101,6 +2101,8 @@
                         };
                         if (String(setupModelName).includes('2.5')) {
                             genCfg.thinkingConfig = { thinkingBudget: 0 };
+                        } else if (String(setupModelName).includes('3.1') || String(setupModelName).includes('gemini-3')) {
+                            genCfg.thinkingConfig = { thinkingLevel: 'minimal' };
                         }
                         const setupMsg = {
                             setup: {

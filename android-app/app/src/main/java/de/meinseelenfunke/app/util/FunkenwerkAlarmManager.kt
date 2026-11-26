@@ -237,6 +237,9 @@ object FunkenwerkAlarmManager {
     private val _smartGroupsFlow = MutableStateFlow<List<SmartHomeGroupDto>>(emptyList())
     val smartGroupsFlow: StateFlow<List<SmartHomeGroupDto>> = _smartGroupsFlow.asStateFlow()
 
+    @Volatile
+    var lastPortalSmartHomeSyncMs: Long = 0L
+
     internal fun setSmartHomeInventoryForTests(
         plugs: List<SmartPlugDevice>? = null,
         shutters: List<SmartShutterDevice>? = null,
@@ -245,6 +248,7 @@ object FunkenwerkAlarmManager {
         if (plugs != null) _smartPlugsFlow.value = plugs
         if (shutters != null) _smartShuttersFlow.value = shutters
         if (groups != null) _smartGroupsFlow.value = groups
+        lastPortalSmartHomeSyncMs = System.currentTimeMillis()
         isInitialized = true
     }
 
@@ -1333,6 +1337,7 @@ object FunkenwerkAlarmManager {
 
     suspend fun refreshSmartHomeInventoryFromPortalSuspend(context: Context): Boolean = withContext(Dispatchers.IO) {
         val appCtx = context.applicationContext
+        lastPortalSmartHomeSyncMs = System.currentTimeMillis()
         try {
             ensureInitialized(appCtx)
             ServiceLocator.ensureInitialized(appCtx)
@@ -4433,6 +4438,8 @@ object FunkenwerkAlarmManager {
     // LOCAL WI-FI SMART-HOME PLUG CONTROL (TAPO P100/P110 KLAP v2 PROTOCOL)
     // =========================================================================
     private val lastKnownPlugStateByIp = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    @Volatile
+    private var lastTapoCredSyncAttemptMs: Long = 0L
 
     fun ensureTapoCredentialsSyncedAsync(context: Context) {
         val appCtx = context.applicationContext
@@ -4446,10 +4453,15 @@ object FunkenwerkAlarmManager {
         if (initial.first.isNotBlank() && initial.second.isNotBlank()) {
             return@withContext initial
         }
+        val now = System.currentTimeMillis()
+        if ((now - lastTapoCredSyncAttemptMs) < 60_000L) {
+            return@withContext initial
+        }
+        lastTapoCredSyncAttemptMs = now
         try {
             ServiceLocator.ensureInitialized(appCtx)
             if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
-                val resp = withTimeoutOrNull(3500L) {
+                val resp = withTimeoutOrNull(2200L) {
                     ServiceLocator.getOrganizerApi().getAlarmSyncPackage()
                 }
                 val pkg = resp?.data
@@ -4676,7 +4688,7 @@ object FunkenwerkAlarmManager {
             // Up to 3 attempts with short backoff so sleeping Wi-Fi plugs after overnight Doze wake up reliably
             for (attempt in 0..2) {
                 if (attempt > 0) {
-                    delay(450L)
+                    delay(220L)
                 }
                 try {
                     val localSeed = ByteArray(16)
@@ -4781,8 +4793,8 @@ object FunkenwerkAlarmManager {
         val conn = (rawConn as HttpURLConnection).apply {
             instanceFollowRedirects = false
             requestMethod = "POST"
-            connectTimeout = 2400
-            readTimeout = 2400
+            connectTimeout = 1250
+            readTimeout = 1500
             doOutput = true
             useCaches = false
             setRequestProperty("Content-Type", contentType)

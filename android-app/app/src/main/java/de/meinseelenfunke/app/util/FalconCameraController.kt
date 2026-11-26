@@ -347,8 +347,8 @@ object FalconCameraController {
                         stopCameraUnlocked()
                         return@withLock null
                     }
-                    // Allow ~620 ms for Auto-Exposure & Auto-Focus convergence
-                    delay(620L)
+                    // Fast 220 ms Auto-Exposure & Auto-Focus convergence for instant Live-Call snap
+                    delay(220L)
                 }
 
                 val rawJpegBytes = triggerStillCaptureUnlocked(appCtx)

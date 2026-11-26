@@ -135,6 +135,9 @@ class FunkiraLiveViewModel : ViewModel() {
     @Volatile private var pendingProactiveKickPrompt: String? = null
     @Volatile private var lastSyncedAttachmentKeyForSocket: String? = null
     @Volatile private var hasOutputTranscriptionInTurn: Boolean = false
+    @Volatile private var includeThinkingConfigInSetup: Boolean = true
+    private var reflexPreTriggerJob: Job? = null
+    @Volatile private var reflexTriggeredInCurrentUserTurn: String? = null
 
     @Volatile private var shouldEndCall = false
     @Volatile private var shouldEnterStandbyAfterTurn = false
@@ -334,6 +337,11 @@ class FunkiraLiveViewModel : ViewModel() {
         midCallReconnectCount = 0
         sessionEverSetupComplete = false
         proactiveKickSentInSession = false
+        includeThinkingConfigInSetup = true
+        reflexPreTriggerJob?.cancel()
+        reflexPreTriggerJob = null
+        reflexTriggeredInCurrentUserTurn = null
+        de.meinseelenfunke.app.util.FalconClientTools.clearDeviceReflexCacheForTests()
         currentSocketSetupAtUptimeMs = 0L
         lastAiServerPacketUptimeMs = 0L
         lastAiSpeechActiveUptimeMs = 0L
@@ -687,11 +695,9 @@ class FunkiraLiveViewModel : ViewModel() {
                             val modalities = JsonArray()
                             modalities.add("AUDIO")
                             add("responseModalities", modalities)
-                            if (resolvedSetupModel.contains("2.5")) {
-                                add("thinkingConfig", JsonObject().apply {
-                                    addProperty("thinkingBudget", 0)
-                                })
-                            }
+                            de.meinseelenfunke.app.util.FalconClientTools
+                                .buildLiveThinkingConfig(resolvedSetupModel, includeThinkingConfigInSetup)
+                                ?.let { add("thinkingConfig", it) }
                             add("speechConfig", JsonObject().apply {
                                 add("voiceConfig", JsonObject().apply {
                                     add("prebuiltVoiceConfig", JsonObject().apply {
@@ -725,7 +731,7 @@ class FunkiraLiveViewModel : ViewModel() {
                                     if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
                                         strictPrompt = "$strictPrompt\n\n$brevityRule"
                                     }
-                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (intelligente Kontext-/Routine-Auswahl per action='play_smart' oder 'play_query', Sport per 'play_sport', 1-Song-Playlists per Name/Song/Vibe oder Analyse per 'analyze_playlist' - spiele NICHT pauschal nur Favoriten!) und bestätige bei Musikstart danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für ALLE Smart-Home-Geräte (Lichterketten, Steckdosen, Connexoon Window Somfy Rollläden UND alle SmartHome-Gruppen) immer sofort lokal falcon_smarthome_control (Lichterketten/Steckdosen: 'turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off' inkl. 'alle Lichterketten'; Rollläden: 'shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' mit position_percent 0..100; Gruppen & Kombi-Befehle wie 'Wohnzimmer und Terrassentür': 'group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off', 'group_toggle' oder Gruppenname in device_name; Bestand: 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), zum Bündeln mehrerer Ideen/Konzepte/Fotos vor dem Versand falcon_stage_to_package, falcon_list_draft_packages und auf Alinas Freigabe falcon_release_package (SAMMELPAKET-GESETZ: Bündle mehrteilige Gedanken oder Konzepte zuerst per falcon_stage_to_package statt Einzel-Aufträge zu spammen; nutze falcon_send_to_antigravity nur bei ausdrücklichem Sofort-Einzelauftrag), für Kurzzeitgedächtnis falcon_get_recent_memory, für Statusabfragen falcon_check_antigravity_status und zum Öffnen von App-Bereichen falcon_app_navigate. ANTI-DOPPELANTWORT-REGEL: Beantworte jede Aussage oder Frage von Alina immer exakt EINMAL knapp und vollständig; wiederhole oder paraphrasiere deine eigene Antwort niemals ein zweites Mal."
+                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS (SOFORT-AUSFÜHRUNG OHNE DENKZEIT: Rufe bei Smart-Home-, Kamera-, Musik- und Navigationsbefehlen im selben Moment ohne Vorrede direkt das lokale falcon_*-Tool auf!): Nutze bei Musikwünschen sofort falcon_music_control (intelligente Kontext-/Routine-Auswahl per action='play_smart' oder 'play_query', Sport per 'play_sport', 1-Song-Playlists per Name/Song/Vibe oder Analyse per 'analyze_playlist' - spiele NICHT pauschal nur Favoriten!) und bestätige bei Musikstart danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für ALLE Smart-Home-Geräte (Lichterketten, Steckdosen, Connexoon Window Somfy Rollläden UND alle SmartHome-Gruppen) immer sofort lokal falcon_smarthome_control (Lichterketten/Steckdosen: 'turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off' inkl. 'alle Lichterketten'; Rollläden: 'shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' mit position_percent 0..100; Gruppen & Kombi-Befehle wie 'Wohnzimmer und Terrassentür': 'group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off', 'group_toggle' oder Gruppenname in device_name; Bestand: 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), zum Bündeln mehrerer Ideen/Konzepte/Fotos vor dem Versand falcon_stage_to_package, falcon_list_draft_packages und auf Alinas Freigabe falcon_release_package (SAMMELPAKET-GESETZ: Bündle mehrteilige Gedanken oder Konzepte zuerst per falcon_stage_to_package statt Einzel-Aufträge zu spammen; nutze falcon_send_to_antigravity nur bei ausdrücklichem Sofort-Einzelauftrag), für Kurzzeitgedächtnis falcon_get_recent_memory, für Statusabfragen falcon_check_antigravity_status und zum Öffnen von App-Bereichen falcon_app_navigate. ANTI-DOPPELANTWORT-REGEL: Beantworte jede Aussage oder Frage von Alina immer exakt EINMAL knapp und vollständig; wiederhole oder paraphrasiere deine eigene Antwort niemals ein zweites Mal."
                                     if (!strictPrompt.contains("LOKALE SMARTPHONE-SUPERTOOLS")) {
                                         strictPrompt = "$strictPrompt\n\n$falconDeviceToolsRule"
                                     }
@@ -867,6 +873,9 @@ class FunkiraLiveViewModel : ViewModel() {
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 val wasSetupComplete = setupCompletedForCurrentSocket
+                if (!wasSetupComplete && (code == 1007 || reason.contains("thinking", ignoreCase = true)) && tryFallbackWithoutThinkingConfig("Close $code: $reason")) {
+                    return
+                }
                 if (!wasSetupComplete && code != 1000 && !isDirectGoogle &&
                     tryFailoverToDirectGemini("Bridge geschlossen ($code: $reason)", null)
                 ) {
@@ -953,6 +962,26 @@ class FunkiraLiveViewModel : ViewModel() {
         return true
     }
 
+    private fun tryFallbackWithoutThinkingConfig(triggerReason: String): Boolean {
+        if (!includeThinkingConfigInSetup || userInitiatedHangup || shouldEndCall) return false
+        includeThinkingConfigInSetup = false
+        val staleWs = webSocket
+        webSocket = null
+        setupCompletedForCurrentSocket = false
+        try { staleWs?.cancel() } catch (_: Exception) {}
+        _isConnected.value = false
+        _isConnecting.value = true
+        _error.value = null
+        addLog("[Auto-Heilung]: ThinkingConfig-Fallback aktiv ($triggerReason). Verbinde sofort neu...")
+        reconnectJob?.cancel()
+        reconnectJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(150L)
+            if (userInitiatedHangup || shouldEndCall) return@launch
+            launchCredentialAndSocketConnect(isMidCallReconnect = true)
+        }
+        return true
+    }
+
     private fun tryFailoverToDirectGemini(triggerReason: String, throwable: Throwable?): Boolean {
         val directUrl = fallbackDirectUrl?.takeIf { it.isNotBlank() } ?: return false
         val directBearer = fallbackDirectBearerToken
@@ -1004,6 +1033,9 @@ class FunkiraLiveViewModel : ViewModel() {
                 val errMsg = parsedErr.second
                 addLog("[System-Fehler]: Server-Fehler ($errCode): $errMsg")
                 val wasSetupComplete = setupCompletedForCurrentSocket
+                if (!wasSetupComplete && errMsg.contains("thinking", ignoreCase = true) && tryFallbackWithoutThinkingConfig(errMsg)) {
+                    return
+                }
                 if (!wasSetupComplete && tryFailoverToDirectGemini("Bridge-Fehler ($errMsg)", null)) {
                     return
                 }
@@ -1111,7 +1143,34 @@ class FunkiraLiveViewModel : ViewModel() {
                         inactivityTracker.onUserSpeech(nowUp)
                     }
                     userTurnTranscript.append(delta)
-                    _liveSubtitle.value = "Du: ${userTurnTranscript.toString().trim()}"
+                    val currentUtterance = userTurnTranscript.toString().trim()
+                    _liveSubtitle.value = "Du: $currentUtterance"
+                    reflexPreTriggerJob?.cancel()
+                    if (currentUtterance.length in 6..72) {
+                        reflexPreTriggerJob = viewModelScope.launch(Dispatchers.IO) {
+                            delay(220L)
+                            val snapshot = userTurnTranscript.toString().trim()
+                            val matched = de.meinseelenfunke.app.util.FalconClientTools.matchDeterministicDeviceReflex(snapshot)
+                                ?: return@launch
+                            val reflexKey = de.meinseelenfunke.app.util.FalconClientTools.canonicalDeviceReflexKey(matched.first, matched.second)
+                                ?: return@launch
+                            if (reflexTriggeredInCurrentUserTurn == reflexKey) return@launch
+                            reflexTriggeredInCurrentUserTurn = reflexKey
+                            addLog("[Sofort-Reflex]: '${matched.first}' ohne Denkzeit gestartet.")
+                            _falconEmotion.value = de.meinseelenfunke.app.util.FalconClientTools.inferEmotionFromLiveTurn(null, matched.first)
+                            try {
+                                de.meinseelenfunke.app.util.FalconClientTools.executeDeviceToolWithReflexDedupe(
+                                    context = ServiceLocator.context,
+                                    toolName = matched.first,
+                                    argsElement = matched.second,
+                                    chatSessionId = chatSessionId,
+                                    onEmotionChanged = { emo -> _falconEmotion.value = emo },
+                                    onNavigate = { _ -> }
+                                )
+                            } catch (_: Throwable) {
+                            }
+                        }
+                    }
                 }
 
                 // Handle interruption/barge-in
@@ -1159,6 +1218,9 @@ class FunkiraLiveViewModel : ViewModel() {
                         persistTurnToLocalMemory(role = "user", text = userLine)
                         userTurnTranscript.clear()
                         lastUserTranscriptDeltaUptimeMs = 0L
+                        reflexPreTriggerJob?.cancel()
+                        reflexPreTriggerJob = null
+                        reflexTriggeredInCurrentUserTurn = null
                     }
                     if (aiTurnTranscript.isNotBlank()) {
                         val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
@@ -2111,6 +2173,9 @@ class FunkiraLiveViewModel : ViewModel() {
         shouldEnterStandbyAfterTurn = false
         musicStandbyFallbackJob?.cancel()
         musicStandbyFallbackJob = null
+        reflexPreTriggerJob?.cancel()
+        reflexPreTriggerJob = null
+        reflexTriggeredInCurrentUserTurn = null
         _isConnected.value = false
         _isConnecting.value = false
         setupCompletedForCurrentSocket = false
