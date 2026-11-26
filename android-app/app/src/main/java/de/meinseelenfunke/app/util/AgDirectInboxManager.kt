@@ -762,19 +762,56 @@ object AgDirectInboxManager {
             while (iterator.hasNext()) {
                 val entry = iterator.next()
                 try {
-                    val response = api.createItem(
-                        AgDirectCreateRequest(
-                            client_uuid = entry.client_uuid,
-                            title = entry.title,
-                            body = entry.body,
-                            checklist = entry.checklist,
-                            execution_mode = normalizeExecutionMode(entry.execution_mode),
-                            channel = normalizeChannel(entry.channel),
-                            attachment_base64 = entry.attachment_base64,
-                            attachment_mime = entry.attachment_mime,
-                            attachment_name = entry.attachment_name
-                        )
+                    val primaryRequest = AgDirectCreateRequest(
+                        client_uuid = entry.client_uuid.take(64),
+                        title = entry.title.trim().ifBlank { "Sammelpaket" }.take(480),
+                        body = entry.body.take(14_000),
+                        checklist = entry.checklist.map { it.trim().take(950) }.filter { it.isNotEmpty() }.take(45),
+                        execution_mode = normalizeExecutionMode(entry.execution_mode),
+                        channel = normalizeChannel(entry.channel),
+                        attachment_base64 = entry.attachment_base64,
+                        attachment_mime = entry.attachment_mime,
+                        attachment_name = entry.attachment_name
                     )
+                    val response = try {
+                        api.createItem(primaryRequest)
+                    } catch (httpErr: retrofit2.HttpException) {
+                        val status = httpErr.code()
+                        if (status in listOf(400, 413, 422)) {
+                            // Self-Heal legacy/strict server validation limits (<= 295 char checklist items, <= 4800 char body)
+                            val fallbackBody = buildString {
+                                if (entry.body.isNotBlank()) {
+                                    append(entry.body.trim())
+                                } else if (entry.checklist.isNotEmpty()) {
+                                    entry.checklist.forEachIndexed { i, b -> append("${i + 1}. $b\n") }
+                                }
+                            }.trim().take(4800)
+                            val compactRequest = primaryRequest.copy(
+                                title = primaryRequest.title.take(450),
+                                body = fallbackBody,
+                                checklist = entry.checklist.map { it.trim().take(290) }.filter { it.isNotEmpty() }.take(20)
+                            )
+                            try {
+                                api.createItem(compactRequest)
+                            } catch (secondErr: retrofit2.HttpException) {
+                                if (secondErr.code() in listOf(400, 413, 422) && !entry.attachment_base64.isNullOrBlank()) {
+                                    api.createItem(
+                                        compactRequest.copy(
+                                            body = (fallbackBody + "\n[Anhang lokal verworfen wegen Server-Limit]").take(4800),
+                                            attachment_base64 = null,
+                                            attachment_mime = null,
+                                            attachment_name = null
+                                        )
+                                    )
+                                } else {
+                                    throw secondErr
+                                }
+                            }
+                        } else {
+                            throw httpErr
+                        }
+                    }
+
                     if (response.success || response.data != null) {
                         iterator.remove()
                         writeOutboxToFile(file, remaining)
@@ -783,6 +820,13 @@ object AgDirectInboxManager {
                     } else {
                         break
                     }
+                } catch (httpFatal: retrofit2.HttpException) {
+                    val code = httpFatal.code()
+                    if (code == 401 || code == 403 || code == 429 || code >= 500) {
+                        break
+                    }
+                    // Non-recoverable 4xx on this single entry must NOT head-of-line-block newer Sammelpakete/messages
+                    continue
                 } catch (_: Throwable) {
                     break
                 }

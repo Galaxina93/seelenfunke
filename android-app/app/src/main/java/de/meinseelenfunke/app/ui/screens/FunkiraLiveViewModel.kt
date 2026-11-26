@@ -71,6 +71,14 @@ class FunkiraLiveViewModel : ViewModel() {
     private val _liveSubtitle = MutableStateFlow<String?>(null)
     val liveSubtitle: StateFlow<String?> = _liveSubtitle.asStateFlow()
 
+    private val _liveFeedbackState = MutableStateFlow<MessageReactionState?>(null)
+    val liveFeedbackState: StateFlow<MessageReactionState?> = _liveFeedbackState.asStateFlow()
+
+    private val _behaviorQuickChips = MutableStateFlow(de.meinseelenfunke.app.data.repository.AiRepository.DEFAULT_BEHAVIOR_QUICK_CHIPS)
+    val behaviorQuickChips: StateFlow<List<de.meinseelenfunke.app.data.api.BehaviorQuickChipDto>> = _behaviorQuickChips.asStateFlow()
+
+    @Volatile private var lastCompletedAssistantTurnText: String = ""
+
     private val aiTurnTranscript = java.lang.StringBuilder()
     private val userTurnTranscript = java.lang.StringBuilder()
 
@@ -359,6 +367,8 @@ class FunkiraLiveViewModel : ViewModel() {
         _falconEmotion.value = "idle"
         _shouldCloseScreen.value = false
         _liveSubtitle.value = null
+        _liveFeedbackState.value = null
+        lastCompletedAssistantTurnText = ""
         activeVoiceName = "Aoede"
         aiTurnTranscript.clear()
         userTurnTranscript.clear()
@@ -408,6 +418,20 @@ class FunkiraLiveViewModel : ViewModel() {
                     de.meinseelenfunke.app.util.FunkenwerkAlarmManager.refreshSmartHomeInventoryFromPortalSuspend(appCtxForPrefetch)
                 }
             }
+            val behaviorPrefetchJob = if (!de.meinseelenfunke.app.data.repository.AiRepository.isExcludedSupportAgent(displayAgentName())) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    kotlinx.coroutines.withTimeoutOrNull(1400L) {
+                        aiRepository.getBehaviorSummary(channel = "android_live_call", days = 30).onSuccess { summary ->
+                            val chips = summary.quick_chips.orEmpty()
+                            if (chips.isNotEmpty()) {
+                                _behaviorQuickChips.value = chips
+                            }
+                        }
+                    }
+                }
+            } else {
+                null
+            }
 
             val firstCredResult = aiRepository.getLiveCredentials(
                 agentId = _selectedAgent.value?.id,
@@ -431,6 +455,11 @@ class FunkiraLiveViewModel : ViewModel() {
             }
             try {
                 kotlinx.coroutines.withTimeoutOrNull(650L) { smartHomePrefetchJob.join() }
+            } catch (_: Throwable) {}
+            try {
+                behaviorPrefetchJob?.let { job ->
+                    kotlinx.coroutines.withTimeoutOrNull(450L) { job.join() }
+                }
             } catch (_: Throwable) {}
 
             finalCredResult
@@ -695,8 +724,9 @@ class FunkiraLiveViewModel : ViewModel() {
                             val modalities = JsonArray()
                             modalities.add("AUDIO")
                             add("responseModalities", modalities)
+                            val isDirectAiStudio = isDirectGoogle && !url.contains("aiplatform.googleapis.com", ignoreCase = true)
                             de.meinseelenfunke.app.util.FalconClientTools
-                                .buildLiveThinkingConfig(resolvedSetupModel, includeThinkingConfigInSetup)
+                                .buildLiveThinkingConfig(resolvedSetupModel, includeThinkingConfigInSetup, isDirectAiStudio)
                                 ?.let { add("thinkingConfig", it) }
                             add("speechConfig", JsonObject().apply {
                                 add("voiceConfig", JsonObject().apply {
@@ -744,6 +774,14 @@ class FunkiraLiveViewModel : ViewModel() {
                                         val pkgDirective = de.meinseelenfunke.app.util.FunkiraPackageStore.buildPackagesPromptDirective(appCtx)
                                         if (pkgDirective.isNotBlank() && !strictPrompt.contains("OFFENE SAMMELPAKETE")) {
                                             strictPrompt = "$strictPrompt\n\n$pkgDirective"
+                                        }
+                                        if (!de.meinseelenfunke.app.data.repository.AiRepository.isExcludedSupportAgent(displayAgentName()) &&
+                                            !strictPrompt.contains("AKTIVE VERHALTENSREGELN VON ALINA")
+                                        ) {
+                                            val behaviorBlock = aiRepository.getCachedBehaviorPromptBlock()
+                                            if (behaviorBlock.isNotBlank()) {
+                                                strictPrompt = "$strictPrompt\n\n$behaviorBlock"
+                                            }
                                         }
                                     } catch (_: Throwable) {
                                     }
@@ -906,6 +944,9 @@ class FunkiraLiveViewModel : ViewModel() {
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 val wasSetupComplete = setupCompletedForCurrentSocket
+                if (!wasSetupComplete && (code == 1007 || reason.contains("thinking", ignoreCase = true)) && tryFallbackWithoutThinkingConfig("Closed $code: $reason")) {
+                    return
+                }
                 refreshReconnectBudgetIfStable(wasSetupComplete)
                 if (shouldAutoReconnectMidCall(
                         wasSetupComplete = wasSetupComplete || sessionEverSetupComplete,
@@ -1146,11 +1187,16 @@ class FunkiraLiveViewModel : ViewModel() {
                     val currentUtterance = userTurnTranscript.toString().trim()
                     _liveSubtitle.value = "Du: $currentUtterance"
                     reflexPreTriggerJob?.cancel()
-                    if (currentUtterance.length in 6..72) {
+                    if (currentUtterance.length in 6..96) {
                         reflexPreTriggerJob = viewModelScope.launch(Dispatchers.IO) {
                             delay(220L)
                             val snapshot = userTurnTranscript.toString().trim()
                             val matched = de.meinseelenfunke.app.util.FalconClientTools.matchDeterministicDeviceReflex(snapshot)
+                                ?: (if (de.meinseelenfunke.app.util.FunkiraPackageStore.packagesFlow.value.isNotEmpty()) {
+                                    de.meinseelenfunke.app.util.FalconClientTools.matchDeterministicPackageReleaseReflex(snapshot)
+                                } else {
+                                    null
+                                })
                                 ?: return@launch
                             val reflexKey = de.meinseelenfunke.app.util.FalconClientTools.canonicalDeviceReflexKey(matched.first, matched.second)
                                 ?: return@launch
@@ -1167,6 +1213,10 @@ class FunkiraLiveViewModel : ViewModel() {
                                     onEmotionChanged = { emo -> _falconEmotion.value = emo },
                                     onNavigate = { _ -> }
                                 )
+                                if (matched.first == "falcon_release_package") {
+                                    de.meinseelenfunke.app.util.FunkiraPackageStore.hydrate(ServiceLocator.context)
+                                    de.meinseelenfunke.app.util.AgDirectInboxManager.refreshFromServer(ServiceLocator.context)
+                                }
                             } catch (_: Throwable) {
                             }
                         }
@@ -1187,6 +1237,8 @@ class FunkiraLiveViewModel : ViewModel() {
                         if (cleanText.isNotBlank()) {
                             addLog("$agentName (unterbrochen): $cleanText")
                             persistTurnToLocalMemory(role = "funkira", text = cleanText)
+                            lastCompletedAssistantTurnText = cleanText
+                            _liveFeedbackState.value = null
                         }
                         aiTurnTranscript.clear()
                     }
@@ -1216,6 +1268,7 @@ class FunkiraLiveViewModel : ViewModel() {
                         val userLine = userTurnTranscript.toString().trim()
                         addLog("Du: $userLine")
                         persistTurnToLocalMemory(role = "user", text = userLine)
+                        forwardImplicitVoiceFeedbackAsync(userLine, lastCompletedAssistantTurnText)
                         userTurnTranscript.clear()
                         lastUserTranscriptDeltaUptimeMs = 0L
                         reflexPreTriggerJob?.cancel()
@@ -1227,6 +1280,8 @@ class FunkiraLiveViewModel : ViewModel() {
                         if (cleanText.isNotBlank()) {
                             addLog("$agentName: $cleanText")
                             persistTurnToLocalMemory(role = "funkira", text = cleanText)
+                            lastCompletedAssistantTurnText = cleanText
+                            _liveFeedbackState.value = null
                         }
                         aiTurnTranscript.clear()
                     }
@@ -2208,10 +2263,66 @@ class FunkiraLiveViewModel : ViewModel() {
             val cleanUser = userTurnTranscript.toString().trim()
             addLog("Du: $cleanUser")
             persistTurnToLocalMemory(role = "user", text = cleanUser)
+            forwardImplicitVoiceFeedbackAsync(cleanUser, lastCompletedAssistantTurnText)
             userTurnTranscript.clear()
         }
         _liveSubtitle.value = null
         addLog("[System]: Getrennt ($reason)")
+    }
+
+    fun submitLiveTurnFeedback(polarity: String, reasonCode: String? = null) {
+        val agentName = displayAgentName()
+        if (de.meinseelenfunke.app.data.repository.AiRepository.isExcludedSupportAgent(agentName)) return
+
+        val rawSub = _liveSubtitle.value?.trim().orEmpty()
+        val excerptFromSub = if (rawSub.contains(": ")) rawSub.substringAfter(": ").trim() else rawSub
+        val excerpt = lastCompletedAssistantTurnText.ifBlank { excerptFromSub }
+        if (excerpt.isBlank()) return
+
+        _liveFeedbackState.value = MessageReactionState(
+            polarity = polarity,
+            reasonCode = reasonCode,
+            confirmed = false
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            aiRepository.submitExplicitBehaviorFeedback(
+                polarity = polarity,
+                channel = "android_live_call",
+                reasonCode = reasonCode,
+                agentId = _selectedAgent.value?.id,
+                agentName = agentName,
+                sessionId = chatSessionId.ifBlank { null },
+                agentExcerpt = excerpt
+            ).onSuccess { res ->
+                _liveFeedbackState.value = MessageReactionState(
+                    polarity = res.polarity ?: polarity,
+                    reasonCode = reasonCode,
+                    confirmed = true
+                )
+            }
+        }
+    }
+
+    private fun forwardImplicitVoiceFeedbackAsync(userLine: String, previousAssistantText: String) {
+        val cleanUser = userLine.trim()
+        val agentName = displayAgentName()
+        if (cleanUser.length < 4 || de.meinseelenfunke.app.data.repository.AiRepository.isExcludedSupportAgent(agentName)) {
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                aiRepository.submitImplicitVoiceFeedback(
+                    userMessage = cleanUser,
+                    channel = "android_live_call",
+                    agentId = _selectedAgent.value?.id,
+                    agentName = agentName,
+                    sessionId = chatSessionId.ifBlank { null },
+                    agentExcerpt = previousAssistantText.ifBlank { null }
+                )
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     private fun persistTurnToLocalMemory(role: String, text: String) {

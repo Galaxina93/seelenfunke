@@ -499,6 +499,83 @@ fun AgDirectInboxSheet(
                 }
             }
 
+            // Offene Sammelpakete direkt sichtbar ganz oben (sofort 1-Tap absendbar ohne Scrollen!)
+            if (draftPackages.isNotEmpty()) {
+                Text(
+                    text = "Sammelpakete (${draftPackages.size})",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    draftPackages.forEach { pkg ->
+                        FunkiraDraftPackageCard(
+                            pkg = pkg,
+                            onAddPoint = { text ->
+                                FunkiraPackageStore.stageRequirement(
+                                    context = context,
+                                    item = text,
+                                    packageUuid = pkg.uuid,
+                                    channel = pkg.channel,
+                                    executionMode = pkg.executionMode,
+                                    source = "sheet"
+                                )
+                            },
+                            onRemovePoint = { idx ->
+                                FunkiraPackageStore.removeItem(context, pkg.uuid, idx)
+                            },
+                            onAddCameraPhoto = {
+                                val hasCam = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.CAMERA
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (hasCam) {
+                                    launchCameraCapture(pkg.uuid)
+                                } else {
+                                    pendingPackageUuidForPhoto = pkg.uuid
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
+                            },
+                            onAddGalleryImage = {
+                                pendingPackageUuidForPhoto = pkg.uuid
+                                imagePickerLauncher.launch("image/*")
+                            },
+                            onOpenAttachment = { att ->
+                                lightboxTarget = LightboxTarget.Base64Image(
+                                    base64Jpeg = att.base64Data,
+                                    title = att.caption.ifBlank { att.fileName }
+                                )
+                            },
+                            onRemoveAttachment = { attId ->
+                                FunkiraPackageStore.removeAttachment(context, pkg.uuid, attId)
+                            },
+                            onModeChange = { nextMode ->
+                                FunkiraPackageStore.updateMode(context, pkg.uuid, nextMode)
+                            },
+                            onRelease = { mode ->
+                                scope.launch {
+                                    val res = FunkiraPackageStore.releasePackage(
+                                        context = context,
+                                        packageUuid = pkg.uuid,
+                                        executionModeOverride = mode
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        if (res.sentLive) "✓ Sammelpaket an Antigravity gesendet" else "Offline gespeichert (Wartet)",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            onDelete = { confirmDeletePackage = pkg }
+                        )
+                    }
+                }
+                HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
+            }
+
             // Hauptfeld + Spracheingabe
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1012,6 +1089,23 @@ fun AgDirectInboxSheet(
 
                 Button(
                     onClick = {
+                        if (!canSend && draftPackages.isNotEmpty()) {
+                            val topPkg = draftPackages.first()
+                            scope.launch {
+                                val res = FunkiraPackageStore.releasePackage(
+                                    context = context,
+                                    packageUuid = topPkg.uuid,
+                                    executionModeOverride = topPkg.executionMode
+                                )
+                                Toast.makeText(
+                                    context,
+                                    if (res.sentLive) "✓ Sammelpaket an Antigravity gesendet" else "Offline gespeichert (Wartet)",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            return@Button
+                        }
+
                         val rawSnapshot = messageText
                         val checklistSnapshot = checklistItems.map { it.trim() }.filter { it.isNotEmpty() }
                         val modeSnapshot = executionMode
@@ -1047,7 +1141,7 @@ fun AgDirectInboxSheet(
                             }
                         }
                     },
-                    enabled = canSend,
+                    enabled = canSend || (!isPreparingImage && !isPreparingAudio && draftPackages.isNotEmpty()),
                     modifier = Modifier
                         .weight(1.25f)
                         .height(46.dp),
@@ -1061,7 +1155,11 @@ fun AgDirectInboxSheet(
                     contentPadding = PaddingValues(horizontal = 12.dp)
                 ) {
                     Text(
-                        text = "An Antigravity",
+                        text = if (!canSend && draftPackages.isNotEmpty()) {
+                            "Paket senden (${draftPackages.first().itemCount})"
+                        } else {
+                            "An Antigravity"
+                        },
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -1103,83 +1201,6 @@ fun AgDirectInboxSheet(
             }
 
             HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
-
-            // Offene Sammelpakete (Pakete schnüren vor dem Versand)
-            if (draftPackages.isNotEmpty()) {
-                Text(
-                    text = "Sammelpakete (${draftPackages.size})",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Gold
-                )
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    draftPackages.forEach { pkg ->
-                        FunkiraDraftPackageCard(
-                            pkg = pkg,
-                            onAddPoint = { text ->
-                                FunkiraPackageStore.stageRequirement(
-                                    context = context,
-                                    item = text,
-                                    packageUuid = pkg.uuid,
-                                    channel = pkg.channel,
-                                    executionMode = pkg.executionMode,
-                                    source = "sheet"
-                                )
-                            },
-                            onRemovePoint = { idx ->
-                                FunkiraPackageStore.removeItem(context, pkg.uuid, idx)
-                            },
-                            onAddCameraPhoto = {
-                                val hasCam = ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.CAMERA
-                                ) == PackageManager.PERMISSION_GRANTED
-                                if (hasCam) {
-                                    launchCameraCapture(pkg.uuid)
-                                } else {
-                                    pendingPackageUuidForPhoto = pkg.uuid
-                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
-                            },
-                            onAddGalleryImage = {
-                                pendingPackageUuidForPhoto = pkg.uuid
-                                imagePickerLauncher.launch("image/*")
-                            },
-                            onOpenAttachment = { att ->
-                                lightboxTarget = LightboxTarget.Base64Image(
-                                    base64Jpeg = att.base64Data,
-                                    title = att.caption.ifBlank { att.fileName }
-                                )
-                            },
-                            onRemoveAttachment = { attId ->
-                                FunkiraPackageStore.removeAttachment(context, pkg.uuid, attId)
-                            },
-                            onModeChange = { nextMode ->
-                                FunkiraPackageStore.updateMode(context, pkg.uuid, nextMode)
-                            },
-                            onRelease = { mode ->
-                                scope.launch {
-                                    val res = FunkiraPackageStore.releasePackage(
-                                        context = context,
-                                        packageUuid = pkg.uuid,
-                                        executionModeOverride = mode
-                                    )
-                                    Toast.makeText(
-                                        context,
-                                        if (res.sentLive) "✓ Sammelpaket an Antigravity gesendet" else "Offline gespeichert (Wartet)",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            },
-                            onDelete = { confirmDeletePackage = pkg }
-                        )
-                    }
-                }
-                HorizontalDivider(color = AppTheme.colors.cardBorder, thickness = 1.dp)
-            }
 
             // Einklappbares lokales Kurzzeitgedächtnis ("Lokales Gehirn")
             if (memorySnap.turns.isNotEmpty() || memorySnap.rollingDigest.isNotBlank()) {
@@ -1581,7 +1602,14 @@ private fun FunkiraDraftPackageCard(
                 }
                 Spacer(Modifier.width(8.dp))
                 Button(
-                    onClick = { onRelease(pkg.executionMode) },
+                    onClick = {
+                        val pendingBullet = newBullet.trim()
+                        if (pendingBullet.isNotEmpty()) {
+                            newBullet = ""
+                            onAddPoint(pendingBullet)
+                        }
+                        onRelease(pkg.executionMode)
+                    },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),

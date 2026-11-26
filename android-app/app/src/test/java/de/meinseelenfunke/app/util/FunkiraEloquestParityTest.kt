@@ -525,6 +525,92 @@ class FunkiraEloquestParityTest {
         }
     }
 
+    @Test
+    fun `sammelpaket release clamps 360 char items and self heals 422 outbox entries without head of line block`() = runBlocking {
+        val acceptedRequests = mutableListOf<AgDirectCreateRequest>()
+        val strictServerApi = object : AgDirectApi {
+            override suspend fun listInbox(limit: Int): AgDirectInboxListResponse =
+                AgDirectInboxListResponse(success = true, counts = AgDirectCountsDto(), items = emptyList())
+
+            override suspend fun createItem(request: AgDirectCreateRequest): AgDirectCreateResponse {
+                if (request.checklist.size > 25 ||
+                    request.checklist.any { it.length > 300 } ||
+                    request.body.length > 5000
+                ) {
+                    throw retrofit2.HttpException(
+                        retrofit2.Response.error<AgDirectCreateResponse>(
+                            422,
+                            "{\"message\":\"Checklist validation failed\"}".toResponseBody("application/json".toMediaType())
+                        )
+                    )
+                }
+                acceptedRequests.add(request)
+                return AgDirectCreateResponse(
+                    success = true,
+                    data = AgDirectInboxItemDto(
+                        id = "ag_20261126_203000_${acceptedRequests.size}",
+                        client_uuid = request.client_uuid,
+                        title = request.title,
+                        body = request.body,
+                        checklist = request.checklist,
+                        channel = request.channel,
+                        status = "pending"
+                    )
+                )
+            }
+
+            override suspend fun resolveBlockade(id: String, request: AgDirectResolveRequest): AgDirectResolveResponse =
+                AgDirectResolveResponse(success = true)
+
+            override suspend fun deleteItem(id: String): AgDirectDeleteResponse =
+                AgDirectDeleteResponse(success = true)
+
+            override suspend fun getAttachment(id: String): ResponseBody =
+                ByteArray(0).toResponseBody("image/jpeg".toMediaType())
+        }
+
+        // 1. Stage 30 items of 355 chars each -> releasePackage clamps cleanly & succeeds live on first shot!
+        val thirtyLongItems = (1..30).map { idx ->
+            "Punkt #$idx: " + "Ausfuehrliche Anforderung fuer das Sammelpaket ".repeat(8)
+        }
+        val pkg = FunkiraPackageStore.stageRequirement(
+            context = context,
+            items = thirtyLongItems,
+            channel = "android",
+            executionMode = "direct"
+        )!!
+        assertEquals(30, pkg.checklist.size)
+        assertTrue(pkg.checklist.first().length > 320)
+
+        val rel = FunkiraPackageStore.releasePackage(context, pkg.uuid, apiOverride = strictServerApi)
+        assertTrue(rel.ok)
+        assertTrue(rel.sentLive)
+        assertEquals(1, acceptedRequests.size)
+        assertTrue(acceptedRequests[0].checklist.size <= 25)
+        assertTrue(acceptedRequests[0].checklist.all { it.length <= 300 })
+
+        // 2. Simulate an already-queued legacy overlong entry in ag_direct_outbox.json -> flushOutbox self-heals on 422!
+        val outboxFile = File(context.filesDir, AgDirectInboxManager.OUTBOX_FILE_NAME)
+        AgDirectInboxManager.writeOutboxToFile(
+            outboxFile,
+            listOf(
+                AgDirectOutboxEntry(
+                    client_uuid = "legacy-stuck-422-uuid",
+                    title = "Altes blockiertes Sammelpaket",
+                    body = "X".repeat(6200),
+                    checklist = listOf("Y".repeat(355)),
+                    execution_mode = "direct",
+                    channel = "android"
+                )
+            )
+        )
+        val flushed = AgDirectInboxManager.flushOutbox(context, apiOverride = strictServerApi)
+        assertEquals(1, flushed)
+        assertEquals(2, acceptedRequests.size)
+        assertEquals("legacy-stuck-422-uuid", acceptedRequests[1].client_uuid)
+        assertTrue(AgDirectInboxManager.readOutboxFromFile(outboxFile).isEmpty())
+    }
+
     private fun buildPreparedTestPhoto(fileName: String, color: Int): PreparedAgAttachment {
         val bmp = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
         val baos = ByteArrayOutputStream()

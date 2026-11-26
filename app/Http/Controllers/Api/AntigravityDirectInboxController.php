@@ -31,6 +31,7 @@ class AntigravityDirectInboxController extends Controller
         ]);
 
         $limit = isset($validated['limit']) ? (int) $validated['limit'] : 50;
+        \App\Services\AI\AntigravityUniverseTicketBridge::reconcileIfNeeded(20);
         $snapshot = $this->inboxService->listInbox($limit);
         $blockades = $this->inboxService->getPendingBlockades();
 
@@ -50,16 +51,16 @@ class AntigravityDirectInboxController extends Controller
         $this->authorizeAdmin($request);
 
         $validated = $request->validate([
-            'client_uuid' => 'nullable|string|max:64',
-            'channel' => ['nullable', 'string', 'max:32'],
-            'title' => 'required|string|max:500',
-            'body' => 'nullable|string|max:5000',
-            'execution_mode' => 'nullable|string|in:concept,direct',
-            'source' => 'nullable|string|max:40',
+            'client_uuid' => 'nullable|string|max:128',
+            'channel' => ['nullable', 'string', 'max:64'],
+            'title' => 'required|string|max:4000',
+            'body' => 'nullable|string|max:100000',
+            'execution_mode' => 'nullable|string|max:32',
+            'source' => 'nullable|string|max:64',
             'attachment' => 'nullable|file|mimes:png,jpg,jpeg,webp,m4a,mp3,wav,ogg,aac,opus,webm,mp4|max:12288',
             'attachment_base64' => 'nullable|string|max:17000000',
-            'attachment_mime' => 'nullable|string|max:64',
-            'attachment_name' => 'nullable|string|max:180',
+            'attachment_mime' => 'nullable|string|max:128',
+            'attachment_name' => 'nullable|string|max:255',
         ]);
 
         $title = trim((string) ($validated['title'] ?? ''));

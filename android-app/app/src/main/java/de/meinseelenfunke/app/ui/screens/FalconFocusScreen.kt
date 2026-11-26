@@ -110,8 +110,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.meinseelenfunke.app.R
+import de.meinseelenfunke.app.data.repository.AiRepository
 import de.meinseelenfunke.app.ui.components.AgDirectInboxSheet
 import de.meinseelenfunke.app.ui.components.AgImageLightboxDialog
+import de.meinseelenfunke.app.ui.components.BehaviorQuickReasonChipsRow
+import de.meinseelenfunke.app.ui.components.BehaviorThumbActions
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
@@ -165,6 +168,9 @@ fun FalconFocusScreen(
     val userVoiceAmp by viewModel.voiceAmplitude.collectAsState()
     val falconEmotion by viewModel.falconEmotion.collectAsState()
     val liveSubtitle by viewModel.liveSubtitle.collectAsState()
+    val liveFeedbackState by viewModel.liveFeedbackState.collectAsState()
+    val behaviorQuickChips by viewModel.behaviorQuickChips.collectAsState()
+    val selectedLiveAgent by viewModel.selectedAgent.collectAsState()
     val errorText by viewModel.error.collectAsState()
 
     val isVisionActive by FalconCameraController.isVisionActive.collectAsState()
@@ -1350,39 +1356,79 @@ fun FalconFocusScreen(
                 }
             }
             val currentSub = liveSubtitle?.trim().orEmpty()
+            val canRateLiveSub = currentSub.isNotEmpty() &&
+                !currentSub.startsWith("Du:") &&
+                !AiRepository.isExcludedSupportAgent(selectedLiveAgent?.name)
+            var showLiveReasonChips by remember(currentSub) { mutableStateOf(false) }
+
             if (currentSub.isNotEmpty() && currentSub != dismissedSubtitleText) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(stageHudBg)
                         .border(1.dp, Gold.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
-                        .padding(horizontal = 14.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 14.dp, vertical = 9.dp)
                 ) {
-                    Text(
-                        text = currentSub,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
-                        color = stageHudText,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .clickable { dismissedSubtitleText = currentSub },
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Untertitel ausblenden",
-                            tint = stageHudMuted,
-                            modifier = Modifier.size(14.dp)
+                        Text(
+                            text = currentSub,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = stageHudText,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (canRateLiveSub) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            BehaviorThumbActions(
+                                reaction = liveFeedbackState,
+                                mutedTint = stageHudMuted,
+                                onPraise = {
+                                    showLiveReasonChips = false
+                                    viewModel.submitLiveTurnFeedback("praise", null)
+                                },
+                                onCriticismToggle = {
+                                    val opening = !showLiveReasonChips
+                                    showLiveReasonChips = opening
+                                    if (opening && liveFeedbackState?.polarity != "criticism" && liveFeedbackState?.polarity != "correction") {
+                                        viewModel.submitLiveTurnFeedback("criticism", null)
+                                    }
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .clickable { dismissedSubtitleText = currentSub },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Untertitel ausblenden",
+                                tint = stageHudMuted,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+
+                    if (canRateLiveSub) {
+                        BehaviorQuickReasonChipsRow(
+                            visible = showLiveReasonChips,
+                            chips = behaviorQuickChips,
+                            selectedReasonCode = liveFeedbackState?.reasonCode,
+                            darkHudSurface = isDark,
+                            onSelectChip = { chip ->
+                                viewModel.submitLiveTurnFeedback(chip.polarity ?: "criticism", chip.code)
+                                showLiveReasonChips = false
+                            }
                         )
                     }
                 }

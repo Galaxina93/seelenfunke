@@ -153,6 +153,7 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
             }
         }
         MasterWidgetRamCache.clear()
+        serviceLocator.aiRepository.clearBehaviorCache()
 
         // 4. Wipe persistent filesDir queues/briefings & cacheDir attachments
         ErrorSentinelReporter.clearQueue(ctx)

@@ -91,6 +91,9 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import de.meinseelenfunke.app.data.repository.AiRepository
+import de.meinseelenfunke.app.ui.components.BehaviorQuickReasonChipsRow
+import de.meinseelenfunke.app.ui.components.BehaviorThumbActions
 import de.meinseelenfunke.app.util.AgDirectInboxManager
 import de.meinseelenfunke.app.util.FalconCameraController
 import de.meinseelenfunke.app.util.FunkiraLocalMemoryStore
@@ -125,6 +128,8 @@ fun FunkiraLiveScreen(
     val amplitude by viewModel.voiceAmplitude.collectAsState()
     val liveLogs by viewModel.liveLogs.collectAsState()
     val liveSubtitle by viewModel.liveSubtitle.collectAsState()
+    val liveFeedbackState by viewModel.liveFeedbackState.collectAsState()
+    val behaviorQuickChips by viewModel.behaviorQuickChips.collectAsState()
     val agents by viewModel.agents.collectAsState()
     val selectedAgent by viewModel.selectedAgent.collectAsState()
 
@@ -472,31 +477,65 @@ fun FunkiraLiveScreen(
                 }
 
                 // Live Subtitle Banner
+                val liveSubText = liveSubtitle?.trim().orEmpty()
+                val canRateBannerSub = liveSubText.isNotEmpty() &&
+                    !liveSubText.startsWith("Du:") &&
+                    !AiRepository.isExcludedSupportAgent(activeAgentName)
+                var showBannerReasonChips by remember(liveSubText) { mutableStateOf(false) }
+
                 AnimatedVisibility(
-                    visible = !liveSubtitle.isNullOrBlank(),
+                    visible = liveSubText.isNotEmpty(),
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(Slate900.copy(alpha = 0.85f))
                             .border(1.dp, activeAgentColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.Center
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = liveSubtitle ?: "",
+                            text = liveSubText,
                             color = Slate50,
                             fontSize = 14.sp,
                             lineHeight = 20.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             fontWeight = FontWeight.Medium
                         )
+                        if (canRateBannerSub) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            BehaviorThumbActions(
+                                reaction = liveFeedbackState,
+                                mutedTint = Slate400,
+                                onPraise = {
+                                    showBannerReasonChips = false
+                                    viewModel.submitLiveTurnFeedback("praise", null)
+                                },
+                                onCriticismToggle = {
+                                    val opening = !showBannerReasonChips
+                                    showBannerReasonChips = opening
+                                    if (opening && liveFeedbackState?.polarity != "criticism" && liveFeedbackState?.polarity != "correction") {
+                                        viewModel.submitLiveTurnFeedback("criticism", null)
+                                    }
+                                }
+                            )
+                            BehaviorQuickReasonChipsRow(
+                                visible = showBannerReasonChips,
+                                chips = behaviorQuickChips,
+                                selectedReasonCode = liveFeedbackState?.reasonCode,
+                                darkHudSurface = true,
+                                onSelectChip = { chip ->
+                                    viewModel.submitLiveTurnFeedback(chip.polarity ?: "criticism", chip.code)
+                                    showBannerReasonChips = false
+                                }
+                            )
+                        }
                     }
                 }
 

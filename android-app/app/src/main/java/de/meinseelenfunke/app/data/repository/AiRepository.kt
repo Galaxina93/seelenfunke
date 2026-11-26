@@ -4,6 +4,12 @@ import android.content.Context
 import android.net.Uri
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
+import de.meinseelenfunke.app.data.api.BehaviorFeedbackRequest
+import de.meinseelenfunke.app.data.api.BehaviorFeedbackResponse
+import de.meinseelenfunke.app.data.api.BehaviorQuickChipDto
+import de.meinseelenfunke.app.data.api.BehaviorRuleActionRequest
+import de.meinseelenfunke.app.data.api.BehaviorRuleActionResponse
+import de.meinseelenfunke.app.data.api.BehaviorSummaryResponse
 import de.meinseelenfunke.app.data.api.ChatMessage
 import de.meinseelenfunke.app.data.api.ChatRequest
 import de.meinseelenfunke.app.data.api.ChatResponse
@@ -23,6 +29,15 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
     // Cache local generative model to avoid rebuilding
     private var localGenerativeModel: GenerativeModel? = null
     private var lastApiKey: String? = null
+
+    @Volatile
+    private var cachedBehaviorPromptBlock: String = ""
+
+    fun getCachedBehaviorPromptBlock(): String = cachedBehaviorPromptBlock
+
+    fun clearBehaviorCache() {
+        cachedBehaviorPromptBlock = ""
+    }
 
     suspend fun uploadSnapshot(
         context: Context,
@@ -51,6 +66,45 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
 
     companion object {
         const val LEGACY_ERROR_PLACEHOLDER = "[Fehler beim Laden der Antwort]"
+
+        val DEFAULT_BEHAVIOR_QUICK_CHIPS: List<BehaviorQuickChipDto> = listOf(
+            BehaviorQuickChipDto(
+                code = "too_long",
+                label = "Zu lang / umständlich",
+                short_label = "Zu lang",
+                category = "tone_length",
+                polarity = "criticism",
+                intensity = 4
+            ),
+            BehaviorQuickChipDto(
+                code = "wrong_tool_or_fact",
+                label = "Tool oder Fakt falsch",
+                short_label = "Tool/Fakt falsch",
+                category = "tool_accuracy",
+                polarity = "correction",
+                intensity = 5
+            ),
+            BehaviorQuickChipDto(
+                code = "unnecessary_question",
+                label = "Unnötige Rückfrage",
+                short_label = "Unnötige Rückfrage",
+                category = "proactivity",
+                polarity = "criticism",
+                intensity = 4
+            ),
+            BehaviorQuickChipDto(
+                code = "wrong_tone",
+                label = "Tonfall passt nicht",
+                short_label = "Tonfall",
+                category = "tone_length",
+                polarity = "criticism",
+                intensity = 3
+            )
+        )
+
+        fun isExcludedSupportAgent(agentName: String?): Boolean {
+            return agentName?.trim().equals("Funki", ignoreCase = true)
+        }
 
         fun isRetryableChatFailure(throwable: Throwable?): Boolean {
             if (throwable == null) return false
@@ -221,7 +275,8 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                     val list = (response.messages ?: emptyList()).map { item ->
                         ChatMessage(
                             role = item.role,
-                            content = item.content
+                            content = item.content,
+                            memoryId = item.id
                         )
                     }
                     return@withContext Result.success(
@@ -313,6 +368,9 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                 response.vertex_ephemeral?.let { bundle ->
                     de.meinseelenfunke.app.util.VertexClientTokenCache.store(bundle, serviceLocator.context)
                 }
+                response.behavior_prompt_block?.trim()?.takeIf { it.isNotEmpty() }?.let { block ->
+                    cachedBehaviorPromptBlock = block
+                }
                 if (attempt > 0 && lastErr != null) {
                     de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                         context = serviceLocator.context,
@@ -395,6 +453,150 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.error(serviceLocator.context, "AiRepo", "getUltimateCommand failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getBehaviorSummary(
+        channel: String = "android_live_call",
+        days: Int = 30
+    ): Result<BehaviorSummaryResponse> = withContext(Dispatchers.IO) {
+        if (serviceLocator.getUserType() != "admin") {
+            return@withContext Result.failure(IllegalStateException("Nur für Administratoren freigegeben."))
+        }
+        return@withContext try {
+            val response = serviceLocator.getAiApi().getBehaviorSummary(channel = channel, days = days)
+            val block = response.prompt_block?.trim().orEmpty()
+            if (block.isNotEmpty()) {
+                cachedBehaviorPromptBlock = block
+            }
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun submitExplicitBehaviorFeedback(
+        polarity: String,
+        channel: String = "android_app",
+        reasonCode: String? = null,
+        agentId: String? = null,
+        agentName: String? = "Funkira",
+        sessionId: String? = null,
+        memoryId: String? = null,
+        userExcerpt: String? = null,
+        agentExcerpt: String? = null
+    ): Result<BehaviorFeedbackResponse> = withContext(Dispatchers.IO) {
+        if (isExcludedSupportAgent(agentName)) {
+            return@withContext Result.failure(IllegalStateException("Support-Agent Funki bleibt eingefroren."))
+        }
+        return@withContext try {
+            val response = serviceLocator.getAiApi().submitBehaviorFeedback(
+                BehaviorFeedbackRequest(
+                    source_type = "explicit_reaction",
+                    channel = channel,
+                    polarity = polarity,
+                    reason_code = reasonCode,
+                    agent_id = agentId,
+                    agent_name = agentName,
+                    session_id = sessionId,
+                    ai_chat_memory_id = memoryId,
+                    user_excerpt = userExcerpt?.take(600),
+                    agent_excerpt = agentExcerpt?.take(600)
+                )
+            )
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun submitImplicitVoiceFeedback(
+        userMessage: String,
+        channel: String = "android_live_call",
+        agentId: String? = null,
+        agentName: String? = "Funkira",
+        sessionId: String? = null,
+        agentExcerpt: String? = null
+    ): Result<BehaviorFeedbackResponse> = withContext(Dispatchers.IO) {
+        val cleanText = userMessage.trim()
+        if (cleanText.length < 4 || isExcludedSupportAgent(agentName)) {
+            return@withContext Result.success(BehaviorFeedbackResponse(status = "ignored_neutral", detected = false))
+        }
+        return@withContext try {
+            val response = serviceLocator.getAiApi().submitBehaviorFeedback(
+                BehaviorFeedbackRequest(
+                    source_type = "implicit_text_voice",
+                    channel = channel,
+                    user_message = cleanText.take(1500),
+                    agent_id = agentId,
+                    agent_name = agentName,
+                    session_id = sessionId,
+                    agent_excerpt = agentExcerpt?.take(600)
+                )
+            )
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun approveBehaviorRule(
+        channel: String,
+        category: String,
+        directive: String? = null,
+        title: String? = null,
+        agentId: String? = null,
+        agentName: String? = "Funkira"
+    ): Result<BehaviorRuleActionResponse> = withContext(Dispatchers.IO) {
+        if (isExcludedSupportAgent(agentName)) {
+            return@withContext Result.failure(IllegalStateException("Support-Agent Funki bleibt eingefroren."))
+        }
+        return@withContext try {
+            val response = serviceLocator.getAiApi().approveBehaviorRule(
+                BehaviorRuleActionRequest(
+                    channel = channel,
+                    category = category,
+                    directive = directive,
+                    title = title,
+                    agent_id = agentId,
+                    agent_name = agentName
+                )
+            )
+            response.prompt_block?.trim()?.takeIf { it.isNotEmpty() }?.let { block ->
+                cachedBehaviorPromptBlock = block
+            }
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun dismissBehaviorRule(
+        channel: String,
+        category: String,
+        agentId: String? = null,
+        agentName: String? = "Funkira"
+    ): Result<BehaviorRuleActionResponse> = withContext(Dispatchers.IO) {
+        if (isExcludedSupportAgent(agentName)) {
+            return@withContext Result.failure(IllegalStateException("Support-Agent Funki bleibt eingefroren."))
+        }
+        return@withContext try {
+            val response = serviceLocator.getAiApi().dismissBehaviorRule(
+                BehaviorRuleActionRequest(
+                    channel = channel,
+                    category = category,
+                    agent_id = agentId,
+                    agent_name = agentName
+                )
+            )
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }

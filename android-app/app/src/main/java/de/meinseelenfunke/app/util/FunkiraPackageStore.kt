@@ -7,9 +7,12 @@ import com.google.gson.reflect.TypeToken
 import de.meinseelenfunke.app.data.api.AgDirectApi
 import de.meinseelenfunke.app.di.ServiceLocator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Instant
@@ -64,6 +67,7 @@ object FunkiraPackageStore {
 
     private val gson = Gson()
     private val storeLock = Any()
+    private val releaseMutex = Mutex()
 
     private val _packagesFlow = MutableStateFlow<List<FunkiraDraftPackage>>(emptyList())
     val packagesFlow: StateFlow<List<FunkiraDraftPackage>> = _packagesFlow.asStateFlow()
@@ -287,99 +291,107 @@ object FunkiraPackageStore {
         packageUuid: String? = null,
         executionModeOverride: String? = null,
         apiOverride: AgDirectApi? = null
-    ): FunkiraPackageReleaseResult = withContext(Dispatchers.IO) {
-        val appCtx = context.applicationContext
-        ServiceLocator.ensureInitialized(appCtx)
+    ): FunkiraPackageReleaseResult = withContext(NonCancellable + Dispatchers.IO) {
+        releaseMutex.withLock {
+            val appCtx = context.applicationContext
+            ServiceLocator.ensureInitialized(appCtx)
 
-        val targetPkg = synchronized(storeLock) {
-            val list = readPackagesUnlocked(packagesFile(appCtx))
-            _packagesFlow.value = list
-            if (!packageUuid.isNullOrBlank()) {
-                list.firstOrNull { it.uuid == packageUuid.trim() }
-            } else {
-                list.firstOrNull()
-            }
-        } ?: return@withContext FunkiraPackageReleaseResult(
-            ok = false,
-            sentLive = false,
-            packageTitle = "",
-            itemCount = 0,
-            attachmentCount = 0,
-            channel = AgDirectChannel.LEITUNG.code,
-            message = "Kein offenes Sammelpaket zum Absenden vorhanden."
-        )
-
-        val effectiveMode = AgDirectInboxManager.normalizeExecutionMode(
-            executionModeOverride?.takeIf { it.isNotBlank() } ?: targetPkg.executionMode
-        )
-        val compiledBody = compilePackageBody(targetPkg)
-        val rawCombined = "${targetPkg.title}\n$compiledBody"
-
-        val primaryAttachment = targetPkg.attachments.firstOrNull()?.let { att ->
-            PreparedAgAttachment(
-                base64Jpeg = att.base64Data,
-                mimeType = att.mimeType,
-                fileName = att.fileName,
-                previewBitmap = null,
-                width = 0,
-                height = 0
+            val targetPkg = synchronized(storeLock) {
+                val list = readPackagesUnlocked(packagesFile(appCtx))
+                _packagesFlow.value = list
+                if (!packageUuid.isNullOrBlank()) {
+                    list.firstOrNull { it.uuid == packageUuid.trim() }
+                } else {
+                    list.firstOrNull()
+                }
+            } ?: return@withLock FunkiraPackageReleaseResult(
+                ok = false,
+                sentLive = false,
+                packageTitle = "",
+                itemCount = 0,
+                attachmentCount = 0,
+                channel = AgDirectChannel.LEITUNG.code,
+                message = "Kein offenes Sammelpaket zum Absenden vorhanden."
             )
-        }
 
-        val sentLive = AgDirectInboxManager.submitMessage(
-            context = appCtx,
-            rawText = rawCombined,
-            checklist = targetPkg.checklist,
-            executionMode = effectiveMode,
-            attachment = primaryAttachment,
-            channel = targetPkg.channel,
-            clientUuid = targetPkg.uuid,
-            apiOverride = apiOverride
-        )
+            val effectiveMode = AgDirectInboxManager.normalizeExecutionMode(
+                executionModeOverride?.takeIf { it.isNotBlank() } ?: targetPkg.executionMode
+            )
+            val safeTitle = targetPkg.title.trim().ifBlank { "Sammelpaket" }.take(240)
+            val compiledBody = compilePackageBody(targetPkg).take(14_000)
+            val rawCombined = "$safeTitle\n$compiledBody"
+            val safeChecklist = targetPkg.checklist
+                .map { sanitizeText(it).take(360) }
+                .filter { it.isNotEmpty() }
+                .take(MAX_ITEMS_PER_PACKAGE)
 
-        // Dispatch any additional photos (#2..#N) as linked attachments referencing this Sammelpaket
-        var allAttachmentsDispatchedLive = sentLive
-        if (targetPkg.attachments.size > 1) {
-            targetPkg.attachments.drop(1).forEachIndexed { idx, extraAtt ->
-                val photoIndex = idx + 2
-                val extraPrepared = PreparedAgAttachment(
-                    base64Jpeg = extraAtt.base64Data,
-                    mimeType = extraAtt.mimeType,
-                    fileName = extraAtt.fileName,
+            val validAttachments = targetPkg.attachments.filter { it.base64Data.isNotBlank() }
+            val primaryAttachment = validAttachments.firstOrNull()?.let { att ->
+                PreparedAgAttachment(
+                    base64Jpeg = att.base64Data,
+                    mimeType = att.mimeType.ifBlank { "image/jpeg" },
+                    fileName = normalizeSafeAttachmentName(att.fileName, att.mimeType),
                     previewBitmap = null,
                     width = 0,
                     height = 0
                 )
-                val extraOk = AgDirectInboxManager.submitMessage(
-                    context = appCtx,
-                    rawText = "Anhang #$photoIndex/${targetPkg.attachments.size} zu Paket: ${targetPkg.title}\n${extraAtt.caption}",
-                    checklist = emptyList(),
-                    executionMode = effectiveMode,
-                    attachment = extraPrepared,
-                    channel = targetPkg.channel,
-                    clientUuid = "${targetPkg.uuid}_att_$photoIndex",
-                    apiOverride = apiOverride
-                )
-                allAttachmentsDispatchedLive = allAttachmentsDispatchedLive && extraOk
             }
+
+            val sentLive = AgDirectInboxManager.submitMessage(
+                context = appCtx,
+                rawText = rawCombined,
+                checklist = safeChecklist,
+                executionMode = effectiveMode,
+                attachment = primaryAttachment,
+                channel = targetPkg.channel,
+                clientUuid = targetPkg.uuid,
+                apiOverride = apiOverride
+            )
+
+            // Dispatch any additional photos (#2..#N) as linked attachments referencing this Sammelpaket
+            var allAttachmentsDispatchedLive = sentLive
+            if (validAttachments.size > 1) {
+                validAttachments.drop(1).forEachIndexed { idx, extraAtt ->
+                    val photoIndex = idx + 2
+                    val extraPrepared = PreparedAgAttachment(
+                        base64Jpeg = extraAtt.base64Data,
+                        mimeType = extraAtt.mimeType.ifBlank { "image/jpeg" },
+                        fileName = normalizeSafeAttachmentName(extraAtt.fileName, extraAtt.mimeType),
+                        previewBitmap = null,
+                        width = 0,
+                        height = 0
+                    )
+                    val extraOk = AgDirectInboxManager.submitMessage(
+                        context = appCtx,
+                        rawText = "Anhang #$photoIndex/${validAttachments.size} zu Paket: $safeTitle\n${extraAtt.caption.take(300)}",
+                        checklist = emptyList(),
+                        executionMode = effectiveMode,
+                        attachment = extraPrepared,
+                        channel = targetPkg.channel,
+                        clientUuid = "${targetPkg.uuid}_att_$photoIndex",
+                        apiOverride = apiOverride
+                    )
+                    allAttachmentsDispatchedLive = allAttachmentsDispatchedLive && extraOk
+                }
+            }
+
+            deletePackage(appCtx, targetPkg.uuid)
+
+            val channelLabel = AgDirectInboxManager.resolveChannelEnum(targetPkg.channel).chipLabel
+            FunkiraPackageReleaseResult(
+                ok = true,
+                sentLive = allAttachmentsDispatchedLive,
+                packageTitle = targetPkg.title,
+                itemCount = targetPkg.checklist.size,
+                attachmentCount = validAttachments.size,
+                channel = targetPkg.channel,
+                message = if (allAttachmentsDispatchedLive) {
+                    "Sammelpaket '${targetPkg.title}' (${targetPkg.checklist.size} Punkte, ${validAttachments.size} Fotos) gebündelt in $channelLabel übermittelt."
+                } else {
+                    "Sammelpaket '${targetPkg.title}' verschlüsselt in der Offline-Warteschlange für $channelLabel gesichert."
+                }
+            )
         }
-
-        deletePackage(appCtx, targetPkg.uuid)
-
-        val channelLabel = AgDirectInboxManager.resolveChannelEnum(targetPkg.channel).chipLabel
-        FunkiraPackageReleaseResult(
-            ok = true,
-            sentLive = allAttachmentsDispatchedLive,
-            packageTitle = targetPkg.title,
-            itemCount = targetPkg.checklist.size,
-            attachmentCount = targetPkg.attachments.size,
-            channel = targetPkg.channel,
-            message = if (allAttachmentsDispatchedLive) {
-                "Sammelpaket '${targetPkg.title}' (${targetPkg.checklist.size} Punkte, ${targetPkg.attachments.size} Fotos) gebündelt in $channelLabel übermittelt."
-            } else {
-                "Sammelpaket '${targetPkg.title}' verschlüsselt in der Offline-Warteschlange für $channelLabel gesichert."
-            }
-        )
     }
 
     fun compilePackageBody(pkg: FunkiraDraftPackage): String {
@@ -495,6 +507,21 @@ object FunkiraPackageStore {
             createdAtIso = Instant.now().toString()
         )
         return existing + newAtt
+    }
+
+    private fun normalizeSafeAttachmentName(rawName: String, mimeType: String): String {
+        val ext = when (mimeType.trim().lowercase(Locale.ROOT)) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            else -> "jpg"
+        }
+        val stem = rawName
+            .substringBeforeLast('.')
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            .trim('_', '.', ' ')
+            .take(48)
+            .ifBlank { "paket_foto" }
+        return "$stem.$ext"
     }
 
     private fun sanitizeText(raw: String): String {

@@ -1,6 +1,6 @@
 {
-    "generated_at": "2026-11-25T01:12:44+01:00",
-    "count": 183,
+    "generated_at": "2026-11-26T20:55:03+01:00",
+    "count": 187,
     "entries": [
         {
             "source_path": "Abschlussberichte\/Buchhaltung\/Buchhaltung_Steuer_Dokumentation.md",
@@ -3634,6 +3634,76 @@
             ],
             "content": "# EigenstÃ¤ndiges Mitarbeiter-Cockpit (1:1 Web-ParitÃ¤t in Funkenwerk Android & Windows)\n\n## 1. Ausgangslage & Zielbild\nInterne Mitarbeiter (`Employee`, `role = internal`) dÃ¼rfen in **Funkenwerk Android** und **Funkenwerk Windows** niemals auf einem abgespeckten Admin-Dashboard landen oder Admin-Bereiche sehen (`Variable Ausgaben`, `Fixkosten`, `Finanzzentrum`, `NÃ¤chster Schritt`, `VerfÃ¼gbares Guthaben`, `E-Mail`, `Kontakte`, `Kalender`, `Dateiverwaltung`, `Funkira`, `Wake-Word`, `Telefon-Assistent`, `Beleg-Scanner`). Stattdessen erhalten sie auf allen Plattformen ein eigenstÃ¤ndiges, aufgerÃ¤umtes **Mitarbeiter-Cockpit** analog zum Web-Portal (`\/employee\/dashboard`).\n\n## 2. Backend-Architektur (`\/api\/employee\/*` & Admin-Gates)\n- **`EnsureInternalEmployeeApiAccess`**: Dedizierte Middleware-Klasse (`0 Closures`), die ausschlieÃŸlich authentifizierte interne `Employee`-Konten zulÃ¤sst und Admins, Kunden, Influencer sowie Steuerberater sauber mit `403` trennt.\n- **`routes\/api\/employee.php`**:\n  - `GET \/api\/employee\/cockpit`: Liefert Profil, aktiven `EmployeeContract`, Operator-Rang\/EP (`KLASSE C..S`), laufende Stempeluhr (`running_entry`), die 4 KPI-Karten (`Monatsstunden`, `Resturlaub`, `Meine Aufgaben`, `Score`), Monats-ZeiteintrÃ¤ge, Lohnabrechnungen sowie optionale Produktions-\/Lagerdaten gemÃ¤ÃŸ Vertrags-Flags.\n  - `POST \/api\/employee\/clock-in` & `POST \/api\/employee\/clock-out`: Live-Stempeluhr inkl. ArbZG-Pausenschutz.\n  - `POST \/api\/employee\/time-entries`, `POST \/api\/employee\/leave-entries`, `DELETE \/api\/employee\/time-entries\/{id}`: Arbeitszeit nachtragen, Urlaub\/Krank melden und ungenehmigte EintrÃ¤ge lÃ¶schen (inkl. GoBD-Monatssperre).\n  - `GET \/api\/employee\/documents\/contract`, `timesheet\/{year}\/{month}`, `payslip\/{payslipId}`: Sichere PDF-Auslieferung der eigenen Personaldokumente.\n  - `POST \/api\/employee\/inventory\/loss` & `\/api\/employee\/support\/tickets\/*`: Streng an `can_access_inventory` bzw. `can_access_support` gekoppelt.\n- **`\/api\/funki\/command` (\"NÃ¤chster Schritt\")**: Strikt auf `Admin` verriegelt (`routes\/api\/core.php`).\n\n## 3. Funkenwerk Android (`EmployeeCockpitScreen.kt` & Widget-HÃ¤rtung)\n- EigenstÃ¤ndige Screens `EmployeeOverviewScreen` (`Screen.EmployeeOverview`) und `EmployeeTimeAndPayslipsScreen` (`Screen.EmployeeTimePay`) statt `ZentrumScreen` \/ `FinanceScreen`.\n- Dynamische Bottom-Navigation (`NavigationBridge.bottomNavScreensForUserRole`): `Ãœbersicht`, optional `Aufgaben` (`can_access_tasks`), optional `Bestellungen` (`can_access_production`), `Zeiten & Lohn`, `Einstellungen`.\n- VollstÃ¤ndige Sperre aller Admin-Widgets & Hintergrunddienste fÃ¼r Nicht-Admins (`QuickEntryWidgetActivity`, `TrichterShareActivity`, `AddShoppingItemActivity`, `ShoppingListWidgetProvider`, `CalendarAppWidgetProvider`, `MusicWidgetProvider`, `MasterWidgetProvider`, `WakeWordService`, `PhoneConciergeManager`).\n\n## 4. Funkenwerk Windows (`v2.7.2 Â· Build #55`, `EmployeeCockpitController.cs`)\n- EigenstÃ¤ndiges `EmployeeCockpitHostBorder` im Hauptbereich (`LauncherViewGrid`), sichtbar ausschlieÃŸlich fÃ¼r Mitarbeiter (`!FunkenwerkSharedSession.IsAdminSession()`), mit 100 % Light- & Dark-Mode-Konsistenz:\n  - Profilkarte mit Rang\/EP, Live-Stempeluhr (`â–¶ Einstempeln` \/ `â¹ Ausstempeln` + `â— Aktiv seit HH:MM Uhr`), Direktbuttons `Vertrag PDF` & `Stundenzettel PDF` (Ã¶ffnet direkt in `Funkenwerk PDF`) und den 4 KPI-Kacheln.\n  - Sub-Tabs `Ãœbersicht`, `Zeiten & Urlaub`, `Lohnzettel` und optional `Bruch melden`.\n- Einstellungs-Filterung (`OpenSettings_Click` \/ `SwitchSettingsTab` \/ `SaveSettings_Click`): Blendet `API & Server` (inkl. Bearer-Token), E-Mail-Sounds, Admin-Bereichsfarben und unberechtigte Start-Module fÃ¼r Mitarbeiter vollstÃ¤ndig aus.\n\n## 5. Verifikation\n- PHPUnit: `WindowsOtaAndEmployeeParityTest` (6 Tests, 82 Assertions grÃ¼n).\n- Android JUnit\/Robolectric & Release-Kotlin-Build: `ErrorSentinelAndNavigationTest`, `SecurityIntentAndShareGuardTest` & `compileReleaseKotlin` grÃ¼n (inkl. Sync nach `AndroidStudioProjects\\seelenfunke-android`).\n- Windows WPF Release-Build: `Funkenwerk v2.7.2` (`0 Fehler \/ 0 Warnungen`).",
             "date": "2026-11-25T01:12:44+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/Agenten\/KI_Verhaltensanalyse_Lob_Kritik_Tracking.md",
+            "rel_path": "Agenten\/KI_Verhaltensanalyse_Lob_Kritik_Tracking.md",
+            "category": "Agenten",
+            "title": "Abschlussbericht: Zentrales Tracking von Lob & Kritik zur KI-Verhaltensanalyse",
+            "tags": [
+                "abschlussbericht",
+                "agenten",
+                "KI-Verhaltensanalyse",
+                "Lob-Kritik-Tracking",
+                "Closed-Loop",
+                "Funkira",
+                "AiAnalytics"
+            ],
+            "content": "# Abschlussbericht: Zentrales Tracking von Lob & Kritik zur KI-Verhaltensanalyse\n\n## 1. Umgesetzter Umfang (Phase 1 + Phase 2 komplett)\n- **Datenmodell & Blueprint-KonformitÃ¤t (EU AI Act Art. 50 & DSGVO Art. 15\/30):**\n  - Migration `2026_11_26_193000_create_ai_behavior_tracking_tables.php` fÃ¼r `ai_behavior_feedbacks` und `ai_behavior_profiles`.\n  - Beide Models (`AiBehaviorFeedback`, `AiBehaviorProfile`) implementieren `HasSystemBlueprint` (143\/143 Models 100 % konform).\n- **0-Token-Analyse-Engine (`AiBehaviorAnalysisService`):**\n  - 3 Signal-Quellen ohne Live-Latenz: (1) Explizite 1-Klick-Reaktionen (`Daumen hoch\/runter` + 4 Schnell-Chips in Web-Chat & Live-Widget), (2) deterministischer 0-Token Sprach-\/Text-Scanner inkl. Negationsschutz (`\"nicht perfekt\"` != Lob) Ã¼ber alle 6 KanÃ¤le (`web_portal`, `live_widget`, `android_app`, `android_live_call`, `workshop_minipc`, `funkenwerk_desktop`), (3) deterministische Quality-Gate-Bluff-\/Bestellnummern- und Tool-Fehler-Signale (`AIController::chat`, `AIController::saveLiveTranscript`, `AIController::execute`).\n  - **HÃ¤rtung:** 100 % Funki-ImmunitÃ¤t (`AgentSkillBudgetGuard::IMMUTABLE_FUNKI_TOOLS`), strikte Mini-PC-Besuchermodus-Isolation (`visitor_sandbox_locked`), Signal-Deduplizierung (`signal_hash` inkl. Streaming-Transcript-Updates), Secret-Filter in Ausschnitten.\n- **Closed-Loop Regel-Aktivierung & Before\/After-Verifikation:**\n  - Automatische Cluster-RegelvorschlÃ¤ge ab 3 gleichartigen Kritiken (oder 2 starken Korrekturen).\n  - 1-Klick-Ãœbernahme in `AiLearnedPreference` (`scope_key = behavior:<channel>:<category>`), direkte kanalspezifische Injektion via `FunkiraPresenceContext::toPromptHeader()` (max. 5 kompakte Regeln, gesperrt fÃ¼r Funki und Besuchermodus), Ticket-Eskalation (`AiUniverseTicket`) sowie Vorher\/Nachher-Vergleich der Kritik-Rate Ã¼ber die nÃ¤chsten 20 Interaktionen.\n- **Backend-UI (Clean-Design, Champagner-Gold `#C5A059`, Light- & Dark-Mode):**\n  - Neuer Tab **Verhaltensprofil** unter `\/admin\/ai-analytics?tab=behavior` (`AiAnalytics`, verlinkt aus `\/admin\/tickets`) mit 4 skulpturierten Hero-KPI-Karten, 6-Kanal-Matrix, Closed-Loop-RegelvorschlÃ¤gen, aktiver Regel-Wirkung und schlanker Signal-Tabelle + Detail-Modal.\n  - Kompakte **Verhaltens-Score-Kachel** im `AiAgentEditor` (`\/admin\/ki-agenten\/{id}`).\n\n## 2. Verifikation\n- `tests\/Feature\/AiBehaviorTrackingTest.php`: **5\/5 Tests bestanden (64 Assertions)**.\n- `.\/funki rights && .\/funki check`: **100 % GRÃœN** (97 Routen, 0 Closures, 143 Blueprint-Models konform, 0 Fehlerkerne).\n- Konzept `att_bvaqqywbqy` auf `completed_verified` gesetzt.",
+            "date": "2026-11-26T19:44:22+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/Showroom & Gamification\/Abschlussbericht_3d_atelier_charaktere_funki_maennlich_funkira_weiblich_dynamische_ruestungsstaender_waffen_kalibrierung.md",
+            "rel_path": "Showroom & Gamification\/Abschlussbericht_3d_atelier_charaktere_funki_maennlich_funkira_weiblich_dynamische_ruestungsstaender_waffen_kalibrierung.md",
+            "category": "Showroom & Gamification",
+            "title": "3D-Atelier Charaktere Funki (Maennlich) & Funkira (Weiblich) + Dynamische Ruestungsstaender- & Waffen-Kalibrierung",
+            "tags": [
+                "abschlussbericht",
+                "showroom-gamification",
+                "3d-atelier",
+                "funki",
+                "funkira",
+                "armory",
+                "ruestungsstaender",
+                "glb"
+            ],
+            "content": "## Zusammenfassung\n- **3D-Charaktere Funki (maennlich) & Funkira (weiblich) im 3D-Atelier**: Nach exakt demselben 3D-Chibi-Schema wie Funkira im Live-Call (`funkira-avatar-standalone.js`, `funkira_selfie.png`, `funki_selfie.png`, `funki.png`) als 22-Bone-geriggte `.glb`-Modelle (`char_starter_male_rigged.glb` mit 31.132 Dreiecken in 24K-Gold\/Obsidian & `char_starter_female_rigged.glb` mit 30.502 Dreiecken in Rose-Gold\/Obsidian) inkl. 2048px PBR-, Normal-, MetallicRoughness- und Emissive-Maps aufgebaut.\n- **60-FPS Live-Retina-Visier & Animation**: Direkt auf `bHead` montiertes Echtzeit-OLED-Visier (`LiveRetinaVisor_funki` \/ `LiveRetinaVisor_funkira`) mit 28-Facetten-Kristall-Iris (Honig-Bernstein-Gold + Uhrwerk-Zahnrad bei Funki, Rubin-Rose + Wimpernschwung & Blush bei Funkira), Blinzeln, Blickfolgen, Begruessungs-Winken beim Charakterwechsel und 5-Finger-Waffen-Griffschluss.\n- **Dynamische Ruestungs- & Waffenanpassung am Ruestungsstaender**: Alle 6 Armory-GLBs (`armor_crystal_helm.glb` mit offenem Visier-Fenster, `armor_crystal_chest.glb`, `armor_crystal_gauntlets.glb`, `armor_crystal_boots.glb`, achsensymmetrische `weapon_crystal_lance.glb` & `weapon_crystal_spear.glb`) neu aufgebaut und via `ARMORY_GENDER_FIT_PROFILES`, `_buildGenderAdaptedArmorGeometry`, `_resolveWeaponGripCalibration` und `_syncArmoryStandToGender` dynamisch auf die exakten Proportionen von Funkira (weiblich) und Funki (maennlich) kalibriert (inkl. Ausblendung von Sirene\/Kappe unter dem Helm und Schal\/Brosche unter dem Brustpanzer).\n- **Clean-Design Auswahl im Atelier & Heldenhalle**: `✦ Funki · Maennlich` und `✦ Funkira · Weiblich` mit skulpturierten SVG-Emblemen in `product-frontend-filter-area.blade.php` und `funkenwerk-heroes-3d.js`.",
+            "date": "2026-11-26T20:01:50+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/System\/Abschlussbericht_Funkenwerk_v1_9_9_Sammelpaket_Und_LiveCall_Fix.md",
+            "rel_path": "System\/Abschlussbericht_Funkenwerk_v1_9_9_Sammelpaket_Und_LiveCall_Fix.md",
+            "category": "System",
+            "title": "Funkenwerk Android v1.9.9 (Build 50): Sammelpaket-Versand, Outbox-Selbstheilung und Live-Call 1007 Fix",
+            "tags": [
+                "abschlussbericht",
+                "system",
+                "android",
+                "funkenwerk",
+                "sammelpaket",
+                "antigravity-inbox",
+                "live-call",
+                "v1-9-9"
+            ],
+            "content": "## Ursachen und Loesung (ag_20261126_201941_5176fcbb)\n\n1. **Server-Clamping statt HTTP 422 (`AntigravityDirectInboxService` und `Controller`):**\n   - `FunkiraPackageStore.stageRequirement` erlaubte bis zu 30 Punkte a 360 Zeichen (ueber 5.000 Zeichen Body), waehrend das Backend ab ueber 25 Punkten oder ueber 300 Zeichen mit HTTP 422 abbrach.\n   - Limits auf 50 Punkte a 1.200 Zeichen und 15.000\/20.000 Zeichen Body angehoben sowie `normalizeChecklist()` auf verlustarmes Server-Clamping statt Exception umgestellt.\n2. **2-stufige Outbox-Selbstheilung (`AgDirectInboxManager.flushOutbox` und `FunkiraPackageStore.releasePackage`):**\n   - `releasePackage` laeuft in `withContext(NonCancellable + Dispatchers.IO)` (Schliessen des BottomSheets bricht den HTTP-POST nicht mehr ab) und clampt Client-Payloads vorab.\n   - `flushOutbox` heilt bestehende HTTP 400\/413\/422 Altlasten in `ag_direct_outbox.json` automatisch im Retry und verhindert Head-of-Line-Blocking.\n3. **UI-Sichtbarkeit und Sprach-Sofortreflex (`AgDirectBottomSheets`, `FalconClientTools`, `FunkiraLiveViewModel`):**\n   - Offene Sammelpakete stehen im Antigravity-Sheet ganz oben; offener Eingabetext (`newBullet`) wird beim Klick auf Absenden automatisch uebernommen; Hauptbutton zeigt `Paket senden (N)`.\n4. **Live-Call WebSocket 1007 Fix (`thinking_level`):**\n   - `thinkingConfig: { thinkingLevel: minimal }` wird in Android (`FalconClientTools.buildLiveThinkingConfig`) und Web-Widget (`ai-widget-part2.blade.php`) nur noch auf direktem Google AI Studio Pfad gesendet, nicht ueber die Portal-WS-Bridge oder Vertex AI.\n5. **Produktions-Signatur (`v1.9.9 \/ Build 50`):**\n   - Signiert mit 4096-Bit RSA Release-Keystore (`Cert SHA-256: E4:C8:5C:DD:...`, `APK SHA-256: B9E5AAC62593AF61C9CACDD28288F6D894B5BCE7CCC8F1AE57AE582F9E67D647`), 1:1 nach Windows (`seelenfunke-android`) gespiegelt.",
+            "date": "2026-11-26T20:49:57+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/System\/Ticket_Status_Sync_Portal_Android_Hardening.md",
+            "rel_path": "System\/Ticket_Status_Sync_Portal_Android_Hardening.md",
+            "category": "System",
+            "title": "Abschlussbericht: Bidirektionale Ticket-Status-Synchronisierung (Portal, Direct-Inbox & Android-App)",
+            "tags": [
+                "abschlussbericht",
+                "system",
+                "Ticketsystem",
+                "SmartHome",
+                "Lichterkette",
+                "Android-Sync",
+                "AntigravityDirectInbox"
+            ],
+            "content": "# Abschlussbericht: Bidirektionale Ticket-Status-Synchronisierung (Portal <-> Direct-Inbox <-> Android-App)\n\n## 1. Gefundene Ursachen\n1. **Stage-zu-Lokal Import ohne VorgÃ¤nger-AuflÃ¶sung (`AntigravityDirectInboxService::importItems`):** Beim Import von `\"GO & Antwort zu:\"`-FolgeauftrÃ¤gen (mit `Referenz-Ticket: ag_...`) wurden die lokalen Original-EintrÃ¤ge (`awaiting_go`, u. a. `SF-0170` Smart-Home Lichterketten, `SF-0178`, `SF-0181`, `SF-0185`, `SF-0169`, `SF-0167`, `SF-0166`) nicht geschlossen und nicht an `AntigravityUniverseTicketBridge` gespiegelt.\n2. **Fehlende transitive Referenz-SchlieÃŸung (`completeMessage` & `syncInboxItem`):** Beim AbschlieÃŸen eines Folgeauftrags wurden verknÃ¼pfte VorgÃ¤nger-Items und historisch doppelt entstandene `AiUniverseTicket`-EintrÃ¤ge nicht mitgeschlossen.\n3. **LÃ¼cke in der RÃ¼ckspiegelung (`FunkiraTicketRouter::markTicketStatus`):** Quick-Actions und KI-Statuswechsel (`performTicketAction(..., 'complete' \/ 'archive')`) spiegelten Erledigungen nicht zurÃ¼ck in `AntigravityDirectInboxService`.\n\n## 2. Dauerhafte HÃ¤rtung & Sofort-Bereinigung\n- **`AntigravityDirectInboxService`:** Neue Helper `extractReferencedItemIds()`, `closeReferencedAncestorsUnlocked()` (transitiv auch Ã¼ber mehrstufige Ketten) und `reconcileOrphanedReferences()`; fest verdrahtet in `completeMessage()`, `importItems()` und `php artisan system:ag-inbox --reconcile`.\n- **`AntigravityUniverseTicketBridge`:** `syncInboxItem()` fÃ¼hrt `\"GO & Antwort zu:\"`-AuftrÃ¤ge nahtlos im bestehenden Original-Ticket weiter (0 neue Duplikate) und schlieÃŸt bei Abschluss alle historischen Geschwister-\/VorgÃ¤nger-Tickets mit; neuer gecachter Auto-Sync `reconcileIfNeeded(20)` in `AIController::listUniverseTickets()`, `AntigravityDirectInboxController::index()` und `AiUniverseTickets::mount()`.\n- **`FunkiraTicketRouter`:** Einheitliche bidirektionale RÃ¼ckspiegelung `mirrorStatusToDirectInbox()` in `setManualTicketStatus()` und `markTicketStatus()` fÃ¼r alle verknÃ¼pften IDs (`ag_item_id`, `previous_concept_ag_id`, `ag_history_ids`).\n- **Sofort-Bereinigung:** Alle 7 verwaisten `awaiting_go` \/ `waiting_for_alina`-Tickets (inkl. `SF-0170` Lichterkette und `SF-0178` SmartHome Performance) atomar auf `completed` synchronisiert (1:1 ParitÃ¤t zwischen Portal und Direct-Inbox).\n\n## 3. Verifikation\n- `tests\/Feature\/TicketStatusSyncHardeningTest.php`: **3\/3 Tests bestanden (23 Assertions)**.\n- `.\/funki rights && .\/funki check`: **100 % GRÃœN** (97 Routen, 0 Closures, 143 Blueprint-Models konform, 0 Fehlerkerne).",
+            "date": "2026-11-26T20:55:03+01:00"
         }
     ]
 }

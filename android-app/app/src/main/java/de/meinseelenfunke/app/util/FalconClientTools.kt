@@ -329,14 +329,20 @@ object FalconClientTools {
         }
     }
 
-    fun buildLiveThinkingConfig(modelName: String, includeThinkingConfig: Boolean = true): JsonObject? {
+    fun buildLiveThinkingConfig(
+        modelName: String,
+        includeThinkingConfig: Boolean = true,
+        isDirectGoogleAiStudio: Boolean = false
+    ): JsonObject? {
         if (!includeThinkingConfig) return null
         val lower = modelName.trim().lowercase(Locale.ROOT)
         return when {
             lower.contains("2.5") -> JsonObject().apply {
                 addProperty("thinkingBudget", 0)
             }
-            lower.contains("3.1") || lower.contains("gemini-3") -> JsonObject().apply {
+            isDirectGoogleAiStudio &&
+                !lower.startsWith("projects/") &&
+                (lower.contains("3.1") || lower.contains("gemini-3")) -> JsonObject().apply {
                 addProperty("thinkingLevel", "minimal")
             }
             else -> null
@@ -420,6 +426,11 @@ object FalconClientTools {
                 }
 
                 "sh:$intent:$canonicalTarget"
+            }
+
+            "falcon_release_package" -> {
+                val pkgUuid = args.optString("package_uuid").trim().lowercase(Locale.ROOT)
+                "pkg:release:${pkgUuid.ifBlank { "latest" }}"
             }
 
             else -> null
@@ -563,6 +574,48 @@ object FalconClientTools {
         }
 
         return null
+    }
+
+    /**
+     * Deterministic voice reflex for explicit Sammelpaket release imperatives
+     * ("Sammelpaket absenden", "Schick das Paket an Antigravity", "Paket jetzt abschicken").
+     * Strictly rejects negations, questions, and staging phrases ("ins Paket legen").
+     */
+    fun matchDeterministicPackageReleaseReflex(utterance: String): Pair<String, JsonObject>? {
+        val raw = utterance.trim()
+        if (raw.isEmpty() || raw.length > 96 || raw.contains('?')) return null
+        val norm = normalizeReflexText(raw)
+        if (norm.isEmpty()) return null
+
+        val tokens = norm.split(" ").filter { it.isNotEmpty() }
+        val forbidden = setOf(
+            "nicht", "kein", "keine", "keinen", "niemals", "nie", "ohne", "warte", "spaeter",
+            "ins", "in", "hinein", "dazu", "hinzufuegen", "ergaenzen", "aufnehmen", "erweitern",
+            "loeschen", "verwerfen", "welche", "welches", "status", "warum", "wieso", "oder", "falls", "wenn"
+        )
+        if (tokens.any { it in forbidden }) return null
+
+        val hasPackageNoun = tokens.any { it in setOf("sammelpaket", "paket") }
+        if (!hasPackageNoun) return null
+
+        val hasReleaseVerb = Regex(
+            """\b(?:absenden|abschicken|rausschicken|wegsc?hicken|freigeben|uebermitteln|raus)\b"""
+        ).containsMatchIn(norm) || Regex(
+            """\b(?:schick|schicke|send|sende)\b.*\b(?:sammelpaket|paket)\b.*\b(?:ab|raus|los|antigravity)\b"""
+        ).containsMatchIn(norm) || Regex(
+            """\b(?:sammelpaket|paket)\b.*\ban antigravity\b.*\b(?:senden|schicken|uebermitteln)?"""
+        ).containsMatchIn(norm)
+
+        if (!hasReleaseVerb) return null
+
+        val modeOverride = when {
+            tokens.contains("direkt") -> "direct"
+            tokens.contains("konzept") -> "concept"
+            else -> null
+        }
+        return "falcon_release_package" to JsonObject().apply {
+            if (modeOverride != null) addProperty("execution_mode", modeOverride)
+        }
     }
 
     suspend fun executeDeviceToolWithReflexDedupe(
@@ -2100,7 +2153,10 @@ object FalconClientTools {
         smartHomeRelayExecutorOverride: (suspend (action: String, target: String, position: Int?) -> Pair<Boolean, String>)? = null
     ): JsonObject {
         val args = if (argsElement != null && argsElement.isJsonObject) argsElement.asJsonObject else JsonObject()
-        if ((toolName == "falcon_smarthome_control" || toolName == "falcon_camera_control") &&
+        if ((toolName == "falcon_smarthome_control" ||
+                toolName == "falcon_camera_control" ||
+                toolName == "falcon_release_package") &&
+            agApiOverride == null &&
             smartHomeExecutorOverride == null &&
             smartHomeRelayExecutorOverride == null
         ) {

@@ -17,8 +17,9 @@ class AntigravityDirectInboxService
     public const MAX_ITEMS = 200;
     public const COMPLETED_RETENTION_DAYS = 30;
     public const MAX_ATTACHMENT_BYTES = 12582912; // 12 MB (inkl. kurze 20s-MP4-Handyvideos)
-    public const MAX_CHECKLIST_ITEMS = 25;
-    public const MAX_CHECKLIST_ITEM_LENGTH = 300;
+    public const MAX_CHECKLIST_ITEMS = 50;
+    public const MAX_CHECKLIST_ITEM_LENGTH = 1200;
+    public const MAX_BODY_LENGTH = 15000;
 
     public const ALLOWED_EXECUTION_MODES = ['concept', 'direct'];
     public const ALLOWED_CHANNELS = ['leitung', 'tickets', 'shop', 'android', 'minipc', 'buchhaltung', 'new'];
@@ -212,7 +213,13 @@ class AntigravityDirectInboxService
 
         $cleaned = [];
         foreach ($raw as $entry) {
-            if (!is_scalar($entry) && $entry !== null) {
+            if (is_array($entry)) {
+                $extracted = $entry['text'] ?? $entry['title'] ?? $entry['label'] ?? null;
+                if (!is_scalar($extracted)) {
+                    throw new InvalidArgumentException('Checklisten-Einträge müssen Textwerte sein.');
+                }
+                $entry = $extracted;
+            } elseif (!is_scalar($entry) && $entry !== null) {
                 throw new InvalidArgumentException('Checklisten-Einträge müssen Textwerte sein.');
             }
 
@@ -222,18 +229,14 @@ class AntigravityDirectInboxService
             }
 
             if (mb_strlen($line) > self::MAX_CHECKLIST_ITEM_LENGTH) {
-                throw new InvalidArgumentException(
-                    'Einzelne Checklisten-Punkte dürfen maximal ' . self::MAX_CHECKLIST_ITEM_LENGTH . ' Zeichen enthalten.'
-                );
+                $line = rtrim(mb_substr($line, 0, self::MAX_CHECKLIST_ITEM_LENGTH - 1)) . '…';
             }
 
             $cleaned[] = $line;
         }
 
         if (count($cleaned) > self::MAX_CHECKLIST_ITEMS) {
-            throw new InvalidArgumentException(
-                'Die Checkliste darf maximal ' . self::MAX_CHECKLIST_ITEMS . ' Punkte enthalten.'
-            );
+            $cleaned = array_slice($cleaned, 0, self::MAX_CHECKLIST_ITEMS);
         }
 
         return array_values($cleaned);
@@ -252,7 +255,7 @@ class AntigravityDirectInboxService
 
         $size = (int) $file->getSize();
         if ($size <= 0 || $size > self::MAX_ATTACHMENT_BYTES) {
-            throw new InvalidArgumentException('Der Anhang darf maximal 8 MB groß sein.');
+            throw new InvalidArgumentException('Der Anhang darf maximal 12 MB groß sein.');
         }
 
         $realPath = $file->getRealPath();
@@ -332,14 +335,14 @@ class AntigravityDirectInboxService
     ): array {
         $byteLength = strlen($rawBytes);
         if ($byteLength <= 0 || $byteLength > self::MAX_ATTACHMENT_BYTES) {
-            throw new InvalidArgumentException('Der Anhang muss zwischen 1 Byte und 8 MB groß sein.');
+            throw new InvalidArgumentException('Der Anhang muss zwischen 1 Byte und 12 MB groß sein.');
         }
 
         $origBase = $originalName !== null ? basename(str_replace('\\', '/', trim($originalName))) : '';
         $origExt = $origBase !== '' ? strtolower((string) pathinfo($origBase, PATHINFO_EXTENSION)) : '';
 
         if ($origExt !== '' && !in_array($origExt, self::ALLOWED_ATTACHMENT_EXTENSIONS, true)) {
-            throw new InvalidArgumentException('Dateiendung nicht erlaubt. Zulässig sind nur PNG, JPG, JPEG, WEBP, M4A, MP3, WAV, OGG, AAC, OPUS und WEBM.');
+            throw new InvalidArgumentException('Dateiendung nicht erlaubt. Zulässig sind nur PNG, JPG, JPEG, WEBP, M4A, MP3, WAV, OGG, AAC, OPUS, WEBM und MP4.');
         }
 
         $normDeclared = null;
@@ -497,15 +500,18 @@ class AntigravityDirectInboxService
             $title = mb_substr($title, 0, 500);
 
             $body = isset($payload['body']) && $payload['body'] !== null
-                ? mb_substr(trim((string) $payload['body']), 0, 5000)
+                ? mb_substr(trim((string) $payload['body']), 0, self::MAX_BODY_LENGTH)
                 : '';
 
             $checklist = $this->normalizeChecklist($payload['checklist'] ?? []);
 
-            $mode = isset($payload['execution_mode']) ? trim((string) $payload['execution_mode']) : 'concept';
-            if (!in_array($mode, self::ALLOWED_EXECUTION_MODES, true)) {
-                $mode = 'concept';
+            $modeRaw = isset($payload['execution_mode']) && is_scalar($payload['execution_mode'])
+                ? strtolower(trim((string) $payload['execution_mode']))
+                : 'concept';
+            if ($modeRaw === 'execute') {
+                $modeRaw = 'direct';
             }
+            $mode = in_array($modeRaw, self::ALLOWED_EXECUTION_MODES, true) ? $modeRaw : 'concept';
 
             $channel = $this->resolveEffectiveChannel($payload['channel'] ?? 'leitung', $title, $body);
 
@@ -767,6 +773,7 @@ class AntigravityDirectInboxService
             $nowIso = now('Europe/Berlin')->toIso8601String();
             $foundItem = null;
 
+            $closedAncestors = [];
             foreach ($items as &$item) {
                 if (($item['id'] ?? '') === $id) {
                     if (!$forceFinalComplete && self::requiresGoOrDecision($item, $cleanSummary)) {
@@ -790,15 +797,28 @@ class AntigravityDirectInboxService
             }
             unset($item);
 
-            return [$foundItem, $items, $foundItem !== null];
+            if ($foundItem !== null && ($foundItem['status'] ?? '') === 'completed') {
+                $ancestorNote = $cleanSummary !== null
+                    ? '[Automatisch synchronisiert durch Abschluss von Folgeauftrag ' . $id . ': ' . mb_substr($cleanSummary, 0, 400) . ']'
+                    : '[Automatisch synchronisiert durch Abschluss von Folgeauftrag ' . $id . ']';
+                $closedAncestors = $this->closeReferencedAncestorsUnlocked($items, $foundItem, $ancestorNote);
+            }
+
+            return [['item' => $foundItem, 'closed_ancestors' => $closedAncestors], $items, $foundItem !== null];
         });
 
-        if ($found !== null) {
-            $evt = ($found['status'] ?? '') === 'awaiting_go' ? 'awaiting_go' : 'completed';
-            \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($found, $evt);
+        $foundItem = is_array($found) ? ($found['item'] ?? null) : null;
+        $closedAncestors = is_array($found) ? ($found['closed_ancestors'] ?? []) : [];
+
+        if ($foundItem !== null) {
+            $evt = ($foundItem['status'] ?? '') === 'awaiting_go' ? 'awaiting_go' : 'completed';
+            \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($foundItem, $evt);
+            foreach ($closedAncestors as $ancestorItem) {
+                \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($ancestorItem, 'completed');
+            }
         }
 
-        return $found;
+        return $foundItem;
     }
 
     /**
@@ -906,11 +926,8 @@ class AntigravityDirectInboxService
             'go benötigt',
             'dein go',
             'ihr go',
-            'entscheidung',
             'bitte um freigabe',
             'freigabe erforderlich',
-            'rückfrage',
-            'rueckfrage',
             'welche option',
         ];
 
@@ -918,6 +935,10 @@ class AntigravityDirectInboxService
             if (str_contains($lower, $marker)) {
                 return true;
             }
+        }
+
+        if (preg_match('/\b(?:offene\s+(?:rückfrage|rueckfrage|entscheidung)|deine\s+entscheidung|(?:rückfrage|rueckfrage)\s*:)/iu', $sanitizedForCheck)) {
+            return true;
         }
 
         return false;
@@ -1113,7 +1134,8 @@ class AntigravityDirectInboxService
             $items[$targetIdx] = $resolvedFormatted;
 
             $followupId = $this->generateUniqueId($items);
-            $followupTitle = mb_substr('GO & Antwort zu: ' . $origTitle, 0, 500);
+            $cleanBaseTitle = trim((string) (preg_replace('/^(?:GO\s*&\s*Antwort\s+zu:\s*)+/iu', '', $origTitle) ?? $origTitle));
+            $followupTitle = mb_substr('GO & Antwort zu: ' . ($cleanBaseTitle !== '' ? $cleanBaseTitle : $origTitle), 0, 500);
             $effectiveAnswer = $cleanAnswer !== ''
                 ? $cleanAnswer
                 : 'Explizites GO von Alina erteilt. Bitte wie konzeptioniert direkt umsetzen, den betroffenen Code-Pfad inkl. Nachbarstellen in einem Atemzug gegen Randfälle härten und per automatisiertem Test absichern.';
@@ -1270,6 +1292,162 @@ class AntigravityDirectInboxService
     }
 
     /**
+     * Extrahiert alle referenzierten ag_... Ticket-IDs aus Titel und Body (z. B. "Referenz-Ticket: ag_...").
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<int, string>
+     */
+    public static function extractReferencedItemIds(array $item): array
+    {
+        $selfId = trim((string) ($item['id'] ?? ''));
+        $haystack = trim((string) ($item['title'] ?? '')) . "\n" . trim((string) ($item['body'] ?? ''));
+        if ($haystack === '') {
+            return [];
+        }
+
+        $refs = [];
+        if (preg_match_all('/\bag_[0-9]{8}_[0-9]{6}_[a-f0-9]{8}\b/i', $haystack, $matches)) {
+            foreach ($matches[0] as $candidate) {
+                $clean = trim($candidate);
+                if ($clean !== '' && $clean !== $selfId && self::isValidItemId($clean)) {
+                    $refs[] = $clean;
+                }
+            }
+        }
+
+        return array_values(array_unique($refs));
+    }
+
+    /**
+     * Schließt transitiv alle per "Referenz-Ticket: ag_..." verknüpften Vorgänger-Einträge auf completed,
+     * damit weder Original-Konzepte noch mehrstufige "GO & Antwort zu:"-Ketten offen hängen bleiben.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<string, mixed>  $sourceItem
+     * @return array<int, array<string, mixed>>
+     */
+    private function closeReferencedAncestorsUnlocked(array &$items, array $sourceItem, string $note): array
+    {
+        $indexById = [];
+        foreach ($items as $idx => $entry) {
+            $eid = (string) ($entry['id'] ?? '');
+            if ($eid !== '') {
+                $indexById[$eid] = $idx;
+            }
+        }
+
+        $queue = self::extractReferencedItemIds($sourceItem);
+        $visited = [(string) ($sourceItem['id'] ?? '') => true];
+        $closedItems = [];
+        $nowIso = now('Europe/Berlin')->toIso8601String();
+        $cleanNote = mb_substr(trim($note), 0, 1200);
+
+        while (!empty($queue)) {
+            $refId = array_shift($queue);
+            if ($refId === null || isset($visited[$refId])) {
+                continue;
+            }
+            $visited[$refId] = true;
+
+            if (!isset($indexById[$refId])) {
+                continue;
+            }
+
+            $idx = $indexById[$refId];
+            $target = $items[$idx];
+
+            foreach (self::extractReferencedItemIds($target) as $parentRef) {
+                if (!isset($visited[$parentRef])) {
+                    $queue[] = $parentRef;
+                }
+            }
+
+            if (($target['status'] ?? '') !== 'completed') {
+                $target['status'] = 'completed';
+                $target['completed_at'] = $nowIso;
+                $target['pending_question'] = null;
+                $prevSummary = isset($target['ag_response_summary']) && trim((string) $target['ag_response_summary']) !== ''
+                    ? trim((string) $target['ag_response_summary'])
+                    : '';
+                if ($cleanNote !== '' && !str_contains($prevSummary, $cleanNote)) {
+                    $target['ag_response_summary'] = mb_substr(
+                        $prevSummary !== '' ? ($prevSummary . "\n" . $cleanNote) : $cleanNote,
+                        0,
+                        5000
+                    );
+                }
+                $formatted = $this->formatItemSchema($target);
+                $items[$idx] = $formatted;
+                $closedItems[] = $formatted;
+            }
+        }
+
+        return $closedItems;
+    }
+
+    /**
+     * Synchronisiert und bereinigt verwaiste awaiting_go-/Vorgänger-Einträge anhand bestehender
+     * "Referenz-Ticket:"- und "GO & Antwort zu:"-Folgeaufträge und spiegelt den Stand in ai_universe_tickets.
+     *
+     * @return array{closed_inbox_items: int, synced_tickets: int}
+     */
+    public function reconcileOrphanedReferences(bool $syncBridge = true): array
+    {
+        $result = $this->withExclusiveLock(function (array $items): array {
+            $closedItems = [];
+            $dirty = false;
+
+            foreach ($items as $candidate) {
+                $candId = (string) ($candidate['id'] ?? '');
+                $candStatus = (string) ($candidate['status'] ?? '');
+                $refs = self::extractReferencedItemIds($candidate);
+
+                if (!empty($refs)) {
+                    $note = $candStatus === 'completed'
+                        ? "[Automatisch synchronisiert durch abgeschlossenen Folgeauftrag {$candId}]"
+                        : "[Freigabe-Stau automatisch synchronisiert durch Folgeauftrag {$candId}]";
+                    $newlyClosed = $this->closeReferencedAncestorsUnlocked($items, $candidate, $note);
+                    if (!empty($newlyClosed)) {
+                        $closedItems = array_merge($closedItems, $newlyClosed);
+                        $dirty = true;
+                    }
+                }
+
+                // Auch GO-Folgeaufträge ohne explizite ID über die bestehende Titel-Matching-Logik abgleichen
+                $closedByTitle = $this->autoCloseMatchingAwaitingItemsUnlocked($items, $candidate);
+                if (!empty($closedByTitle)) {
+                    foreach ($items as $it) {
+                        if (in_array((string) ($it['id'] ?? ''), $closedByTitle, true)) {
+                            $closedItems[] = $it;
+                        }
+                    }
+                    $dirty = true;
+                }
+            }
+
+            return [['closed_items' => $closedItems, 'all_items' => $items], $items, $dirty];
+        });
+
+        $closedItems = $result['closed_items'] ?? [];
+        $allItems = $result['all_items'] ?? [];
+        $syncedTickets = 0;
+
+        if ($syncBridge) {
+            foreach ($closedItems as $cItem) {
+                if (\App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($cItem, 'completed')) {
+                    $syncedTickets++;
+                }
+            }
+            $syncedTickets += \App\Services\AI\AntigravityUniverseTicketBridge::reconcileOpenTicketsWithInbox($allItems);
+        }
+
+        return [
+            'closed_inbox_items' => count($closedItems),
+            'synced_tickets' => $syncedTickets,
+        ];
+    }
+
+    /**
      * Importiert/merged ein Array von Items (z. B. von Stage in die lokale Inbox) idempotent anhand der ID.
      *
      * @param  array<int, mixed>  $incomingItems
@@ -1280,7 +1458,7 @@ class AntigravityDirectInboxService
             return 0;
         }
 
-        return $this->withExclusiveLock(function (array $items) use ($incomingItems): array {
+        $importResult = $this->withExclusiveLock(function (array $items) use ($incomingItems): array {
             $indexById = [];
             foreach ($items as $idx => $existing) {
                 $eid = (string) ($existing['id'] ?? '');
@@ -1291,6 +1469,8 @@ class AntigravityDirectInboxService
 
             $merged = 0;
             $dirty = false;
+            $touchedItems = [];
+            $autoClosedItems = [];
 
             foreach ($incomingItems as $raw) {
                 if (!is_array($raw)) {
@@ -1361,9 +1541,16 @@ class AntigravityDirectInboxService
                     }
 
                     if ($itemChanged) {
-                        $items[$existingIdx] = $this->formatItemSchema($existingItem);
+                        $formattedExisting = $this->formatItemSchema($existingItem);
+                        $items[$existingIdx] = $formattedExisting;
+                        $touchedItems[$id] = $formattedExisting;
                         $merged++;
                         $dirty = true;
+                        if (($formattedExisting['status'] ?? '') === 'completed') {
+                            foreach ($this->closeReferencedAncestorsUnlocked($items, $formattedExisting, "[Automatisch synchronisiert durch Import von {$id}]") as $anc) {
+                                $autoClosedItems[(string) ($anc['id'] ?? '')] = $anc;
+                            }
+                        }
                     }
 
                     continue;
@@ -1451,12 +1638,52 @@ class AntigravityDirectInboxService
 
                 $items[] = $newItem;
                 $indexById[$id] = count($items) - 1;
+                $touchedItems[$id] = $newItem;
                 $merged++;
                 $dirty = true;
+
+                // Härtung: Beim Stage->Lokal-Import von GO-Folgeaufträgen sofort Vorgänger-Blockaden auflösen!
+                $closedByRef = $this->closeReferencedAncestorsUnlocked(
+                    $items,
+                    $newItem,
+                    "[Freigabe-Stau automatisch synchronisiert durch importierten Folgeauftrag {$id}]"
+                );
+                foreach ($closedByRef as $anc) {
+                    $autoClosedItems[(string) ($anc['id'] ?? '')] = $anc;
+                }
+                $closedByTitle = $this->autoCloseMatchingAwaitingItemsUnlocked($items, $newItem);
+                foreach ($closedByTitle as $cid) {
+                    if (isset($indexById[$cid])) {
+                        $autoClosedItems[$cid] = $items[$indexById[$cid]];
+                    }
+                }
             }
 
-            return [$merged, $items, $dirty];
+            return [
+                [
+                    'merged' => $merged,
+                    'touched_items' => array_values($touchedItems),
+                    'auto_closed_items' => array_values($autoClosedItems),
+                ],
+                $items,
+                $dirty,
+            ];
         });
+
+        foreach (($importResult['auto_closed_items'] ?? []) as $ancItem) {
+            \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($ancItem, 'completed');
+        }
+        foreach (($importResult['touched_items'] ?? []) as $tItem) {
+            $evt = match ((string) ($tItem['status'] ?? 'pending')) {
+                'completed' => 'completed',
+                'awaiting_go' => 'awaiting_go',
+                'delivered' => 'delivered',
+                default => 'created',
+            };
+            \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($tItem, $evt);
+        }
+
+        return (int) ($importResult['merged'] ?? 0);
     }
 
     /**

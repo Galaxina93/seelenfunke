@@ -1441,23 +1441,39 @@ class FalconClientToolsAndMusicMatcherTest {
 
     @Test
     fun liveCallZeroThinkingSetupAndDeviceReflexFastLane_executesImmediatelyAndDeduplicatesToolCall() = runBlocking {
-        // 1. Gemini 3.1 Live setup receives thinkingLevel='minimal', 2.5 receives thinkingBudget=0, fallback omits cleanly
-        val cfg31 = FalconClientTools.buildLiveThinkingConfig("models/gemini-3.1-flash-live-preview", true)
-        assertNotNull(cfg31)
-        assertEquals("minimal", cfg31!!.get("thinkingLevel").asString)
+        // 1. Direct AI Studio 3.1 receives thinkingLevel='minimal', Portal Bridge & Vertex 3.1 omit thinkingLevel (preventing 1007!), 2.5 receives thinkingBudget=0
+        val cfgBridge31 = FalconClientTools.buildLiveThinkingConfig("models/gemini-3.1-flash-live-preview", includeThinkingConfig = true, isDirectGoogleAiStudio = false)
+        assertNull(cfgBridge31)
+
+        val cfgDirect31 = FalconClientTools.buildLiveThinkingConfig("models/gemini-3.1-flash-live-preview", includeThinkingConfig = true, isDirectGoogleAiStudio = true)
+        assertNotNull(cfgDirect31)
+        assertEquals("minimal", cfgDirect31!!.get("thinkingLevel").asString)
 
         val cfgVertex31 = FalconClientTools.buildLiveThinkingConfig(
             "projects/mein-seelenfunke/locations/europe-west1/publishers/google/models/gemini-3.1-flash-live-preview",
-            true
+            includeThinkingConfig = true,
+            isDirectGoogleAiStudio = true
         )
-        assertNotNull(cfgVertex31)
-        assertEquals("minimal", cfgVertex31!!.get("thinkingLevel").asString)
+        assertNull(cfgVertex31)
 
         val cfg25 = FalconClientTools.buildLiveThinkingConfig("models/gemini-2.5-flash-native-audio", true)
         assertNotNull(cfg25)
         assertEquals(0, cfg25!!.get("thinkingBudget").asInt)
 
-        assertNull(FalconClientTools.buildLiveThinkingConfig("models/gemini-3.1-flash-live-preview", false))
+        assertNull(FalconClientTools.buildLiveThinkingConfig("models/gemini-3.1-flash-live-preview", includeThinkingConfig = false, isDirectGoogleAiStudio = true))
+
+        // 1b. Deterministic Sammelpaket release voice reflex matches explicit send imperatives and rejects staging/negations
+        val pkgRel1 = FalconClientTools.matchDeterministicPackageReleaseReflex("Schick das Sammelpaket an Antigravity")
+        assertNotNull(pkgRel1)
+        assertEquals("falcon_release_package", pkgRel1!!.first)
+
+        val pkgRelDirect = FalconClientTools.matchDeterministicPackageReleaseReflex("Bitte Sammelpaket direkt absenden")
+        assertNotNull(pkgRelDirect)
+        assertEquals("direct", pkgRelDirect!!.second.get("execution_mode").asString)
+
+        assertNull(FalconClientTools.matchDeterministicPackageReleaseReflex("Leg das bitte noch ins Sammelpaket"))
+        assertNull(FalconClientTools.matchDeterministicPackageReleaseReflex("Schick das Sammelpaket noch nicht ab"))
+        assertNull(FalconClientTools.matchDeterministicPackageReleaseReflex("Welche Punkte sind im Sammelpaket?"))
 
         // 2. Deterministic reflex matches crisp German imperatives and strictly rejects negations/questions/concepts
         val lkOn = FalconClientTools.matchDeterministicDeviceReflex("Mach bitte alle Lichterketten an!")

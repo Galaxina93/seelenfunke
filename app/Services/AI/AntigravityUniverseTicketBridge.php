@@ -138,7 +138,17 @@ class AntigravityUniverseTicketBridge
                 'ag_response_summary' => $summary !== '' ? $summary : null,
             ];
 
+            $referencedIds = AntigravityDirectInboxService::extractReferencedItemIds($item);
             $ticket = self::findTicketByAgId($agId);
+            if (!$ticket && !empty($referencedIds)) {
+                foreach ($referencedIds as $refId) {
+                    $parentTicket = self::findTicketByAgId($refId);
+                    if ($parentTicket) {
+                        $ticket = $parentTicket;
+                        break;
+                    }
+                }
+            }
             $sourceChannel = self::resolveSourceChannel((string) ($item['source'] ?? 'android_app'), $agChannel);
             $modeBadge = $execMode === 'concept' ? '[Konzept] ' : '';
             $cleanTitle = Str::limit($modeBadge . $rawTitle, 180);
@@ -270,6 +280,22 @@ class AntigravityUniverseTicketBridge
             }
 
             $mergedPayload = array_merge($prevPayload, $actionPayload);
+            $historyIds = [];
+            if (!empty($prevPayload['ag_history_ids']) && is_array($prevPayload['ag_history_ids'])) {
+                $historyIds = array_merge($historyIds, array_map('strval', $prevPayload['ag_history_ids']));
+            }
+            if (!empty($prevPayload['ag_item_id'])) {
+                $historyIds[] = (string) $prevPayload['ag_item_id'];
+            }
+            if (!empty($prevPayload['previous_concept_ag_id'])) {
+                $historyIds[] = (string) $prevPayload['previous_concept_ag_id'];
+            }
+            $historyIds = array_merge($historyIds, $referencedIds, [$agId]);
+            $mergedPayload['ag_history_ids'] = array_values(array_unique(array_filter($historyIds)));
+            if (!empty($referencedIds) && empty($mergedPayload['previous_concept_ag_id'])) {
+                $mergedPayload['previous_concept_ag_id'] = $referencedIds[0];
+            }
+
             if ($targetStatus === AiUniverseTicket::STATUS_COMPLETED) {
                 $mergedPayload['queue_state'] = 'completed';
                 $mergedPayload['queue_completed_at'] = now()->toIso8601String();
@@ -277,7 +303,14 @@ class AntigravityUniverseTicketBridge
                 $mergedPayload['queue_state'] = 'waiting_for_alina';
             }
 
+            // Wenn ein Konzept-Ticket nahtlos per GO-Folgeauftrag weitergeführt wird, [Konzept]-Präfix entfernen
+            $updatedTitle = $ticket->title;
+            if (!empty($referencedIds) && str_starts_with($updatedTitle, '[Konzept] ')) {
+                $updatedTitle = substr($updatedTitle, strlen('[Konzept] '));
+            }
+
             $ticket->update([
+                'title' => $updatedTitle,
                 'status' => $targetStatus,
                 'priority' => $targetStatus === AiUniverseTicket::STATUS_WAITING_FOR_ALINA ? 'high' : $ticket->priority,
                 'action_payload' => $mergedPayload,
@@ -286,17 +319,12 @@ class AntigravityUniverseTicketBridge
                 'completed_at' => $targetStatus === AiUniverseTicket::STATUS_COMPLETED ? ($ticket->completed_at ?? now()) : $ticket->completed_at,
             ]);
 
-            if ($targetStatus === AiUniverseTicket::STATUS_COMPLETED) {
-                $siblingIds = [];
-                if (!empty($prevPayload['ag_history_ids']) && is_array($prevPayload['ag_history_ids'])) {
-                    $siblingIds = array_merge($siblingIds, array_map('strval', $prevPayload['ag_history_ids']));
-                }
-                if (!empty($prevPayload['previous_concept_ag_id'])) {
-                    $siblingIds[] = (string) $prevPayload['previous_concept_ag_id'];
-                }
-                if (!empty($prevPayload['ag_item_id']) && (string) $prevPayload['ag_item_id'] !== $agId) {
-                    $siblingIds[] = (string) $prevPayload['ag_item_id'];
-                }
+            if ($targetStatus === AiUniverseTicket::STATUS_COMPLETED || $targetStatus === AiUniverseTicket::STATUS_ARCHIVED) {
+                $siblingIds = array_values(array_filter(
+                    $mergedPayload['ag_history_ids'],
+                    static fn (string $sid): bool => $sid !== $agId
+                ));
+
                 if ($siblingIds !== []) {
                     try {
                         app(AntigravityDirectInboxService::class)->closeSiblingItems(
@@ -305,9 +333,46 @@ class AntigravityUniverseTicketBridge
                         );
                     } catch (\Throwable) {
                     }
+
+                    // Auch evtl. historisch doppelt entstandene Vorgänger-Tickets sauber mitschließen!
+                    foreach ($siblingIds as $sibId) {
+                        $dupTickets = AiUniverseTicket::query()
+                            ->where('id', '!=', $ticket->id)
+                            ->whereNotIn('status', [AiUniverseTicket::STATUS_COMPLETED, AiUniverseTicket::STATUS_ARCHIVED])
+                            ->where('action_payload', 'like', '%"' . addcslashes($sibId, '%_\\') . '"%')
+                            ->get();
+
+                        foreach ($dupTickets as $dup) {
+                            $dupPayload = is_array($dup->action_payload) ? $dup->action_payload : [];
+                            $dupPayload['ag_status'] = 'completed';
+                            $dupPayload['queue_state'] = 'completed';
+                            $dupPayload['closed_by_ticket'] = $ticket->ticket_number;
+                            $dupPayload['pending_question'] = null;
+
+                            AiUniverseTicketMessage::create([
+                                'ticket_id' => $dup->id,
+                                'sender_role' => 'system',
+                                'sender_name' => 'Antigravity',
+                                'ai_agent_id' => $agAgent?->id,
+                                'channel' => 'funkenwerk_desktop',
+                                'content' => "Automatisch synchronisiert & abgeschlossen über Folge-Ticket **{$ticket->ticket_number}**"
+                                    . ($summary !== '' ? ":\n{$summary}" : '.'),
+                            ]);
+
+                            $dup->update([
+                                'status' => $targetStatus,
+                                'action_payload' => $dupPayload,
+                                'messages_count' => $dup->messages()->count(),
+                                'last_activity_at' => now(),
+                                'completed_at' => $dup->completed_at ?? now(),
+                            ]);
+                        }
+                    }
                 }
 
-                CentralBrainService::recordTicketCompletionReport($ticket, $summary !== '' ? $summary : null);
+                if ($targetStatus === AiUniverseTicket::STATUS_COMPLETED) {
+                    CentralBrainService::recordTicketCompletionReport($ticket, $summary !== '' ? $summary : null);
+                }
             }
 
             TicketAutoCompactService::compactIfNeeded($ticket);
@@ -506,5 +571,151 @@ class AntigravityUniverseTicketBridge
         }
 
         return $synced;
+    }
+
+    /**
+     * Gleicht alle noch offenen/wartenden Universum-Tickets gegen den aktuellen Stand der Direct-Inbox ab
+     * (inkl. Referenz-Ketten & bereits abgeschlossener "GO & Antwort zu:"-Folge-Tickets), damit Portal und
+     * Android-App garantiert immer denselben Status zeigen.
+     *
+     * @param  array<int, array<string, mixed>>|null  $inboxItems
+     */
+    public static function reconcileOpenTicketsWithInbox(?array $inboxItems = null): int
+    {
+        if (self::$syncInProgress || !Schema::hasTable('ai_universe_tickets')) {
+            return 0;
+        }
+
+        $items = $inboxItems;
+        if ($items === null) {
+            try {
+                $snapshot = app(AntigravityDirectInboxService::class)->listInbox(AntigravityDirectInboxService::MAX_ITEMS);
+                $items = $snapshot['items'] ?? [];
+            } catch (\Throwable) {
+                return 0;
+            }
+        }
+
+        if (empty($items)) {
+            return 0;
+        }
+
+        $byId = [];
+        $childrenByRef = [];
+        foreach ($items as $it) {
+            $id = trim((string) ($it['id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $byId[$id] = $it;
+            foreach (AntigravityDirectInboxService::extractReferencedItemIds($it) as $refId) {
+                $childrenByRef[$refId][] = $it;
+            }
+        }
+
+        $openTickets = AiUniverseTicket::query()
+            ->whereNotIn('status', [AiUniverseTicket::STATUS_COMPLETED, AiUniverseTicket::STATUS_ARCHIVED])
+            ->get();
+
+        if ($openTickets->isEmpty()) {
+            return 0;
+        }
+
+        $updatedCount = 0;
+        foreach ($openTickets as $ticket) {
+            $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+            $candidateIds = [];
+            if (!empty($payload['ag_item_id'])) {
+                $candidateIds[] = (string) $payload['ag_item_id'];
+            }
+            if (!empty($payload['previous_concept_ag_id'])) {
+                $candidateIds[] = (string) $payload['previous_concept_ag_id'];
+            }
+            if (!empty($payload['ag_history_ids']) && is_array($payload['ag_history_ids'])) {
+                $candidateIds = array_merge($candidateIds, array_map('strval', $payload['ag_history_ids']));
+            }
+            $candidateIds = array_values(array_unique(array_filter($candidateIds)));
+
+            if ($candidateIds === []) {
+                continue;
+            }
+
+            $resolvedChild = null;
+            $directCompleted = null;
+
+            foreach ($candidateIds as $cid) {
+                if (isset($byId[$cid]) && ($byId[$cid]['status'] ?? '') === 'completed') {
+                    $directCompleted = $byId[$cid];
+                }
+                if (!empty($childrenByRef[$cid])) {
+                    foreach ($childrenByRef[$cid] as $child) {
+                        if (($child['status'] ?? '') === 'completed') {
+                            $resolvedChild = $child;
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            $winningItem = $resolvedChild ?? $directCompleted;
+            if ($winningItem === null) {
+                continue;
+            }
+
+            $summary = AiOutputQualityGate::sanitizeText((string) ($winningItem['ag_response_summary'] ?? ''));
+            $isDismissed = str_contains($summary, '[Verworfen durch');
+            $targetStatus = $isDismissed ? AiUniverseTicket::STATUS_ARCHIVED : AiUniverseTicket::STATUS_COMPLETED;
+            $winId = (string) ($winningItem['id'] ?? '');
+
+            $payload['ag_status'] = 'completed';
+            $payload['queue_state'] = 'completed';
+            $payload['pending_question'] = null;
+            if ($winId !== '') {
+                $payload['resolved_by_ag_item_id'] = $winId;
+            }
+
+            AiUniverseTicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'sender_role' => 'system',
+                'sender_name' => 'Antigravity',
+                'channel' => 'funkenwerk_desktop',
+                'content' => "Status automatisch mit Android-App & Postfach synchronisiert ({$winId})"
+                    . ($summary !== '' ? ":\n{$summary}" : '.'),
+            ]);
+
+            $ticket->update([
+                'status' => $targetStatus,
+                'action_payload' => $payload,
+                'messages_count' => $ticket->messages()->count(),
+                'last_activity_at' => now(),
+                'completed_at' => $ticket->completed_at ?? now(),
+            ]);
+            $updatedCount++;
+        }
+
+        return $updatedCount;
+    }
+
+    /**
+     * Leichtgewichtiger, gecachter Auto-Sync-Aufruf für Portal- & App-Leseendpunkte (0 ms Overhead im Normalbetrieb).
+     */
+    public static function reconcileIfNeeded(int $ttlSeconds = 20): int
+    {
+        if (app()->runningUnitTests()) {
+            return self::reconcileOpenTicketsWithInbox();
+        }
+
+        $cacheKey = 'ag_ticket_bridge_last_reconcile_v1';
+        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+            return 0;
+        }
+        \Illuminate\Support\Facades\Cache::put($cacheKey, now()->timestamp, max(5, $ttlSeconds));
+
+        try {
+            $res = app(AntigravityDirectInboxService::class)->reconcileOrphanedReferences(true);
+            return (int) ($res['synced_tickets'] ?? 0);
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 }

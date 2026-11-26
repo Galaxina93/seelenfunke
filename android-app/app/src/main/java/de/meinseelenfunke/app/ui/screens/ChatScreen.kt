@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,7 +101,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.meinseelenfunke.app.data.api.BehaviorQuickChipDto
 import de.meinseelenfunke.app.data.api.ChatMessage
+import de.meinseelenfunke.app.data.repository.AiRepository
+import de.meinseelenfunke.app.ui.components.BehaviorQuickReasonChipsRow
+import de.meinseelenfunke.app.ui.components.BehaviorThumbActions
+import de.meinseelenfunke.app.ui.components.FunkiraBehaviorProposalBar
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Cyan500
 import de.meinseelenfunke.app.ui.theme.Emerald500
@@ -133,6 +139,9 @@ fun ChatScreen(
     val canRetryLastMessage by viewModel.canRetryLastMessage.collectAsState()
     val agents by viewModel.agents.collectAsState()
     val selectedAgent by viewModel.selectedAgent.collectAsState()
+    val messageReactions by viewModel.messageReactions.collectAsState()
+    val behaviorQuickChips by viewModel.behaviorQuickChips.collectAsState()
+    val pendingProposals by viewModel.pendingProposals.collectAsState()
 
     var textInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -297,6 +306,20 @@ fun ChatScreen(
                 }
             )
 
+            // Kompakte 1-Klick-Freigabe fuer offene Funkira-Lernvorschlaege (niemals Funki)
+            if (!AiRepository.isExcludedSupportAgent(activeAgentName)) {
+                FunkiraBehaviorProposalBar(
+                    proposals = pendingProposals,
+                    onApprove = { proposal ->
+                        viewModel.approveBehaviorProposal(proposal)
+                        Toast.makeText(context, "✓ Regel aktiviert", Toast.LENGTH_SHORT).show()
+                    },
+                    onDismiss = { proposal ->
+                        viewModel.dismissBehaviorProposal(proposal)
+                    }
+                )
+            }
+
             // Chat message list
             LazyColumn(
                 state = listState,
@@ -308,8 +331,34 @@ fun ChatScreen(
             ) {
                 item { Spacer(modifier = Modifier.height(16.dp)) }
 
-                items(messages) { message ->
-                    ChatMessageRow(message, activeAgentName, activeAgentColor)
+                itemsIndexed(messages) { index, message ->
+                    val messageKey = ChatViewModel.messageFeedbackKey(index, message)
+                    val previousUserPrompt = messages
+                        .take(index)
+                        .lastOrNull { it.role == "user" }
+                        ?.content
+                    val canReact = message.role != "user" &&
+                        !AiRepository.isExcludedSupportAgent(activeAgentName) &&
+                        !message.content.trim().startsWith(ChatViewModel.AG_LIVE_STATUS_PREFIX) &&
+                        !(index == 0 && message.memoryId == null && message.content.startsWith("Hallo Alina!"))
+
+                    ChatMessageRow(
+                        message = message,
+                        activeAgentName = activeAgentName,
+                        activeAgentColor = activeAgentColor,
+                        canReact = canReact,
+                        reaction = messageReactions[messageKey],
+                        quickChips = behaviorQuickChips,
+                        onFeedback = { polarity, reasonCode ->
+                            viewModel.submitMessageFeedback(
+                                messageKey = messageKey,
+                                message = message,
+                                previousUserPrompt = previousUserPrompt,
+                                polarity = polarity,
+                                reasonCode = reasonCode
+                            )
+                        }
+                    )
                 }
 
                 if (isLoading) {
@@ -1035,11 +1084,20 @@ fun AgLiveTicketStatusBar(
 }
 
 @Composable
-fun ChatMessageRow(message: ChatMessage, activeAgentName: String, activeAgentColor: Color) {
+fun ChatMessageRow(
+    message: ChatMessage,
+    activeAgentName: String,
+    activeAgentColor: Color,
+    canReact: Boolean = false,
+    reaction: MessageReactionState? = null,
+    quickChips: List<BehaviorQuickChipDto> = AiRepository.DEFAULT_BEHAVIOR_QUICK_CHIPS,
+    onFeedback: (polarity: String, reasonCode: String?) -> Unit = { _, _ -> }
+) {
     val isUser = message.role == "user"
     val bubbleColor = if (isUser) activeAgentColor else AppTheme.colors.cardBackground
     val textColor = if (isUser) SpaceBlack else AppTheme.colors.textPrimary
     val alignment = if (isUser) Alignment.End else Alignment.Start
+    var showReasonChips by remember(message.memoryId, message.content) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -1078,12 +1136,57 @@ fun ChatMessageRow(message: ChatMessage, activeAgentName: String, activeAgentCol
             )
         }
 
-        Text(
-            text = if (isUser) "Du" else activeAgentName,
-            fontSize = 10.sp,
-            color = AppTheme.colors.textMuted,
-            modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
-        )
+        Row(
+            modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = if (isUser) "Du" else activeAgentName,
+                fontSize = 10.sp,
+                color = AppTheme.colors.textMuted
+            )
+
+            if (canReact) {
+                BehaviorThumbActions(
+                    reaction = reaction,
+                    onPraise = {
+                        showReasonChips = false
+                        onFeedback("praise", null)
+                    },
+                    onCriticismToggle = {
+                        val opening = !showReasonChips
+                        showReasonChips = opening
+                        if (opening && reaction?.polarity != "criticism" && reaction?.polarity != "correction") {
+                            onFeedback("criticism", null)
+                        }
+                    }
+                )
+                val selectedChipLabel = reaction?.reasonCode?.let { code ->
+                    quickChips.firstOrNull { it.code == code }?.let { it.short_label ?: it.label }
+                }
+                if (!selectedChipLabel.isNullOrBlank() && !showReasonChips) {
+                    Text(
+                        text = selectedChipLabel,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Gold
+                    )
+                }
+            }
+        }
+
+        if (canReact) {
+            BehaviorQuickReasonChipsRow(
+                visible = showReasonChips,
+                chips = quickChips,
+                selectedReasonCode = reaction?.reasonCode,
+                onSelectChip = { chip ->
+                    onFeedback(chip.polarity ?: "criticism", chip.code)
+                    showReasonChips = false
+                }
+            )
+        }
     }
 }
 

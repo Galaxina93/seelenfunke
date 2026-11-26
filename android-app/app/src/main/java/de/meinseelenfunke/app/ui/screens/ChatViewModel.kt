@@ -5,7 +5,10 @@ import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.meinseelenfunke.app.data.api.BehaviorProposalDto
+import de.meinseelenfunke.app.data.api.BehaviorQuickChipDto
 import de.meinseelenfunke.app.data.api.ChatMessage
+import de.meinseelenfunke.app.data.repository.AiRepository
 import de.meinseelenfunke.app.di.ServiceLocator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +42,15 @@ class ChatViewModel : ViewModel() {
     private val _selectedAgent = MutableStateFlow<de.meinseelenfunke.app.data.api.AiAgent?>(null)
     val selectedAgent: StateFlow<de.meinseelenfunke.app.data.api.AiAgent?> = _selectedAgent.asStateFlow()
 
+    private val _messageReactions = MutableStateFlow<Map<String, MessageReactionState>>(emptyMap())
+    val messageReactions: StateFlow<Map<String, MessageReactionState>> = _messageReactions.asStateFlow()
+
+    private val _behaviorQuickChips = MutableStateFlow<List<BehaviorQuickChipDto>>(AiRepository.DEFAULT_BEHAVIOR_QUICK_CHIPS)
+    val behaviorQuickChips: StateFlow<List<BehaviorQuickChipDto>> = _behaviorQuickChips.asStateFlow()
+
+    private val _pendingProposals = MutableStateFlow<List<BehaviorProposalDto>>(emptyList())
+    val pendingProposals: StateFlow<List<BehaviorProposalDto>> = _pendingProposals.asStateFlow()
+
     private var activeChatSessionId: String? = null
     private var pendingRetryPayload: PendingRetryPayload? = null
     private var mediaPlayer: MediaPlayer? = null
@@ -54,6 +66,11 @@ class ChatViewModel : ViewModel() {
     companion object {
         private const val LEGACY_ERROR_BUBBLE = "[Fehler beim Laden der Antwort]"
         const val AG_LIVE_STATUS_PREFIX = "[Antigravity Echtzeit]"
+
+        fun messageFeedbackKey(index: Int, message: ChatMessage): String {
+            return message.memoryId?.takeIf { it.isNotBlank() }
+                ?: "idx_${index}_${message.content.hashCode()}"
+        }
 
         fun cleanAssistantText(raw: String): String {
             return raw
@@ -144,6 +161,105 @@ class ChatViewModel : ViewModel() {
         }
         loadAgents()
         loadChatHistory()
+        loadBehaviorSummary()
+    }
+
+    fun loadBehaviorSummary() {
+        if (ServiceLocator.getUserType() != "admin") return
+        if (AiRepository.isExcludedSupportAgent(_selectedAgent.value?.name)) return
+        viewModelScope.launch {
+            aiRepository.getBehaviorSummary(channel = "android_app", days = 30)
+                .onSuccess { summary ->
+                    val chips = summary.quick_chips.orEmpty()
+                    if (chips.isNotEmpty()) {
+                        _behaviorQuickChips.value = chips
+                    }
+                    _pendingProposals.value = summary.pending_proposals
+                        .orEmpty()
+                        .filterNot { it.already_active }
+                }
+        }
+    }
+
+    fun submitMessageFeedback(
+        messageKey: String,
+        message: ChatMessage,
+        previousUserPrompt: String?,
+        polarity: String,
+        reasonCode: String? = null
+    ) {
+        val agentName = _selectedAgent.value?.name ?: "Funkira"
+        if (AiRepository.isExcludedSupportAgent(agentName)) return
+
+        val optimistic = MessageReactionState(
+            polarity = polarity,
+            reasonCode = reasonCode,
+            confirmed = false
+        )
+        _messageReactions.value = _messageReactions.value + (messageKey to optimistic)
+
+        viewModelScope.launch {
+            aiRepository.submitExplicitBehaviorFeedback(
+                polarity = polarity,
+                channel = "android_app",
+                reasonCode = reasonCode,
+                agentId = _selectedAgent.value?.id,
+                agentName = agentName,
+                sessionId = activeChatSessionId,
+                memoryId = message.memoryId,
+                userExcerpt = previousUserPrompt,
+                agentExcerpt = message.content
+            ).onSuccess { res ->
+                _messageReactions.value = _messageReactions.value + (
+                    messageKey to MessageReactionState(
+                        polarity = res.polarity ?: polarity,
+                        reasonCode = reasonCode,
+                        confirmed = true
+                    )
+                )
+                if ((res.pending_proposals_count ?: 0) > 0) {
+                    loadBehaviorSummary()
+                }
+            }
+        }
+    }
+
+    fun approveBehaviorProposal(proposal: BehaviorProposalDto) {
+        val agentName = _selectedAgent.value?.name ?: "Funkira"
+        if (AiRepository.isExcludedSupportAgent(agentName)) return
+        viewModelScope.launch {
+            aiRepository.approveBehaviorRule(
+                channel = proposal.channel.ifBlank { "android_app" },
+                category = proposal.category,
+                directive = proposal.suggested_directive,
+                title = proposal.suggested_title,
+                agentId = _selectedAgent.value?.id,
+                agentName = agentName
+            ).onSuccess {
+                _pendingProposals.value = _pendingProposals.value.filterNot {
+                    it.proposal_key == proposal.proposal_key ||
+                        (it.channel == proposal.channel && it.category == proposal.category)
+                }
+            }
+        }
+    }
+
+    fun dismissBehaviorProposal(proposal: BehaviorProposalDto) {
+        val agentName = _selectedAgent.value?.name ?: "Funkira"
+        if (AiRepository.isExcludedSupportAgent(agentName)) return
+        viewModelScope.launch {
+            aiRepository.dismissBehaviorRule(
+                channel = proposal.channel.ifBlank { "android_app" },
+                category = proposal.category,
+                agentId = _selectedAgent.value?.id,
+                agentName = agentName
+            ).onSuccess {
+                _pendingProposals.value = _pendingProposals.value.filterNot {
+                    it.proposal_key == proposal.proposal_key ||
+                        (it.channel == proposal.channel && it.category == proposal.category)
+                }
+            }
+        }
     }
 
     fun loadChatHistory() {
@@ -159,7 +275,11 @@ class ChatViewModel : ViewModel() {
                                 msg.content.trim() == LEGACY_ERROR_BUBBLE
                         }
                         .map { msg ->
-                            ChatMessage(role = msg.role, content = cleanAssistantText(msg.content))
+                            ChatMessage(
+                                role = msg.role,
+                                content = cleanAssistantText(msg.content),
+                                memoryId = msg.memoryId
+                            )
                         }
                     if (cleanedList.isNotEmpty()) {
                         _messages.value = cleanedList
@@ -319,7 +439,11 @@ class ChatViewModel : ViewModel() {
                         val rawResponse = chatResponse.response?.takeIf { it.isNotBlank() }
                             ?: "Keine Antwort erhalten."
                         val cleanResponse = cleanAssistantText(rawResponse)
-                        _messages.value = _messages.value + ChatMessage("assistant", cleanResponse)
+                        _messages.value = _messages.value + ChatMessage(
+                            role = "assistant",
+                            content = cleanResponse,
+                            memoryId = chatResponse.memory_id
+                        )
                         try {
                             de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.recordTurn(
                                 context = ServiceLocator.context,
@@ -417,4 +541,10 @@ data class SelectedFile(
     val sizeBytes: Long,
     val base64Content: String?,
     val textContent: String?
+)
+
+data class MessageReactionState(
+    val polarity: String,
+    val reasonCode: String? = null,
+    val confirmed: Boolean = false
 )

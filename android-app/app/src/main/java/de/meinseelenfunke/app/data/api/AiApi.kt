@@ -11,7 +11,8 @@ import retrofit2.http.Query
 
 data class ChatMessage(
     val role: String,
-    val content: String
+    val content: String,
+    @Transient val memoryId: String? = null
 )
 
 data class ChatRequest(
@@ -27,6 +28,7 @@ data class ChatRequest(
 data class ChatResponse(
     val status: String? = null,
     val chat_session_id: String? = null,
+    val memory_id: String? = null,
     val agent_name: String? = null,
     val response: String? = null,
     val message: String? = null,
@@ -76,6 +78,7 @@ data class LiveCredentialsResponse(
     val tools: JsonElement?,
     val pending_ag_blockades: List<PendingAgBlockadeDto>? = emptyList(),
     val proactive_kick_prompt: String? = null,
+    val behavior_prompt_block: String? = null,
     val vertex_ephemeral: VertexEphemeralResponse? = null
 )
 
@@ -150,6 +153,103 @@ data class UltimateCommandResponse(
     val alternatives: List<CommandRecommendation>? = emptyList()
 )
 
+data class BehaviorQuickChipDto(
+    val code: String,
+    val label: String,
+    val short_label: String? = null,
+    val category: String? = null,
+    val polarity: String? = null,
+    val intensity: Int? = null
+)
+
+data class BehaviorProposalDto(
+    val proposal_key: String = "",
+    val scope_key: String = "",
+    val channel: String = "",
+    val channel_label: String? = null,
+    val category: String = "",
+    val category_label: String? = null,
+    val signal_count: Int = 0,
+    val suggested_title: String? = null,
+    val suggested_directive: String = "",
+    val already_active: Boolean = false
+)
+
+data class BehaviorRuleDto(
+    val id: String = "",
+    val scope_key: String = "",
+    val title: String = "",
+    val directive: String = "",
+    val channel: String? = null,
+    val category: String? = null,
+    val is_active: Boolean = true
+)
+
+data class BehaviorMetricsDto(
+    val praise_count: Int = 0,
+    val criticism_count: Int = 0,
+    val correction_count: Int = 0,
+    val total_count: Int = 0,
+    val satisfaction_score: Double = 100.0,
+    val trend_delta: Double = 0.0
+)
+
+data class BehaviorSummaryResponse(
+    val status: String? = null,
+    val window_days: Int = 30,
+    val channel: String? = null,
+    val prompt_channel: String? = null,
+    val metrics: BehaviorMetricsDto? = null,
+    val quick_chips: List<BehaviorQuickChipDto>? = emptyList(),
+    val pending_proposals: List<BehaviorProposalDto>? = emptyList(),
+    val active_rules: List<BehaviorRuleDto>? = emptyList(),
+    val prompt_block: String? = null
+)
+
+data class BehaviorFeedbackRequest(
+    val source_type: String = "explicit_reaction",
+    val channel: String = "android_app",
+    val polarity: String? = null,
+    val category: String? = null,
+    val reason_code: String? = null,
+    val reason_note: String? = null,
+    val user_message: String? = null,
+    val agent_id: String? = null,
+    val agent_name: String? = null,
+    val session_id: String? = null,
+    val ai_chat_memory_id: String? = null,
+    val user_excerpt: String? = null,
+    val agent_excerpt: String? = null
+)
+
+data class BehaviorFeedbackResponse(
+    val status: String? = null,
+    val detected: Boolean = false,
+    val source_type: String? = null,
+    val channel: String? = null,
+    val feedback_id: String? = null,
+    val polarity: String? = null,
+    val category: String? = null,
+    val reason_note: String? = null,
+    val pending_proposals_count: Int? = null
+)
+
+data class BehaviorRuleActionRequest(
+    val channel: String,
+    val category: String,
+    val directive: String? = null,
+    val title: String? = null,
+    val agent_id: String? = null,
+    val agent_name: String? = null
+)
+
+data class BehaviorRuleActionResponse(
+    val status: String? = null,
+    val rule: BehaviorRuleDto? = null,
+    val dismissed_count: Int? = null,
+    val prompt_block: String? = null
+)
+
 interface AiApi {
     @GET("funki/command")
     suspend fun getUltimateCommand(): UltimateCommandResponse
@@ -186,5 +286,26 @@ interface AiApi {
     @Multipart
     @POST("ai/camera/snapshot")
     suspend fun uploadSnapshot(@Part image: MultipartBody.Part): CameraSnapshotResponse
+
+    @GET("ai/funkira/behavior/summary")
+    suspend fun getBehaviorSummary(
+        @Query("channel") channel: String? = "android_live_call",
+        @Query("days") days: Int = 30
+    ): BehaviorSummaryResponse
+
+    @POST("ai/funkira/behavior/feedback")
+    suspend fun submitBehaviorFeedback(
+        @Body request: BehaviorFeedbackRequest
+    ): BehaviorFeedbackResponse
+
+    @POST("ai/funkira/behavior/rules/approve")
+    suspend fun approveBehaviorRule(
+        @Body request: BehaviorRuleActionRequest
+    ): BehaviorRuleActionResponse
+
+    @POST("ai/funkira/behavior/rules/dismiss")
+    suspend fun dismissBehaviorRule(
+        @Body request: BehaviorRuleActionRequest
+    ): BehaviorRuleActionResponse
 }
 

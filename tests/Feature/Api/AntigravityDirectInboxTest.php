@@ -528,4 +528,73 @@ class AntigravityDirectInboxTest extends TestCase
             )
         );
     }
+
+    public function test_large_android_sammelpaket_with_360_char_items_and_30_points_is_accepted_without_422(): void
+    {
+        $admin = $this->createAdmin();
+        Sanctum::actingAs($admin, ['*']);
+
+        $longItems = [];
+        for ($i = 1; $i <= 30; $i++) {
+            $longItems[] = sprintf('Punkt #%02d: %s', $i, str_repeat('Detaillierte Sammelpaket-Anforderung ', 9));
+        }
+        $compiledBody = "[Sammelpaket: Großes Android-Sammelpaket | 30 Anforderungen | 0 Anhänge]\n" . implode("\n", $longItems);
+        $this->assertGreaterThan(5000, strlen($compiledBody));
+        $this->assertGreaterThan(320, mb_strlen($longItems[0]));
+
+        $resp = $this->postJson('/api/system/ag-direct-inbox', [
+            'client_uuid' => 'pkg-large-sammelpaket-test-01',
+            'channel' => 'android',
+            'source' => 'android_app',
+            'title' => 'Android-Paket: Großes Sammelpaket mit 30 langen Anforderungen',
+            'body' => $compiledBody,
+            'checklist' => $longItems,
+            'execution_mode' => 'direct',
+        ]);
+
+        $resp->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.channel', 'android');
+        $this->assertCount(30, $resp->json('data.checklist'));
+    }
+
+    public function test_oversized_sammelpaket_fields_execute_mode_alias_and_object_checklist_entries_clamp_without_422(): void
+    {
+        $admin = $this->createAdmin();
+        Sanctum::actingAs($admin, ['*']);
+
+        $oversizedTitle = 'Sammelpaket ' . str_repeat('Titelzeichen ', 70); // > 900 chars
+        $oversizedBody = str_repeat('Sehr langer Sammelpaket-Kontext fuer Antigravity. ', 500); // > 24000 chars
+        $oversizedUuid = str_repeat('pkg-uuid-', 12); // > 100 chars
+
+        $resp = $this->postJson('/api/system/ag-direct-inbox', [
+            'client_uuid' => $oversizedUuid,
+            'channel' => 'android_app_custom_channel_name_exceeding_32_chars',
+            'source' => 'android_sammelpaket_voice_dispatch_with_very_long_source_tag',
+            'title' => $oversizedTitle,
+            'body' => $oversizedBody,
+            'execution_mode' => 'execute',
+            'checklist' => [
+                ['text' => 'Erster strukturierter Punkt'],
+                ['title' => 'Zweiter strukturierter Punkt'],
+                str_repeat('Extrem langer Checklistenpunkt ', 55), // > 1200 chars -> clamped
+                '   ',
+            ],
+        ]);
+
+        $resp->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.execution_mode', 'direct')
+            ->assertJsonPath('data.channel', 'leitung')
+            ->assertJsonPath('data.source', 'android_app');
+
+        $data = $resp->json('data');
+        $this->assertLessThanOrEqual(64, mb_strlen((string) $data['client_uuid']));
+        $this->assertLessThanOrEqual(500, mb_strlen((string) $data['title']));
+        $this->assertLessThanOrEqual(AntigravityDirectInboxService::MAX_BODY_LENGTH, mb_strlen((string) $data['body']));
+        $this->assertCount(3, $data['checklist']);
+        $this->assertSame('Erster strukturierter Punkt', $data['checklist'][0]);
+        $this->assertSame('Zweiter strukturierter Punkt', $data['checklist'][1]);
+        $this->assertLessThanOrEqual(AntigravityDirectInboxService::MAX_CHECKLIST_ITEM_LENGTH, mb_strlen((string) $data['checklist'][2]));
+    }
 }
