@@ -1049,8 +1049,10 @@ Route::middleware('auth:sanctum')->group(function () {
                 'caller_phone' => 'nullable|string|max:80',
                 'caller_email' => 'nullable|email|max:180',
                 'order_number' => 'nullable|string|max:40',
-                'category' => 'nullable|string|in:support,return,order,product,general',
+                'category' => 'nullable|string|in:support,return,order,product,general,spam',
                 'ticket_subject' => 'nullable|string|max:180',
+                'suggested_reply' => 'nullable|string|max:1500',
+                'is_spam' => 'nullable|boolean',
                 'handled_by' => 'nullable|string|max:40',
                 'summary' => 'required|string|max:2000',
                 'rahmenbedingungen' => 'nullable|array|max:30',
@@ -1068,6 +1070,40 @@ Route::middleware('auth:sanctum')->group(function () {
                 'success' => true,
                 'data' => $result,
             ], 200, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/calls/{id}/reply', function (\Illuminate\Http\Request $request, string $id) use ($authorizePhoneConcierge) {
+            $authorizePhoneConcierge($request);
+            $validated = $request->validate([
+                'message' => 'required|string|max:3000',
+                'send_email' => 'nullable|boolean',
+            ]);
+            $result = \App\Services\System\FunkiraPhoneConciergeService::replyToCall(
+                $id,
+                (string) $validated['message'],
+                (bool) ($validated['send_email'] ?? false)
+            );
+            return response()->json([
+                'success' => !empty($result['success']),
+                'message' => $result['message'] ?? (!empty($result['success']) ? 'Antwort gespeichert.' : 'Fehler beim Antworten.'),
+                'data' => $result,
+            ], !empty($result['success']) ? 200 : 404, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/calls/{id}/resolve', function (\Illuminate\Http\Request $request, string $id) use ($authorizePhoneConcierge) {
+            $authorizePhoneConcierge($request);
+            $validated = $request->validate([
+                'close_support_record' => 'nullable|boolean',
+            ]);
+            $result = \App\Services\System\FunkiraPhoneConciergeService::resolveCall(
+                $id,
+                (bool) ($validated['close_support_record'] ?? true)
+            );
+            return response()->json([
+                'success' => !empty($result['success']),
+                'message' => $result['message'] ?? (!empty($result['success']) ? 'Anliegen als erledigt markiert.' : 'Anruf nicht gefunden.'),
+                'data' => $result,
+            ], !empty($result['success']) ? 200 : 404, ['Cache-Control' => 'no-store, private']);
         });
     });
 

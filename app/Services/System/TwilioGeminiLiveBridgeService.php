@@ -171,20 +171,25 @@ class TwilioGeminiLiveBridgeService
         return implode("\n", [
             'ROLLE & IDENTITÄT (HÖCHSTE PRIORITÄT):',
             '- Du sprichst zu 100 Prozent ausschließlich natürliches, herzliches und professionelles Deutsch.',
-            "- Dein Name ist Funkira. Du bist der KI-Kundenservice von {$shopName} (Manufaktur für personalisierte Laser-Gravur & Geschenke).",
+            "- Dein Name ist Funkira. Du bist die digitale KI-Assistentin im Kundenservice von {$shopName} (Manufaktur für handveredelte Laser-Gravur und personalisierte Geschenke in Gifhorn).",
+            "- EU-AI-ACT-TRANSPARENZ: Stelle dich zu Beginn klar als digitale KI-Assistentin von {$shopName} vor und gib bei Bedarf offen an, dass das Anliegen als Gesprächsnotiz für {$ownerFirst} festgehalten wird.",
             "- Sprich Anrufer höflich, warm und professionell per 'Sie' an (wechsle nur auf 'Du', falls der Anrufer dich von sich aus duzt).",
             '',
             'LIVE-KUNDENSERVICE-GESPRÄCHSFÜHRUNG:',
             '- Sage NIEMALS Sätze wie "Bitte sprechen Sie nach dem Signalton" oder "Ich starte eine Aufnahme". Führe ein echtes, lebendiges Dialog-Telefonat!',
             '- Halte jeden Sprechbeitrag angenehm kurz (1 bis maximal 2 kurze Sätze, keine Listen vorlesen) und stelle immer nur EINE Rückfrage auf einmal.',
+            '- Nutze bei allgemeinen Shop-Fragen (Versand, Gravur, Manufaktur, Kontakt) das Tool "lookup_shop_guidance".',
+            '- Nutze bei konkreter Bestellstatus-Anfrage AUSSCHLIESSLICH nach Nennung von Bestellnummer UND Postleitzahl oder E-Mail-Adresse das Tool "verify_customer_order".',
             '- Kläre freundlich und strukturiert folgende Punkte, damit daraus sofort ein vollständiges Ticket für Alina erstellt wird:',
             '  1. Vor- und Nachname des Anrufers.',
             '  2. Konkretes Anliegen (z. B. Bestellstatus, Wunschgravur/Sonderanfertigung, Produktfrage, Änderung oder Reklamation).',
             '  3. Falls vorhanden: Bestellnummer oder E-Mail-Adresse (und ggf. beste Rückrufnummer).',
             '  4. Wichtige Rahmenbedingungen (Wunschtermin, Frist, Produktdetails oder Erreichbarkeit).',
+            '- Bei Reklamationen oder Transportschäden bitte freundlich um ein kurzes Foto an kontakt@mein-seelenfunke.de, damit Alina sofort helfen kann.',
+            '- SPAM- & WERBESCHUTZ: Bei offensichtlicher unerwünschter Kaltakquise, Werbung oder Robocalls lehne kurz und höflich ab und beende das Gespräch sofort mit "end_call".',
             '',
             'VERBINDLICHKEIT & DATENSCHUTZ-SCHRANKE:',
-            '- Gib am Telefon NIEMALS interne Kundendaten, Bestelldetails, Adressen, Passwörter oder Finanzzahlen preis.',
+            '- Gib am Telefon NIEMALS ungeprüfte Kundendaten, Adressen, Artikeldetails, Passwörter oder Finanzzahlen preis.',
             '- Versprich keine eigenmächtigen Erstattungen, Rabatte oder verbindlichen Lieferzusagen, sondern sichere eine priorisierte Prüfung und Rückmeldung durch Alina / das Team zu.',
             '',
             'GESPRÄCHSABSCHLUSS:',
@@ -197,9 +202,172 @@ class TwilioGeminiLiveBridgeService
         $shopName = self::sanitizePromptField($callContext['shop_name'] ?? 'Mein-Seelenfunke', 80) ?: 'Mein-Seelenfunke';
 
         return "[KUNDENANRUF LIVE VERBUNDEN] Ein Anrufer hat die Service-Nummer von {$shopName} gewählt. "
-            . "Begrüße die anrufende Person jetzt sofort freundlich, herzlich und kurz auf Deutsch als Funkira vom {$shopName} Kundenservice "
-            . "(nur 1 kurzer Satz, z. B.: 'Guten Tag, hier ist Funkira vom Kundenservice von {$shopName}! Womit darf ich Ihnen heute weiterhelfen?') "
+            . "Begrüße die anrufende Person jetzt sofort freundlich, herzlich und kurz auf Deutsch als digitale KI-Assistentin Funkira vom {$shopName} Kundenservice "
+            . "(nur 1 kurzer Satz, z. B.: 'Guten Tag, hier ist Funkira, die digitale KI-Assistentin vom {$shopName} Kundenservice! Womit darf ich Ihnen heute weiterhelfen?') "
             . 'und nimm das Anliegen strukturiert im Dialog auf.';
+    }
+
+    /**
+     * Erzeugt die Gemini-Live Funktionsdeklarationen passend zum Gesprächsmodus.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function buildFunctionDeclarationsForMode(string $mode): array
+    {
+        $declarations = [[
+            'name' => 'end_call',
+            'description' => 'Beendet das Telefonat sauber, nachdem alle Rahmenbedingungen geklärt wurden und du dich freundlich verabschiedet hast.',
+        ]];
+
+        if ($mode === 'inbound_customer_service') {
+            $declarations[] = [
+                'name' => 'lookup_shop_guidance',
+                'description' => 'Liefert geprüfte öffentliche Shop-Informationen von Mein-Seelenfunke (Gravur, Manufaktur, Versand, Kontaktwege) ohne personenbezogene Daten.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'topic' => [
+                            'type' => 'STRING',
+                            'description' => 'Themenbereich: shipping, engraving, contact, returns oder general.',
+                        ],
+                    ],
+                ],
+            ];
+            $declarations[] = [
+                'name' => 'verify_customer_order',
+                'description' => 'Prüft strikt mit 2-Faktor-Gate (Bestellnummer UND Postleitzahl oder E-Mail-Adresse) den allgemeinen Bearbeitungsstatus einer Bestellung ohne Herausgabe sensibler Daten.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'order_number' => [
+                            'type' => 'STRING',
+                            'description' => 'Die vom Anrufer genannte Bestellnummer.',
+                        ],
+                        'verification_value' => [
+                            'type' => 'STRING',
+                            'description' => 'Die vom Anrufer genannte Postleitzahl oder E-Mail-Adresse zur Verifizierung.',
+                        ],
+                    ],
+                    'required' => ['order_number', 'verification_value'],
+                ],
+            ];
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * Führt gekapselte, PII-geschützte Read-Only-Tools für den Live-Kundenservice aus.
+     *
+     * @param  array<string, mixed>  $args
+     * @return array<string, mixed>
+     */
+    public static function executeCustomerServiceTool(string $name, array $args): array
+    {
+        if ($name === 'lookup_shop_guidance') {
+            $topic = strtolower(trim((string) ($args['topic'] ?? 'general')));
+            $shopName = function_exists('shop_setting') ? (string) shop_setting('company_name', 'Mein-Seelenfunke') : 'Mein-Seelenfunke';
+            $contactMail = function_exists('shop_setting') ? (string) shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') : 'kontakt@mein-seelenfunke.de';
+
+            $guidance = match ($topic) {
+                'shipping' => "Jedes Stück wird in unserer Manufaktur in Gifhorn individuell mit Laser veredelt und sicher per DHL versendet. Genaue Lieferzeiten hängen vom aktuellen Auftragseingang ab und stehen direkt am Produkt im Shop.",
+                'engraving' => "Wir veredeln ausgewählte Rohlinge wie Schiefer, Glas, Holz oder Edelstahl mit hochpräzisem UV-Laser im 2D/3D-Konfigurator auf mein-seelenfunke.de. Sonderwünsche nimmt Alina gerne über das Ticket auf.",
+                'returns' => "Bei individuell personalisierten Artikeln ist das Widerrufsrecht gesetzlich eingeschränkt; bei Transportschäden oder Reklamationen hilft Alina aber selbstverständlich schnell weiter (am besten mit einem kurzen Foto an {$contactMail}).",
+                'contact' => "Sie erreichen {$shopName} jederzeit schriftlich unter {$contactMail} oder über das Kundenkonto auf mein-seelenfunke.de.",
+                default => "{$shopName} ist eine Manufaktur in Gifhorn für handveredelte, personalisierte Laser-Geschenke. Alle Produktoptionen und der Konfigurator sind unter mein-seelenfunke.de verfügbar; bei Sonderwünschen erstellt Funkira direkt ein Ticket für Alina.",
+            };
+
+            return [
+                'success' => true,
+                'topic' => $topic,
+                'guidance' => $guidance,
+            ];
+        }
+
+        if ($name === 'verify_customer_order') {
+            $rawOrder = trim((string) ($args['order_number'] ?? ''));
+            $rawCheck = trim((string) ($args['verification_value'] ?? ''));
+
+            if ($rawOrder === '' || $rawCheck === '' || !preg_match('/^[A-Za-z0-9\-_]{3,40}$/', $rawOrder)) {
+                return [
+                    'verified' => false,
+                    'message' => 'Für eine Bestellauskunft werden Bestellnummer sowie Postleitzahl oder E-Mail-Adresse benötigt. Bitte Anliegen für Alina aufnehmen.',
+                ];
+            }
+
+            try {
+                if (!\Illuminate\Support\Facades\Schema::hasTable('order_orders')) {
+                    return [
+                        'verified' => false,
+                        'message' => 'Bestellprüfung derzeit nicht verfügbar. Bitte Anliegen für Alina aufnehmen.',
+                    ];
+                }
+
+                $order = \App\Models\Order\OrderOrder::query()
+                    ->where('order_number', $rawOrder)
+                    ->first();
+
+                if (!$order) {
+                    return [
+                        'verified' => false,
+                        'message' => 'Bestellung konnte nicht eindeutig verifiziert werden. Keine Details nennen, sondern Anliegen für Alina aufnehmen.',
+                    ];
+                }
+
+                $checkLower = mb_strtolower($rawCheck);
+                $checkDigits = preg_replace('/\D+/', '', $rawCheck) ?? '';
+
+                $validEmails = array_filter([
+                    mb_strtolower(trim((string) ($order->email ?? ''))),
+                    mb_strtolower(trim((string) ($order->customer?->email ?? ''))),
+                ]);
+
+                $validZips = [];
+                foreach ([$order->billing_address, $order->shipping_address] as $addr) {
+                    if (is_array($addr)) {
+                        foreach (['postal_code', 'zip', 'plz'] as $zipKey) {
+                            $z = preg_replace('/\D+/', '', (string) ($addr[$zipKey] ?? '')) ?? '';
+                            if (strlen($z) >= 4) {
+                                $validZips[] = $z;
+                            }
+                        }
+                    }
+                }
+
+                $emailMatch = $checkLower !== '' && in_array($checkLower, $validEmails, true);
+                $zipMatch = strlen($checkDigits) >= 4 && in_array($checkDigits, $validZips, true);
+
+                if (!$emailMatch && !$zipMatch) {
+                    return [
+                        'verified' => false,
+                        'message' => 'Verifizierung fehlgeschlagen. Bitte keinerlei Bestelldaten nennen, sondern das Anliegen freundlich als Ticket für Alina aufnehmen.',
+                    ];
+                }
+
+                $statusText = match (strtolower((string) ($order->status ?? 'pending'))) {
+                    'pending' => 'Die Bestellung ist eingegangen und wartet auf Freigabe bzw. Zahlungsbestätigung.',
+                    'processing', 'in_production', 'paid' => 'Die Bestellung ist bestätigt und befindet sich aktuell in Bearbeitung in unserer Manufaktur.',
+                    'shipped' => 'Die Bestellung wurde bereits fertiggestellt und an den Versanddienstleister übergeben.',
+                    'completed', 'delivered' => 'Die Bestellung ist abgeschlossen.',
+                    'cancelled', 'canceled', 'refunded' => 'Die Bestellung wurde storniert.',
+                    default => 'Die Bestellung liegt vor und wird bearbeitet.',
+                };
+
+                return [
+                    'verified' => true,
+                    'order_number' => (string) $order->order_number,
+                    'status_summary' => $statusText,
+                    'notice' => 'Keine weiteren personenbezogenen Daten, Adressen oder Beträge vorlesen.',
+                ];
+            } catch (\Throwable) {
+                return [
+                    'verified' => false,
+                    'message' => 'Bestellstatus konnte kurzfristig nicht abgefragt werden. Bitte Anliegen für Alina aufnehmen.',
+                ];
+            }
+        }
+
+        return ['success' => false, 'message' => 'Unbekanntes Werkzeug.'];
     }
 
     public static function buildOutboundSystemPrompt(array $callContext): string
@@ -485,15 +653,32 @@ class TwilioGeminiLiveBridgeService
                         }
 
                         if (!empty($resp['toolCall']['functionCalls']) && is_array($resp['toolCall']['functionCalls'])) {
+                            $activeMode = (string) ($callContext['call_mode'] ?? '');
                             foreach ($resp['toolCall']['functionCalls'] as $fnCall) {
-                                if (($fnCall['name'] ?? '') === 'end_call') {
+                                $fnName = (string) ($fnCall['name'] ?? '');
+                                $fnId = (string) ($fnCall['id'] ?? ($fnName . '_1'));
+                                $fnArgs = is_array($fnCall['args'] ?? null) ? $fnCall['args'] : [];
+
+                                if ($fnName === 'end_call') {
                                     $shouldEndCall = true;
                                     $toolReply = [
                                         'toolResponse' => [
                                             'functionResponses' => [[
-                                                'id' => $fnCall['id'] ?? 'end_call_1',
+                                                'id' => $fnId,
                                                 'name' => 'end_call',
                                                 'response' => ['success' => true],
+                                            ]],
+                                        ],
+                                    ];
+                                    $sendGoogleFrame((string) json_encode($toolReply, JSON_UNESCAPED_UNICODE));
+                                } elseif ($activeMode === 'inbound_customer_service' && in_array($fnName, ['lookup_shop_guidance', 'verify_customer_order'], true)) {
+                                    $toolResult = self::executeCustomerServiceTool($fnName, $fnArgs);
+                                    $toolReply = [
+                                        'toolResponse' => [
+                                            'functionResponses' => [[
+                                                'id' => $fnId,
+                                                'name' => $fnName,
+                                                'response' => $toolResult,
                                             ]],
                                         ],
                                     ];
@@ -647,10 +832,7 @@ class TwilioGeminiLiveBridgeService
                                         'parts' => [['text' => $systemPrompt]],
                                     ],
                                     'tools' => [[
-                                        'functionDeclarations' => [[
-                                            'name' => 'end_call',
-                                            'description' => 'Beendet das Telefonat sauber, nachdem alle Rahmenbedingungen geklärt wurden und du dich freundlich verabschiedet hast.',
-                                        ]],
+                                        'functionDeclarations' => self::buildFunctionDeclarationsForMode($mode),
                                     ]],
                                     'generationConfig' => [
                                         'responseModalities' => ['AUDIO'],

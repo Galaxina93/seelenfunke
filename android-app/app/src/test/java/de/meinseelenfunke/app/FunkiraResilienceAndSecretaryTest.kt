@@ -901,4 +901,33 @@ class FunkiraResilienceAndSecretaryTest {
         val permsWithoutMic = PhoneConciergeManager.buildRuntimePermissionRequestArray(sdkInt = 34, includeMicrophone = false).toSet()
         assertFalse(permsWithoutMic.contains(android.Manifest.permission.RECORD_AUDIO))
     }
+
+    @Test
+    fun customerServiceCallHandling_andPromptContract_areConsistent() {
+        // 1. Incoming call eligibility matrix (master switch + whitelist + full customer service)
+        assertFalse(PhoneConciergeManager.shouldHandleIncomingCall(isEnabled = false, isCustomerServiceEnabled = true, isWhitelisted = true))
+        assertTrue(PhoneConciergeManager.shouldHandleIncomingCall(isEnabled = true, isCustomerServiceEnabled = false, isWhitelisted = true))
+        assertFalse(PhoneConciergeManager.shouldHandleIncomingCall(isEnabled = true, isCustomerServiceEnabled = false, isWhitelisted = false))
+        assertTrue(PhoneConciergeManager.shouldHandleIncomingCall(isEnabled = true, isCustomerServiceEnabled = true, isWhitelisted = false))
+
+        // 2. Customer service prompt enforces EU AI Act transparency, formal Sie, zero KI dashes and spam guard
+        val prompt = StandalonePhoneSecretaryEngine.buildCustomerServiceSystemInstruction()
+        assertTrue(prompt.contains("KI-Assistentin"))
+        assertTrue(prompt.contains("per 'Sie'"))
+        assertTrue(prompt.contains("SPAM-SCHUTZ"))
+        assertFalse(prompt.contains(" – "))
+
+        // 3. Kickoff & tool schema expose ticket + spam + suggested_reply parameters in customer mode
+        val kickoffJson = StandalonePhoneSecretaryEngine.buildKickoffPacketJson(
+            greetingName = "Kunde",
+            isCustomerService = true
+        ).toString()
+        assertTrue(kickoffJson.contains("Mein-Seelenfunke Kundenservice"))
+
+        val toolsJson = StandalonePhoneSecretaryEngine.buildSecretaryToolsJson(isCustomerService = true).toString()
+        assertTrue(toolsJson.contains("suggested_reply"))
+        assertTrue(toolsJson.contains("is_spam"))
+        assertTrue(toolsJson.contains("ticket_subject"))
+        assertTrue(toolsJson.contains("order_number"))
+    }
 }

@@ -41,9 +41,10 @@ class FunkiraCallScreeningService : CallScreeningService() {
             ?.schemeSpecificPart
             ?.trim()
             .orEmpty()
-        val tail = rawNumber.filter { it.isDigit() }.takeLast(4)
+        val tail = rawNumber.filter { it.isDigit() }.takeLast(4).ifBlank { "Unterdrückt" }
+        val customerServiceEnabled = PhoneConciergeManager.isCustomerServiceEnabled(applicationContext)
 
-        if (rawNumber.isEmpty()) {
+        if (rawNumber.isEmpty() && !customerServiceEnabled) {
             PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Screening ohne Rufnummer -> Fallback erlaubt")
             respondToCall(callDetails, CallResponse.Builder().build())
             return
@@ -52,13 +53,11 @@ class FunkiraCallScreeningService : CallScreeningService() {
         PhoneConciergeManager.markScreenedNow()
         PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Screening Eingang (**$tail)")
 
-        val matched = PhoneConciergeManager.matchIncomingWhitelistedCaller(applicationContext, rawNumber)
-        if (matched == null) {
-            PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Kein Whitelist-Treffer (**$tail)")
-            respondToCall(callDetails, CallResponse.Builder().build())
-            return
+        val matched = if (rawNumber.isNotEmpty()) {
+            PhoneConciergeManager.matchIncomingWhitelistedCaller(applicationContext, rawNumber)
+        } else {
+            null
         }
-
         val delaySec = PhoneConciergeManager.getRingDelaySeconds(applicationContext)
         val answerMode = PhoneConciergeManager.getAnswerMode(applicationContext)
         val carrierConfirmed = PhoneConciergeManager.isCarrierForwardingConfirmed(applicationContext)
@@ -69,6 +68,56 @@ class FunkiraCallScreeningService : CallScreeningService() {
             delaySeconds = delaySec,
             hasAnswerPerms = hasAnswerPerms
         )
+
+        if (matched == null) {
+            if (!customerServiceEnabled) {
+                PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Kein Whitelist-Treffer (**$tail)")
+                respondToCall(callDetails, CallResponse.Builder().build())
+                return
+            }
+
+            when (decision) {
+                CallRoutingDecision.REJECT_TO_CARRIER -> {
+                    PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Sofort-Umleitung Kundenservice (**$tail) -> Funkira")
+                    val rejectResponse = CallResponse.Builder()
+                        .setDisallowCall(true)
+                        .setRejectCall(true)
+                        .setSkipCallLog(false)
+                        .setSkipNotification(false)
+                        .build()
+                    respondToCall(callDetails, rejectResponse)
+                }
+
+                CallRoutingDecision.DELAYED_CARRIER_DIVERT -> {
+                    PhoneConciergeManager.appendDiagnosticTrace(
+                        applicationContext,
+                        "Klingelt ${delaySec}s (Kundenservice **$tail) -> danach Funkira"
+                    )
+                    PhoneConciergeManager.scheduleDelayedCustomerDiversion(
+                        ctx = applicationContext,
+                        rawNumber = rawNumber,
+                        delaySeconds = delaySec
+                    )
+                    respondToCall(callDetails, CallResponse.Builder().build())
+                }
+
+                CallRoutingDecision.ON_DEVICE_SECRETARY -> {
+                    StandalonePhoneSecretaryEngine.preWarmCredentialsAsync(applicationContext)
+                    PhoneConciergeManager.appendDiagnosticTrace(
+                        applicationContext,
+                        "Direkt-Annahme Kundenservice (${delaySec}s, **$tail) am Handy"
+                    )
+                    FunkiraPhoneConciergeService.startForIncomingCustomerCall(
+                        context = applicationContext,
+                        rawNumber = rawNumber,
+                        sourceTag = "CallScreening"
+                    )
+                    respondToCall(callDetails, CallResponse.Builder().build())
+                }
+            }
+            return
+        }
+
         val signalCallId = UUID.randomUUID().toString()
 
         when (decision) {

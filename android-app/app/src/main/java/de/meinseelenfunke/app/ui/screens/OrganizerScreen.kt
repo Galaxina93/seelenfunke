@@ -501,6 +501,12 @@ fun OrganizerScreen(
                                 onConfirmCall = { callId -> viewModel.confirmSecretaryCall(callId) },
                                 onUpdateCallNote = { callId, sum, act, rahmen ->
                                     viewModel.updateSecretaryCallNote(callId, sum, act, rahmen)
+                                },
+                                onReplyCall = { callId, message, sendEmail ->
+                                    viewModel.replyToSecretaryCall(callId, message, sendEmail)
+                                },
+                                onResolveCall = { callId ->
+                                    viewModel.resolveSecretaryCall(callId)
                                 }
                             )
                         }

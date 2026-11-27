@@ -263,6 +263,8 @@ data class PhoneSecretaryCallSummaryDto(
     val id: String = "",
     val client_call_id: String? = null,
     val caller_name: String = "",
+    val caller_phone: String? = null,
+    val status: String? = null,
     val created_at_label: String = "",
     val duration_seconds: Int = 0,
     val summary: String = "",
@@ -272,11 +274,26 @@ data class PhoneSecretaryCallSummaryDto(
     val callback_requested: Boolean = true,
     val transcript: List<String>? = emptyList(),
     val handled_by: String = "",
-    val verification: CallVerificationReportDto? = null
+    val call_mode: String? = null,
+    val verification: CallVerificationReportDto? = null,
+    val task_id: String? = null,
+    val ticket_id: String? = null,
+    val ticket_number: String? = null,
+    val support_ticket_id: String? = null,
+    val support_ticket_type: String? = null,
+    val support_ticket_number: String? = null,
+    val category: String? = null,
+    val caller_email: String? = null,
+    val order_number: String? = null,
+    val suggested_reply: String? = null,
+    val last_reply: String? = null,
+    val last_reply_at: String? = null,
+    val resolved: Boolean = false
 )
 
 data class PhoneConciergeConfigPayload(
     val enabled: Boolean = true,
+    val customer_service_enabled: Boolean = true,
     val ring_delay_seconds: Int = 12,
     val gateway_phone: String? = "+4953717269023",
     val whitelist_count: Int = 0,
@@ -291,6 +308,7 @@ data class PhoneConciergeConfigResponse(
 
 data class PhoneConciergeConfigUpdateBody(
     val enabled: Boolean? = null,
+    val customer_service_enabled: Boolean? = null,
     val ring_delay_seconds: Int? = null
 )
 
@@ -345,11 +363,18 @@ data class PhoneConciergePollResponse(
 
 data class PhoneConciergeCompleteBody(
     val call_id: String? = null,
+    val call_mode: String? = null,
     val is_simulation: Boolean = false,
     val contact_id: String? = null,
     val caller_name: String,
     val greeting_name: String? = null,
     val caller_phone: String? = null,
+    val caller_email: String? = null,
+    val order_number: String? = null,
+    val category: String? = null,
+    val ticket_subject: String? = null,
+    val suggested_reply: String? = null,
+    val is_spam: Boolean = false,
     val handled_by: String = "android_secretary",
     val summary: String,
     val rahmenbedingungen: List<String> = emptyList(),
@@ -359,6 +384,15 @@ data class PhoneConciergeCompleteBody(
     val duration_seconds: Int = 0,
     val transcript: List<String> = emptyList(),
     val verification: CallVerificationReportDto? = null
+)
+
+data class PhoneCallReplyBody(
+    val message: String,
+    val send_email: Boolean = false
+)
+
+data class PhoneCallResolveBody(
+    val close_support_record: Boolean = true
 )
 
 data class PhoneConciergeCompleteResponse(
@@ -664,4 +698,16 @@ interface OrganizerApi {
     suspend fun completePhoneConciergeCall(
         @Body body: PhoneConciergeCompleteBody
     ): PhoneConciergeCompleteResponse
+
+    @POST("system/phone-concierge/calls/{id}/reply")
+    suspend fun replyToPhoneConciergeCall(
+        @Path("id") id: String,
+        @Body body: PhoneCallReplyBody
+    ): SimpleSuccessResponse
+
+    @POST("system/phone-concierge/calls/{id}/resolve")
+    suspend fun resolvePhoneConciergeCall(
+        @Path("id") id: String,
+        @Body body: PhoneCallResolveBody = PhoneCallResolveBody()
+    ): SimpleSuccessResponse
 }

@@ -71,6 +71,7 @@ class FunkiraPhoneConciergeService : Service() {
         const val EXTRA_CALLER_PHONE = "extra_caller_phone"
         const val EXTRA_SYSTEM_INSTRUCTIONS = "extra_system_instructions"
         const val EXTRA_RING_DELAY_SEC = "extra_ring_delay_sec"
+        const val EXTRA_CALL_MODE = "extra_call_mode"
 
         private const val CHANNEL_ID = "funkira_phone_concierge_channel"
         private const val STATUS_CHANNEL_ID = de.meinseelenfunke.app.util.NotificationBadgeGuard.PHONE_CONCIERGE_STATUS_CHANNEL_ID
@@ -179,6 +180,7 @@ class FunkiraPhoneConciergeService : Service() {
                 putExtra(EXTRA_CALLER_PHONE, rawNumber)
                 putExtra(EXTRA_SYSTEM_INSTRUCTIONS, matched.systemInstructions)
                 putExtra(EXTRA_RING_DELAY_SEC, PhoneConciergeManager.getRingDelaySeconds(appCtx))
+                putExtra(EXTRA_CALL_MODE, PhoneConciergeManager.CALL_MODE_SECRETARY)
             }
 
             try {
@@ -199,6 +201,46 @@ class FunkiraPhoneConciergeService : Service() {
                     context = appCtx,
                     tag = sourceTag,
                     message = "FunkiraPhoneConciergeService konnte bei eingehendem Whitelist-Anruf nicht gestartet werden: ${e.message}",
+                    throwable = e
+                )
+            }
+        }
+
+        fun startForIncomingCustomerCall(
+            context: Context,
+            rawNumber: String,
+            sourceTag: String
+        ) {
+            val appCtx = context.applicationContext
+            val cleanNumber = rawNumber.trim()
+            val label = if (cleanNumber.isNotBlank()) "Kundenanruf ($cleanNumber)" else "Kundenanruf (Unterdrückt)"
+            val svcIntent = Intent(appCtx, FunkiraPhoneConciergeService::class.java).apply {
+                action = ACTION_INCOMING_WHITELIST_CALL
+                putExtra(EXTRA_CONTACT_ID, "")
+                putExtra(EXTRA_CALLER_NAME, label)
+                putExtra(EXTRA_CALLER_NICKNAME, "")
+                putExtra(EXTRA_RELATION_TYPE, "Kundenservice")
+                putExtra(EXTRA_CALLER_PHONE, cleanNumber.ifBlank { "Unterdrückt" })
+                putExtra(EXTRA_SYSTEM_INSTRUCTIONS, "")
+                putExtra(EXTRA_RING_DELAY_SEC, PhoneConciergeManager.getRingDelaySeconds(appCtx))
+                putExtra(EXTRA_CALL_MODE, PhoneConciergeManager.CALL_MODE_CUSTOMER_SERVICE)
+            }
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    appCtx.startForegroundService(svcIntent)
+                } else {
+                    appCtx.startService(svcIntent)
+                }
+            } catch (e: Exception) {
+                PhoneConciergeManager.appendDiagnosticTrace(
+                    appCtx,
+                    "Kundenservice-Start fehlgeschlagen ($sourceTag): ${e.javaClass.simpleName}"
+                )
+                ErrorSentinelReporter.captureError(
+                    context = appCtx,
+                    tag = sourceTag,
+                    message = "FunkiraPhoneConciergeService konnte bei eingehendem Kundenanruf nicht gestartet werden: ${e.message}",
                     throwable = e
                 )
             }
@@ -249,6 +291,8 @@ class FunkiraPhoneConciergeService : Service() {
         val callerPhone = intent?.getStringExtra(EXTRA_CALLER_PHONE)
         val sysInstructions = intent?.getStringExtra(EXTRA_SYSTEM_INSTRUCTIONS)
         val ringDelaySec = (intent?.getIntExtra(EXTRA_RING_DELAY_SEC, 12) ?: 12).coerceIn(0, 30)
+        val callMode = intent?.getStringExtra(EXTRA_CALL_MODE)?.takeIf { it.isNotBlank() }
+            ?: PhoneConciergeManager.CALL_MODE_SECRETARY
 
         activeCallJob = serviceScope.launch {
             runCallLifecycle(
@@ -260,7 +304,8 @@ class FunkiraPhoneConciergeService : Service() {
                 relationType = relationType,
                 callerPhone = callerPhone,
                 systemInstructions = sysInstructions,
-                ringDelaySec = ringDelaySec
+                ringDelaySec = ringDelaySec,
+                callMode = callMode
             )
         }
 
@@ -276,7 +321,8 @@ class FunkiraPhoneConciergeService : Service() {
         relationType: String?,
         callerPhone: String?,
         systemInstructions: String?,
-        ringDelaySec: Int
+        ringDelaySec: Int,
+        callMode: String = PhoneConciergeManager.CALL_MODE_SECRETARY
     ) {
         val api = ServiceLocator.getOrganizerApi()
         val telephony = getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
@@ -294,7 +340,8 @@ class FunkiraPhoneConciergeService : Service() {
         val subStates = ConcurrentHashMap<Int, Int>()
         val registeredCallbacks = registerAllSubscriptionCallStateListeners(telephony, subStates)
         var secretaryAudioOverrideActive = false
-        val miniPcBtAvailableAtRing = isMiniPcBluetoothScoAvailable()
+        val isCustomerMode = callMode == PhoneConciergeManager.CALL_MODE_CUSTOMER_SERVICE
+        val miniPcBtAvailableAtRing = !isCustomerMode && isMiniPcBluetoothScoAvailable()
         var signalledMiniPcRinging = false
         var preWarmStarted = false
         var reachedOffhook = false
@@ -499,8 +546,8 @@ class FunkiraPhoneConciergeService : Service() {
             )
             delay(250L)
 
-            // Check whether Funkenwerk-MiniPC Bluetooth SCO is actively connected AND Portal relay accepts it
-            val useMiniPcWorkshopBridge = isMiniPcBluetoothScoAvailable() && routeCallAudioToMiniPcBluetooth()
+            // Check whether Funkenwerk-MiniPC Bluetooth SCO is actively connected AND Portal relay accepts it (Whitelist only)
+            val useMiniPcWorkshopBridge = !isCustomerMode && isMiniPcBluetoothScoAvailable() && routeCallAudioToMiniPcBluetooth()
             var handledByMiniPc = false
 
             if (useMiniPcWorkshopBridge) {
@@ -562,6 +609,7 @@ class FunkiraPhoneConciergeService : Service() {
                     greetingName = greetingName,
                     relationType = relationType,
                     systemInstructions = systemInstructions,
+                    callMode = callMode,
                     micFgsGranted = micFgsGranted,
                     onTranscriptUpdated = { lines -> partialTranscriptRef.set(lines) },
                     isCallStillOffhook = {
@@ -570,11 +618,16 @@ class FunkiraPhoneConciergeService : Service() {
                 )
                 secretaryAudioOverrideActive = false
 
+                val resolvedCallerName = if (isCustomerMode && result.callerNameExtracted.isNotBlank()) {
+                    result.callerNameExtracted
+                } else {
+                    callerName
+                }
                 val note = PendingPhoneSecretaryNote(
                     callId = callId,
-                    contactId = contactId,
-                    callerName = callerName,
-                    greetingName = greetingName,
+                    contactId = if (isCustomerMode) null else contactId,
+                    callerName = resolvedCallerName,
+                    greetingName = if (isCustomerMode) "Kunde" else greetingName,
                     callerPhone = callerPhone,
                     summary = result.summary,
                     urgency = result.urgency,
@@ -583,7 +636,14 @@ class FunkiraPhoneConciergeService : Service() {
                     actionRequired = result.actionRequired,
                     durationSeconds = result.durationSeconds,
                     transcript = result.transcript,
-                    verification = result.verification
+                    verification = result.verification,
+                    callMode = callMode,
+                    callerEmail = result.callerEmail.takeIf { it.isNotBlank() },
+                    orderNumber = result.orderNumber.takeIf { it.isNotBlank() },
+                    category = result.category.takeIf { it.isNotBlank() },
+                    ticketSubject = result.ticketSubject.takeIf { it.isNotBlank() },
+                    suggestedReply = result.suggestedReply.takeIf { it.isNotBlank() },
+                    isSpam = result.isSpam
                 )
                 withContext(NonCancellable) {
                     PhoneConciergeManager.persistOrQueueSecretaryCompletion(applicationContext, note)
@@ -595,7 +655,10 @@ class FunkiraPhoneConciergeService : Service() {
                     CallNoteVerificationEngine.STATUS_VERIFIED -> " (Geprüft)"
                     else -> ""
                 }
-                postSummaryNotification(displayLabel + statusHint, result.summary)
+                if (!result.isSpam) {
+                    val notifTitle = if (isCustomerMode) "Kundenservice · $resolvedCallerName" else displayLabel
+                    postSummaryNotification(notifTitle + statusHint, result.summary)
+                }
                 PhoneConciergeManager.appendDiagnosticTrace(
                     applicationContext,
                     "Gespräch beendet & Notiz gespeichert$statusHint"
@@ -628,16 +691,17 @@ class FunkiraPhoneConciergeService : Service() {
                         val durSec = kotlin.math.max(1, ((android.os.SystemClock.elapsedRealtime() - callStartedAtMs) / 1000L).toInt())
                         val fallbackNote = PendingPhoneSecretaryNote(
                             callId = callId,
-                            contactId = contactId,
+                            contactId = if (isCustomerMode) null else contactId,
                             callerName = callerName,
-                            greetingName = greetingName,
+                            greetingName = if (isCustomerMode) "Kunde" else greetingName,
                             callerPhone = callerPhone,
                             summary = fallbackSum,
                             urgency = "mittel",
                             callbackRequested = true,
-                            actionRequired = "$greetingName zurückrufen.",
+                            actionRequired = if (isCustomerMode) "Kundenanliegen prüfen und bei Bedarf zurückrufen." else "$greetingName zurückrufen.",
                             durationSeconds = durSec,
-                            transcript = partialLines
+                            transcript = partialLines,
+                            callMode = callMode
                         )
                         PhoneConciergeManager.persistOrQueueSecretaryCompletion(applicationContext, fallbackNote)
                         postSummaryNotification(displayLabel, fallbackSum)

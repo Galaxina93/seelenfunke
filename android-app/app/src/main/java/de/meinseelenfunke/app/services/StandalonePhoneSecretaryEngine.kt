@@ -74,7 +74,14 @@ data class SecretarySessionResult(
     val actionRequired: String = "",
     val durationSeconds: Int = 0,
     val transcript: List<String> = emptyList(),
-    val verification: CallVerificationReportDto? = null
+    val verification: CallVerificationReportDto? = null,
+    val callerNameExtracted: String = "",
+    val callerEmail: String = "",
+    val orderNumber: String = "",
+    val category: String = "",
+    val ticketSubject: String = "",
+    val suggestedReply: String = "",
+    val isSpam: Boolean = false
 )
 
 /**
@@ -300,7 +307,37 @@ object StandalonePhoneSecretaryEngine {
         }
     }
 
-    fun buildSecretaryToolsJson(): JsonArray {
+    fun buildCustomerServiceSystemInstruction(): String {
+        val nowLabel = try {
+            ZonedDateTime.now(ZoneId.of("Europe/Berlin"))
+                .format(DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy, HH:mm", Locale.GERMAN))
+        } catch (_: Exception) {
+            ""
+        }
+        val timeLine = if (nowLabel.isNotBlank()) "- Aktuelles Datum & Uhrzeit: $nowLabel Uhr.\n" else ""
+
+        return buildString {
+            append("STRIKTE SPRACHREGEL & KUNDENSERVICE-ROLLE (HÖCHSTE PRIORITÄT):\n")
+            append("- Du sprichst ZU 100% AUSSCHLIESSLICH AUF DEUTSCH. Gib niemals englische Wörter, Gedanken oder Systemmeldungen aus.\n")
+            append("- Dein Name ist Funkira. Du bist die digitale KI-Assistentin im Kundenservice von Mein-Seelenfunke (Manufaktur für personalisierte Laser-Gravur & Geschenke von Alina Steinhauer in Gifhorn).\n")
+            append("- EU-AI-ACT-TRANSPARENZ: Stelle dich direkt zu Beginn freundlich als digitale KI-Assistentin von Mein-Seelenfunke vor.\n")
+            append("- Sprich Anrufer höflich, warm und professionell per 'Sie' an (wechsle nur auf 'Du', wenn der Anrufer dich duzt).\n")
+            append(timeLine)
+            append("- Deine Aufgabe:\n")
+            append("  1. Begrüße die anrufende Person herzlich als digitale KI-Assistentin Funkira vom Mein-Seelenfunke Kundenservice und frage kurz, womit du helfen darfst.\n")
+            append("  2. Kläre im natürlichen Dialog (immer nur EINE kurze Rückfrage pro Zug, 1 bis 2 kurze Sätze):\n")
+            append("     a) Vor- und Nachname des Anrufers.\n")
+            append("     b) Konkretes Anliegen (Bestellstatus, Gravur-Wunsch, Sonderanfertigung, Produktfrage, Änderung oder Reklamation).\n")
+            append("     c) Falls vorhanden: Bestellnummer oder E-Mail-Adresse (und ggf. beste Rückrufnummer).\n")
+            append("     d) Wichtige Rahmenbedingungen (Wunschtermin, Frist, Produktdetails, Erreichbarkeit).\n")
+            append("  3. SPAM-SCHUTZ: Bei offensichtlicher Kaltakquise, unerwünschter Werbung oder Robocalls lehne kurz höflich ab und rufe sofort `phone_secretary_finish` mit `is_spam = true` auf.\n")
+            append("  4. Sobald das Anliegen klar ist, rufe SOFORT `phone_secretary_finish` auf (inkl. `caller_name`, `caller_email`, `order_number`, `category`, `ticket_subject`, `summary`, `rahmenbedingungen`, `action_required`, `suggested_reply`, `urgency`, `callback_requested`, `is_spam`).\n")
+            append("  5. Versichere dem Anrufer nach dem Tool-Aufruf freundlich, dass das Anliegen direkt als Ticket an Alina weitergeleitet wurde, und verabschiede dich herzlich.\n")
+            append("- ZERO-PII SANDBOX: Nenne am Telefon NIEMALS interne Kundendaten, Bestelldetails, Adressen, Passwörter oder Finanzzahlen und versprich keine eigenmächtigen Rabatte oder Erstattungen.")
+        }
+    }
+
+    fun buildSecretaryToolsJson(isCustomerService: Boolean = false): JsonArray {
         return JsonArray().apply {
             add(JsonObject().apply {
                 add("functionDeclarations", JsonArray().apply {
@@ -308,7 +345,11 @@ object StandalonePhoneSecretaryEngine {
                         addProperty("name", "phone_secretary_finish")
                         addProperty(
                             "description",
-                            "Speichert die aufgenommene Telefonnachricht samt Eckdaten sofort als geprüfte Aufgabe für Alina und bereitet das freundliche Gesprächsende vor."
+                            if (isCustomerService) {
+                                "Speichert das Kundenanliegen sofort als strukturiertes Support-Ticket und App-Protokoll für Alina und bereitet die Verabschiedung vor."
+                            } else {
+                                "Speichert die aufgenommene Telefonnachricht samt Eckdaten sofort als geprüfte Aufgabe für Alina und bereitet das freundliche Gesprächsende vor."
+                            }
                         )
                         add("parameters", JsonObject().apply {
                             addProperty("type", "OBJECT")
@@ -320,7 +361,7 @@ object StandalonePhoneSecretaryEngine {
                                 add("rahmenbedingungen", JsonObject().apply {
                                     addProperty("type", "ARRAY")
                                     add("items", JsonObject().apply { addProperty("type", "STRING") })
-                                    addProperty("description", "Stichpunkte zu geklärten Eckdaten (Datum, Uhrzeit, Ort, Frist, Betrag).")
+                                    addProperty("description", "Stichpunkte zu geklärten Eckdaten (Datum, Uhrzeit, Ort, Frist, Produkt, Gravurtext).")
                                 })
                                 add("action_required", JsonObject().apply {
                                     addProperty("type", "STRING")
@@ -334,6 +375,36 @@ object StandalonePhoneSecretaryEngine {
                                     addProperty("type", "BOOLEAN")
                                     addProperty("description", "True, wenn Alina zurückrufen soll.")
                                 })
+                                if (isCustomerService) {
+                                    add("caller_name", JsonObject().apply {
+                                        addProperty("type", "STRING")
+                                        addProperty("description", "Vollständiger Name des Anrufers, falls genannt.")
+                                    })
+                                    add("caller_email", JsonObject().apply {
+                                        addProperty("type", "STRING")
+                                        addProperty("description", "E-Mail-Adresse des Anrufers, falls genannt.")
+                                    })
+                                    add("order_number", JsonObject().apply {
+                                        addProperty("type", "STRING")
+                                        addProperty("description", "Genannte Bestellnummer, falls vorhanden.")
+                                    })
+                                    add("category", JsonObject().apply {
+                                        addProperty("type", "STRING")
+                                        addProperty("description", "Genau einer dieser Werte: support, return, order, product, general, spam.")
+                                    })
+                                    add("ticket_subject", JsonObject().apply {
+                                        addProperty("type", "STRING")
+                                        addProperty("description", "Kurzer prägnanter Betreff für das Support-Ticket (max. 90 Zeichen).")
+                                    })
+                                    add("suggested_reply", JsonObject().apply {
+                                        addProperty("type", "STRING")
+                                        addProperty("description", "Kurzer, herzlicher deutscher Antwortentwurf von Alina per Sie für Ticket/E-Mail (ohne Gedankenstriche).")
+                                    })
+                                    add("is_spam", JsonObject().apply {
+                                        addProperty("type", "BOOLEAN")
+                                        addProperty("description", "True nur bei offensichtlicher unerwünschter Werbung, Kaltakquise oder Robocall.")
+                                    })
+                                }
                             })
                             add("required", JsonArray().apply {
                                 add("summary")
@@ -359,10 +430,15 @@ object StandalonePhoneSecretaryEngine {
 
     internal fun buildKickoffPacketJson(
         greetingName: String,
-        modelName: String = "models/gemini-3.1-flash-live-preview"
+        modelName: String = "models/gemini-3.1-flash-live-preview",
+        isCustomerService: Boolean = false
     ): JsonObject {
-        val who = greetingName.trim().ifBlank { "Kontakt" }
-        val prompt = "[TELEFONAT SOEBEN ANGENOMMEN: $who ist jetzt in der Leitung. Begrüße $who jetzt sofort herzlich und freundlich auf Deutsch als Funkira, Alinas persönliche Assistentin, sag kurz dass Alina gerade nicht persönlich ans Telefon gehen kann, frage freundlich nach dem Anliegen und versichere warmherzig, dass Alina die Nachricht sofort bekommt.]"
+        val prompt = if (isCustomerService) {
+            "[KUNDENANRUF SOEBEN ANGENOMMEN: Ein Anrufer hat Mein-Seelenfunke angerufen. Begrüße die Person jetzt sofort herzlich, kurz und professionell per Sie auf Deutsch als digitale KI-Assistentin Funkira vom Mein-Seelenfunke Kundenservice und frage freundlich, womit du weiterhelfen darfst.]"
+        } else {
+            val who = greetingName.trim().ifBlank { "Kontakt" }
+            "[TELEFONAT SOEBEN ANGENOMMEN: $who ist jetzt in der Leitung. Begrüße $who jetzt sofort herzlich und freundlich auf Deutsch als Funkira, Alinas persönliche Assistentin, sag kurz dass Alina gerade nicht persönlich ans Telefon gehen kann, frage freundlich nach dem Anliegen und versichere warmherzig, dass Alina die Nachricht sofort bekommt.]"
+        }
         return de.meinseelenfunke.app.util.FalconClientTools.buildClientContentKickPacket(
             prompt = prompt,
             modelName = modelName
@@ -372,9 +448,15 @@ object StandalonePhoneSecretaryEngine {
     internal fun buildToolResponsePacketJson(
         fnId: String,
         fnName: String,
-        greetingName: String
+        greetingName: String,
+        isCustomerService: Boolean = false
     ): JsonObject {
         val who = greetingName.trim().ifBlank { "Kontakt" }
+        val noteText = if (isCustomerService) {
+            "Kundenanliegen als Ticket gespeichert. Verabschiede dich jetzt herzlich und professionell per Sie in einem kurzen Satz und bestätige, dass Alina das Ticket sofort erhält."
+        } else {
+            "Nachricht gespeichert. Verabschiede dich jetzt herzlich und freundlich in einem kurzen Satz von $who und bestätige nett, dass Alina die Nachricht sofort bekommt."
+        }
         return JsonObject().apply {
             add("toolResponse", JsonObject().apply {
                 add("functionResponses", JsonArray().apply {
@@ -383,10 +465,7 @@ object StandalonePhoneSecretaryEngine {
                         addProperty("name", fnName)
                         add("response", JsonObject().apply {
                             addProperty("status", "success")
-                            addProperty(
-                                "note",
-                                "Nachricht gespeichert. Verabschiede dich jetzt herzlich und freundlich in einem kurzen Satz von $who und bestätige nett, dass Alina die Nachricht sofort bekommt."
-                            )
+                            addProperty("note", noteText)
                         })
                     })
                 })
@@ -415,10 +494,12 @@ object StandalonePhoneSecretaryEngine {
         greetingName: String,
         relationType: String?,
         systemInstructions: String?,
+        callMode: String = PhoneConciergeManager.CALL_MODE_SECRETARY,
         micFgsGranted: Boolean = true,
         onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
     ): SecretarySessionResult {
+        val isCustomerService = callMode == PhoneConciergeManager.CALL_MODE_CUSTOMER_SERVICE
         val appCtx = context.applicationContext
         ServiceLocator.ensureInitialized(appCtx)
 
@@ -437,12 +518,16 @@ object StandalonePhoneSecretaryEngine {
 
         try {
             val candidates = buildWsCandidates(appCtx, callId)
-            val prompt = buildSecretarySystemInstruction(
-                callerName = callerName,
-                greetingName = greetingName,
-                relationType = relationType,
-                contactInstructions = systemInstructions
-            )
+            val prompt = if (isCustomerService) {
+                buildCustomerServiceSystemInstruction()
+            } else {
+                buildSecretarySystemInstruction(
+                    callerName = callerName,
+                    greetingName = greetingName,
+                    relationType = relationType,
+                    contactInstructions = systemInstructions
+                )
+            }
 
             for ((idx, candidate) in candidates.withIndex()) {
                 if (!isCallStillOffhook()) {
@@ -461,6 +546,7 @@ object StandalonePhoneSecretaryEngine {
                     systemInstruction = prompt,
                     candidate = candidate,
                     attemptIndex = idx,
+                    isCustomerService = isCustomerService,
                     micFgsGranted = micFgsGranted,
                     onTranscriptUpdated = onTranscriptUpdated,
                     isCallStillOffhook = isCallStillOffhook
@@ -594,6 +680,7 @@ object StandalonePhoneSecretaryEngine {
         systemInstruction: String,
         candidate: WsCandidate,
         attemptIndex: Int,
+        isCustomerService: Boolean = false,
         micFgsGranted: Boolean,
         onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
@@ -620,6 +707,13 @@ object StandalonePhoneSecretaryEngine {
         val completedRahmen = AtomicReference<List<String>>(emptyList())
         val completedUrgency = AtomicReference("mittel")
         val completedCallback = AtomicBoolean(true)
+        val completedCallerName = AtomicReference("")
+        val completedCallerEmail = AtomicReference("")
+        val completedOrderNumber = AtomicReference("")
+        val completedCategory = AtomicReference("")
+        val completedTicketSubject = AtomicReference("")
+        val completedSuggestedReply = AtomicReference("")
+        val completedIsSpam = AtomicBoolean(false)
 
         fun snapshotTranscriptWithPending(): List<String> {
             val out = synchronized(transcriptLines) { transcriptLines.toMutableList() }
@@ -711,7 +805,7 @@ object StandalonePhoneSecretaryEngine {
                                 add(JsonObject().apply { addProperty("text", systemInstruction) })
                             })
                         })
-                        add("tools", buildSecretaryToolsJson())
+                        add("tools", buildSecretaryToolsJson(isCustomerService = isCustomerService))
                         add("inputAudioTranscription", JsonObject())
                         add("outputAudioTranscription", JsonObject())
                     })
@@ -749,7 +843,7 @@ object StandalonePhoneSecretaryEngine {
                         }
                         // Trigger immediate warm greeting using the active model's wire schema
                         kickoffSentUptimeMs.set(SystemClock.uptimeMillis())
-                        val kickoff = buildKickoffPacketJson(greetingName, candidate.liveModel)
+                        val kickoff = buildKickoffPacketJson(greetingName, candidate.liveModel, isCustomerService = isCustomerService)
                         webSocket.send(gson.toJson(kickoff))
                         return
                     }
@@ -852,8 +946,24 @@ object StandalonePhoneSecretaryEngine {
                                 }
                                 completedUrgency.set(urg)
                                 completedCallback.set(cb)
+                                if (isCustomerService) {
+                                    val cName = CallNoteVerificationEngine.sanitizeCleanText(optStringSafe(args, "caller_name"))
+                                    val cMail = optStringSafe(args, "caller_email").trim().lowercase(Locale.ROOT)
+                                    val cOrder = optStringSafe(args, "order_number").trim()
+                                    val cCat = optStringSafe(args, "category").trim().lowercase(Locale.ROOT)
+                                    val cSubj = CallNoteVerificationEngine.sanitizeCleanText(optStringSafe(args, "ticket_subject"))
+                                    val cReply = CallNoteVerificationEngine.sanitizeCleanText(optStringSafe(args, "suggested_reply"))
+                                    val cSpam = optBooleanSafe(args, "is_spam", false) || cCat == "spam"
+                                    if (cName.isNotBlank()) completedCallerName.set(cName)
+                                    if (cMail.contains("@")) completedCallerEmail.set(cMail)
+                                    if (cOrder.isNotBlank()) completedOrderNumber.set(cOrder)
+                                    if (cCat.isNotBlank()) completedCategory.set(cCat)
+                                    if (cSubj.isNotBlank()) completedTicketSubject.set(cSubj)
+                                    if (cReply.isNotBlank() && !cSpam) completedSuggestedReply.set(cReply)
+                                    completedIsSpam.set(cSpam)
+                                }
                                 if (!finishToolTriggered.getAndSet(true)) {
-                                    val toolResp = buildToolResponsePacketJson(fnId, fnName, greetingName)
+                                    val toolResp = buildToolResponsePacketJson(fnId, fnName, greetingName, isCustomerService = isCustomerService)
                                     webSocket.send(gson.toJson(toolResp))
                                 }
                             }
@@ -1027,7 +1137,14 @@ object StandalonePhoneSecretaryEngine {
                 actionRequired = finalAction,
                 durationSeconds = durationSec,
                 transcript = rawTranscript,
-                verification = verification
+                verification = verification,
+                callerNameExtracted = completedCallerName.get(),
+                callerEmail = completedCallerEmail.get(),
+                orderNumber = completedOrderNumber.get(),
+                category = completedCategory.get(),
+                ticketSubject = completedTicketSubject.get(),
+                suggestedReply = completedSuggestedReply.get(),
+                isSpam = completedIsSpam.get()
             )
         } finally {
             closedFlag.set(true)

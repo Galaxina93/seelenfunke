@@ -442,6 +442,8 @@ class TwilioCallController extends Controller
         $extractedOrderNumber = '';
         $extractedCategory = 'support';
         $extractedTicketSubject = '';
+        $extractedSuggestedReply = '';
+        $extractedIsSpam = false;
 
         $inboundCallMode = $verifiedInboundMeta !== null
             ? (string) ($verifiedInboundMeta['call_mode'] ?? 'inbound_secretary')
@@ -464,15 +466,17 @@ class TwilioCallController extends Controller
                             . "1. 'caller_name': Vollständiger Name des Anrufers, falls genannt (sonst leerer String '')\n"
                             . "2. 'caller_email': E-Mail-Adresse des Anrufers, falls genannt (sonst '')\n"
                             . "3. 'order_number': Genannte Bestellnummer (z. B. ORD-... oder Ziffernfolge), falls genannt (sonst '')\n"
-                            . "4. 'category': Genau einer dieser Werte: 'support', 'return', 'order', 'product', 'general'\n"
+                            . "4. 'category': Genau einer dieser Werte: 'support', 'return', 'order', 'product', 'general', 'spam'\n"
                             . "5. 'ticket_subject': Kurzer prägnanter Betreff für das Support-Ticket (max. 90 Zeichen)\n"
                             . "6. 'summary': Was wurde besprochen? (1 bis 2 prägnante Sätze)\n"
                             . "7. 'rahmenbedingungen': Array aller wichtigen geklärten Eckdaten (Wunschtermin, Produkt, Gravurtext, Frist, Erreichbarkeit)\n"
                             . "8. 'action_required': Konkrete Handlungsanweisung für Alina\n"
                             . "9. 'urgency': 'hoch', 'mittel' oder 'niedrig'\n"
-                            . "10. 'callback_requested': true oder false\n\n"
+                            . "10. 'callback_requested': true oder false\n"
+                            . "11. 'is_spam': true nur bei offensichtlicher unerwünschter Werbung, Kaltakquise oder Robocall, sonst false\n"
+                            . "12. 'suggested_reply': Kurzer, herzlicher deutscher Antwortentwurf von Alina per Sie für Ticket oder E-Mail (ohne KI-Gedankenstriche; leerer String bei Spam)\n\n"
                             . "Antworte ausschließlich mit einem reinen JSON-Objekt ohne Markdown-Backticks im Format:\n"
-                            . '{"caller_name": "...", "caller_email": "", "order_number": "", "category": "support", "ticket_subject": "...", "summary": "...", "rahmenbedingungen": ["..."], "action_required": "...", "urgency": "hoch|mittel|niedrig", "callback_requested": true}';
+                            . '{"caller_name": "...", "caller_email": "", "order_number": "", "category": "support", "ticket_subject": "...", "summary": "...", "rahmenbedingungen": ["..."], "action_required": "...", "urgency": "hoch|mittel|niedrig", "callback_requested": true, "is_spam": false, "suggested_reply": "..."}';
                     } elseif ($verifiedInboundMeta !== null) {
                         $callerLabel = $verifiedInboundMeta['caller_name'] ?? 'Kontakt';
                         $prompt = "Du bist Funkira, die persönliche Sekretärin von Alina Steinhauer. Folgendes ist das vollständige Live-Gesprächsprotokoll mit {$callerLabel}:\n\n"
@@ -548,10 +552,14 @@ class TwilioCallController extends Controller
                                     $extractedOrderNumber = $candOrder;
                                 }
                                 $candCat = strtolower(trim((string) ($result['category'] ?? 'support')));
-                                if (in_array($candCat, ['support', 'return', 'order', 'product', 'general'], true)) {
+                                if (in_array($candCat, ['support', 'return', 'order', 'product', 'general', 'spam'], true)) {
                                     $extractedCategory = $candCat;
                                 }
+                                $extractedIsSpam = (bool) ($result['is_spam'] ?? false) || $extractedCategory === 'spam';
                                 $extractedTicketSubject = FunkiraPhoneConciergeService::sanitizeCleanText((string) ($result['ticket_subject'] ?? ''), 180);
+                                $extractedSuggestedReply = $extractedIsSpam
+                                    ? ''
+                                    : FunkiraPhoneConciergeService::sanitizeCleanText((string) ($result['suggested_reply'] ?? ''), 1500);
                                 if ($extractedCallerName !== '') {
                                     $phoneBit = !empty($verifiedInboundMeta['caller_phone']) && $verifiedInboundMeta['caller_phone'] !== 'Unterdrückt'
                                         ? ' (' . $verifiedInboundMeta['caller_phone'] . ')'
@@ -564,6 +572,7 @@ class TwilioCallController extends Controller
                                 'mode' => $inboundCallMode,
                                 'call_mode' => $inboundCallMode,
                                 'handled_by' => $effectiveHandledBy,
+                                'is_spam' => $extractedIsSpam,
                                 'rahmenbedingungen' => $extractedRahmenbedingungen,
                                 'action_required' => $extractedActionRequired,
                                 'urgency' => $extractedUrgency,
@@ -571,9 +580,13 @@ class TwilioCallController extends Controller
                                 'category' => $isCustomerServiceInbound ? $extractedCategory : null,
                                 'caller_email' => $extractedCallerEmail !== '' ? $extractedCallerEmail : null,
                                 'order_number' => $extractedOrderNumber !== '' ? $extractedOrderNumber : null,
+                                'suggested_reply' => $extractedSuggestedReply !== '' ? $extractedSuggestedReply : null,
                                 'steps' => $stepsList,
                                 'goals' => $result['goals'] ?? [],
                             ];
+                            if ($extractedIsSpam) {
+                                $callRecord->status = 'spam_filtered';
+                            }
                             $callRecord->next_steps = json_encode($combinedJson, JSON_UNESCAPED_UNICODE);
                         }
                     }
@@ -648,6 +661,8 @@ class TwilioCallController extends Controller
                 'order_number' => $extractedOrderNumber,
                 'category' => $extractedCategory,
                 'ticket_subject' => $extractedTicketSubject,
+                'suggested_reply' => $extractedSuggestedReply,
+                'is_spam' => $extractedIsSpam,
                 'handled_by' => $effectiveHandledBy,
                 'summary' => (string) $callRecord->summary,
                 'rahmenbedingungen' => $extractedRahmenbedingungen,

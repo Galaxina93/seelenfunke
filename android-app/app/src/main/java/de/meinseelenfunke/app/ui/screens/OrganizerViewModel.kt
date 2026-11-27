@@ -96,6 +96,27 @@ class OrganizerViewModel : ViewModel() {
         )
     }
 
+    suspend fun replyToSecretaryCall(
+        callId: String,
+        message: String,
+        sendEmail: Boolean
+    ): Result<String> {
+        val res = PhoneConciergeManager.replyToCall(ServiceLocator.context, callId, message, sendEmail)
+        if (res.isSuccess) {
+            _recentSecretaryCalls.value = PhoneConciergeManager.loadCachedRecentCalls(ServiceLocator.context)
+        }
+        return res
+    }
+
+    suspend fun resolveSecretaryCall(callId: String): Result<String> {
+        val res = PhoneConciergeManager.resolveCall(ServiceLocator.context, callId, closeSupportRecord = true)
+        if (res.isSuccess) {
+            _recentSecretaryCalls.value = PhoneConciergeManager.loadCachedRecentCalls(ServiceLocator.context)
+            loadAllOrganizerData(showLoading = false)
+        }
+        return res
+    }
+
     fun loadAllOrganizerData(showLoading: Boolean = true) {
         viewModelScope.launch {
             if (showLoading && _uiState.value !is OrganizerUiState.Success) {

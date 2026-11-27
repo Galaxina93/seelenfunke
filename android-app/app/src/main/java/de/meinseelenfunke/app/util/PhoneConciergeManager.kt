@@ -22,6 +22,8 @@ import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import de.meinseelenfunke.app.data.api.CallVerificationReportDto
 import de.meinseelenfunke.app.data.api.ManagementContactDto
+import de.meinseelenfunke.app.data.api.PhoneCallReplyBody
+import de.meinseelenfunke.app.data.api.PhoneCallResolveBody
 import de.meinseelenfunke.app.data.api.PhoneConciergeCompleteBody
 import de.meinseelenfunke.app.data.api.PhoneConciergeConfigUpdateBody
 import de.meinseelenfunke.app.data.api.PhoneConciergeSignalBody
@@ -75,7 +77,14 @@ data class PendingPhoneSecretaryNote(
     val actionRequired: String = "",
     val durationSeconds: Int = 0,
     val transcript: List<String> = emptyList(),
-    val verification: CallVerificationReportDto? = null
+    val verification: CallVerificationReportDto? = null,
+    val callMode: String = PhoneConciergeManager.CALL_MODE_SECRETARY,
+    val callerEmail: String? = null,
+    val orderNumber: String? = null,
+    val category: String? = null,
+    val ticketSubject: String? = null,
+    val suggestedReply: String? = null,
+    val isSpam: Boolean = false
 )
 
 data class CachedWhitelistContact(
@@ -99,8 +108,12 @@ object PhoneConciergeManager {
     const val ANSWER_MODE_CARRIER = "carrier"
     const val ANSWER_MODE_ON_DEVICE = "on_device"
 
+    const val CALL_MODE_SECRETARY = "inbound_secretary"
+    const val CALL_MODE_CUSTOMER_SERVICE = "inbound_customer_service"
+
     private const val PREFS_NAME = "funkira_phone_concierge_prefs"
     private const val KEY_ENABLED = "concierge_enabled"
+    private const val KEY_CUSTOMER_SERVICE_ENABLED = "concierge_customer_service_enabled_v1"
     private const val KEY_RING_DELAY = "concierge_ring_delay_sec"
     private const val KEY_ANSWER_MODE = "concierge_answer_mode_v1"
     private const val KEY_CARRIER_CONFIRMED = "concierge_carrier_forwarding_confirmed_v1"
@@ -137,6 +150,22 @@ object PhoneConciergeManager {
 
     fun setEnabledLocal(ctx: Context, enabled: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_ENABLED, enabled).apply()
+    }
+
+    fun isCustomerServiceEnabled(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_CUSTOMER_SERVICE_ENABLED, true)
+
+    fun setCustomerServiceEnabledLocal(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_CUSTOMER_SERVICE_ENABLED, enabled).apply()
+    }
+
+    internal fun shouldHandleIncomingCall(
+        isEnabled: Boolean,
+        isCustomerServiceEnabled: Boolean,
+        isWhitelisted: Boolean
+    ): Boolean {
+        if (!isEnabled) return false
+        return isWhitelisted || isCustomerServiceEnabled
     }
 
     fun getRingDelaySeconds(ctx: Context): Int =
@@ -440,6 +469,34 @@ object PhoneConciergeManager {
                 } catch (_: Exception) { }
             }
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
+    fun scheduleDelayedCustomerDiversion(
+        ctx: Context,
+        rawNumber: String,
+        delaySeconds: Int
+    ) {
+        val label = rawNumber.trim().ifBlank { "Unterdrückt" }
+        val synthetic = CachedWhitelistContact(
+            id = "",
+            fullName = "Kundenanruf ($label)",
+            nickname = "",
+            relationType = "Kundenservice",
+            phone = rawNumber,
+            normalizedPhone = normalizePhoneDigits(rawNumber),
+            matchSuffix = extractMatchSuffix(rawNumber),
+            systemInstructions = "",
+            whitelisted = false
+        )
+        scheduleDelayedCallDiversion(
+            ctx = ctx,
+            matched = synthetic,
+            rawNumber = rawNumber,
+            delaySeconds = delaySeconds,
+            signalCallId = null
+        )
     }
 
     @SuppressLint("MissingPermission")
@@ -1045,6 +1102,7 @@ object PhoneConciergeManager {
                 val pushRes = api.updatePhoneConciergeConfig(
                     PhoneConciergeConfigUpdateBody(
                         enabled = isEnabled(ctx),
+                        customer_service_enabled = isCustomerServiceEnabled(ctx),
                         ring_delay_seconds = getRingDelaySeconds(ctx)
                     )
                 )
@@ -1079,6 +1137,7 @@ object PhoneConciergeManager {
             if (cfgRes.success && cfg != null) {
                 if (!p.getBoolean(KEY_DIRTY_CONFIG, false)) {
                     setEnabledLocal(ctx, cfg.enabled)
+                    setCustomerServiceEnabledLocal(ctx, cfg.customer_service_enabled)
                     setRingDelayLocal(ctx, cfg.ring_delay_seconds)
                 }
                 if (!cfg.gateway_phone.isNullOrBlank()) {
@@ -1141,9 +1200,15 @@ object PhoneConciergeManager {
         return loadCachedContacts(ctx)
     }
 
-    suspend fun updateGlobalConfig(ctx: Context, enabled: Boolean? = null, ringDelaySeconds: Int? = null) {
+    suspend fun updateGlobalConfig(
+        ctx: Context,
+        enabled: Boolean? = null,
+        ringDelaySeconds: Int? = null,
+        customerServiceEnabled: Boolean? = null
+    ) {
         enabled?.let { setEnabledLocal(ctx, it) }
         ringDelaySeconds?.let { setRingDelayLocal(ctx, it) }
+        customerServiceEnabled?.let { setCustomerServiceEnabledLocal(ctx, it) }
         prefs(ctx).edit().putBoolean(KEY_DIRTY_CONFIG, true).apply()
         ServiceLocator.ensureInitialized(ctx)
         if (ServiceLocator.getAuthToken().isNullOrBlank()) return
@@ -1151,6 +1216,7 @@ object PhoneConciergeManager {
             val res = ServiceLocator.getOrganizerApi().updatePhoneConciergeConfig(
                 PhoneConciergeConfigUpdateBody(
                     enabled = enabled,
+                    customer_service_enabled = customerServiceEnabled,
                     ring_delay_seconds = ringDelaySeconds
                 )
             )
@@ -1158,6 +1224,59 @@ object PhoneConciergeManager {
                 prefs(ctx).edit().putBoolean(KEY_DIRTY_CONFIG, false).apply()
             }
         } catch (_: Exception) { }
+    }
+
+    suspend fun replyToCall(
+        ctx: Context,
+        callId: String,
+        message: String,
+        sendEmail: Boolean = false
+    ): Result<String> {
+        val clean = message.trim()
+        if (clean.isEmpty()) return Result.failure(IllegalArgumentException("Antworttext darf nicht leer sein."))
+        ServiceLocator.ensureInitialized(ctx)
+        if (ServiceLocator.getAuthToken().isNullOrBlank()) {
+            return Result.failure(IllegalStateException("Nicht angemeldet."))
+        }
+        return try {
+            val res = ServiceLocator.getOrganizerApi().replyToPhoneConciergeCall(
+                id = callId,
+                body = PhoneCallReplyBody(message = clean, send_email = sendEmail)
+            )
+            if (res.success) {
+                fetchRecentCalls(ctx)
+                Result.success(res.message ?: "Antwort gespeichert.")
+            } else {
+                Result.failure(IllegalStateException(res.message ?: "Antwort fehlgeschlagen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resolveCall(
+        ctx: Context,
+        callId: String,
+        closeSupportRecord: Boolean = true
+    ): Result<String> {
+        ServiceLocator.ensureInitialized(ctx)
+        if (ServiceLocator.getAuthToken().isNullOrBlank()) {
+            return Result.failure(IllegalStateException("Nicht angemeldet."))
+        }
+        return try {
+            val res = ServiceLocator.getOrganizerApi().resolvePhoneConciergeCall(
+                id = callId,
+                body = PhoneCallResolveBody(close_support_record = closeSupportRecord)
+            )
+            if (res.success) {
+                fetchRecentCalls(ctx)
+                Result.success(res.message ?: "Anliegen als erledigt markiert.")
+            } else {
+                Result.failure(IllegalStateException(res.message ?: "Konnte nicht als erledigt markiert werden."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun toggleContactWhitelist(ctx: Context, contactId: String, whitelisted: Boolean): List<CachedWhitelistContact> {
@@ -1207,13 +1326,19 @@ object PhoneConciergeManager {
     }
 
     private fun saveLocalCallFromNote(ctx: Context, note: PendingPhoneSecretaryNote) {
-        val displayLabel = if (note.greetingName.isNotBlank() && !note.greetingName.equals(note.callerName, ignoreCase = true)) {
+        if (note.isSpam) {
+            return
+        }
+        val isCustomerMode = note.callMode == CALL_MODE_CUSTOMER_SERVICE
+        val displayLabel = if (isCustomerMode) {
+            note.callerName.ifBlank { note.callerPhone?.takeIf { it.isNotBlank() }?.let { "Kundenanruf ($it)" } ?: "Telefon-Kunde" }
+        } else if (note.greetingName.isNotBlank() && !note.greetingName.equals(note.callerName, ignoreCase = true)) {
             "${note.greetingName} (${note.callerName})"
         } else {
             note.callerName
         }
         val defaultAction = if (note.callbackRequested) {
-            "${note.greetingName.ifBlank { note.callerName }} zurückrufen."
+            if (isCustomerMode) "Kundenanliegen prüfen und zeitnah zurückrufen." else "${note.greetingName.ifBlank { note.callerName }} zurückrufen."
         } else {
             "Zur Kenntnis nehmen."
         }
@@ -1221,6 +1346,8 @@ object PhoneConciergeManager {
             id = note.callId,
             client_call_id = note.callId,
             caller_name = displayLabel,
+            caller_phone = note.callerPhone,
+            status = "completed",
             created_at_label = formatLocalCallTimeLabel(note.createdAtIso),
             duration_seconds = note.durationSeconds,
             summary = CallNoteVerificationEngine.sanitizeCleanText(note.summary),
@@ -1229,8 +1356,13 @@ object PhoneConciergeManager {
             urgency = normalizeUrgency(note.urgency),
             callback_requested = note.callbackRequested,
             transcript = note.transcript,
-            handled_by = "android_secretary",
-            verification = note.verification
+            handled_by = if (isCustomerMode) "android_customer_service" else "android_secretary",
+            call_mode = note.callMode,
+            verification = note.verification,
+            category = note.category,
+            caller_email = note.callerEmail,
+            order_number = note.orderNumber,
+            suggested_reply = note.suggestedReply
         )
         synchronized(pendingLock) {
             val locals = loadLocalCallsUnsafe(ctx)
@@ -1317,16 +1449,24 @@ object PhoneConciergeManager {
             .filter { it.isNotBlank() }
             .take(120)
         val serverSummaryFallback = buildEnrichedServerSummary(note)
+        val isCustomerMode = note.callMode == CALL_MODE_CUSTOMER_SERVICE
         try {
             val res = ServiceLocator.getOrganizerApi().completePhoneConciergeCall(
                 PhoneConciergeCompleteBody(
                     call_id = note.callId,
+                    call_mode = note.callMode,
                     is_simulation = false,
-                    contact_id = cleanContactId,
+                    contact_id = if (isCustomerMode) null else cleanContactId,
                     caller_name = note.callerName,
                     greeting_name = note.greetingName.ifBlank { note.callerName },
                     caller_phone = note.callerPhone,
-                    handled_by = "android_secretary",
+                    caller_email = note.callerEmail?.takeIf { it.contains("@") }?.take(180),
+                    order_number = note.orderNumber?.takeIf { it.isNotBlank() }?.take(40),
+                    category = note.category?.takeIf { it.isNotBlank() },
+                    ticket_subject = note.ticketSubject?.takeIf { it.isNotBlank() }?.take(180),
+                    suggested_reply = note.suggestedReply?.takeIf { it.isNotBlank() }?.take(1500),
+                    is_spam = note.isSpam,
+                    handled_by = if (isCustomerMode) "android_customer_service" else "android_secretary",
                     summary = cleanSummary,
                     rahmenbedingungen = cleanRahmen,
                     action_required = cleanAction,

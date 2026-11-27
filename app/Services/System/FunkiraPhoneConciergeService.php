@@ -24,6 +24,7 @@ use App\Models\System\SystemSetting;
 use App\Services\AI\FunkiraPresenceContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -184,7 +185,7 @@ class FunkiraPhoneConciergeService
             'gateway_phone' => (string) config('services.twilio.phone_number', '+4953717269023'),
             'whitelist_count' => count($whitelist),
             'whitelist_contacts' => $whitelist,
-            'recent_calls' => self::getRecentSecretaryCalls(10),
+            'recent_calls' => self::getRecentSecretaryCalls(15),
         ];
     }
 
@@ -246,6 +247,43 @@ class FunkiraPhoneConciergeService
 
             if ($suffixCandidate !== null && Customer::where('id', $suffixCandidate)->exists()) {
                 return ['customer_id' => $suffixCandidate, 'source' => 'customer_profile_suffix'];
+            }
+
+            if (Schema::hasTable('order_orders')) {
+                $orders = OrderOrder::query()
+                    ->whereNotNull('customer_id')
+                    ->orderByDesc('created_at')
+                    ->select(['customer_id', 'billing_address', 'shipping_address'])
+                    ->limit(300)
+                    ->get();
+
+                $orderSuffixCandidate = null;
+                foreach ($orders as $order) {
+                    $cid = (string) ($order->customer_id ?? '');
+                    if ($cid === '' || !Str::isUuid($cid)) {
+                        continue;
+                    }
+                    $phones = [];
+                    if (is_array($order->billing_address) && !empty($order->billing_address['phone'])) {
+                        $phones[] = (string) $order->billing_address['phone'];
+                    }
+                    if (is_array($order->shipping_address) && !empty($order->shipping_address['phone'])) {
+                        $phones[] = (string) $order->shipping_address['phone'];
+                    }
+                    foreach ($phones as $ordPhone) {
+                        $oNorm = self::normalizePhoneDigits($ordPhone);
+                        $oSuffix = self::extractMatchSuffix($ordPhone);
+                        if ($oNorm !== '' && $oNorm === $incomingNorm && Customer::where('id', $cid)->exists()) {
+                            return ['customer_id' => $cid, 'source' => 'order_address'];
+                        }
+                        if ($orderSuffixCandidate === null && strlen($oSuffix) >= 8 && $oSuffix === $incomingSuffix) {
+                            $orderSuffixCandidate = $cid;
+                        }
+                    }
+                }
+                if ($orderSuffixCandidate !== null && Customer::where('id', $orderSuffixCandidate)->exists()) {
+                    return ['customer_id' => $orderSuffixCandidate, 'source' => 'order_address_suffix'];
+                }
             }
         } catch (\Throwable $e) {
             // Niemals einen eingehenden Anruf durch einen Lookup-Fehler blockieren
@@ -365,6 +403,8 @@ class FunkiraPhoneConciergeService
                     'id' => (string) $call->id,
                     'client_call_id' => !empty($meta['client_call_id']) ? (string) $meta['client_call_id'] : null,
                     'caller_name' => (string) ($call->contact_name ?: 'Kontakt'),
+                    'caller_phone' => (string) ($call->phone ?: ''),
+                    'status' => (string) ($call->status ?: 'completed'),
                     'created_at_label' => $createdLabel,
                     'duration_seconds' => (int) ($call->duration_seconds ?? 0),
                     'summary' => $summary !== '' ? $summary : 'Telefonat mit Funkira geführt.',
@@ -385,6 +425,10 @@ class FunkiraPhoneConciergeService
                     'category' => !empty($meta['category']) ? (string) $meta['category'] : null,
                     'caller_email' => !empty($meta['caller_email']) ? (string) $meta['caller_email'] : null,
                     'order_number' => !empty($meta['order_number']) ? (string) $meta['order_number'] : null,
+                    'suggested_reply' => !empty($meta['suggested_reply']) ? (string) $meta['suggested_reply'] : null,
+                    'last_reply' => !empty($meta['last_reply']) ? (string) $meta['last_reply'] : null,
+                    'last_reply_at' => !empty($meta['last_reply_at']) ? (string) $meta['last_reply_at'] : null,
+                    'resolved' => (bool) ($meta['resolved'] ?? false),
                 ];
             })->values()->all();
         } catch (\Throwable $e) {
@@ -698,8 +742,13 @@ class FunkiraPhoneConciergeService
         $rawOrderNo = trim((string) ($data['order_number'] ?? ''));
         $orderNumber = ($rawOrderNo !== '' && preg_match('/^[A-Za-z0-9\-_]{3,40}$/', $rawOrderNo)) ? $rawOrderNo : '';
         $rawCategory = strtolower(trim((string) ($data['category'] ?? 'support')));
-        $category = in_array($rawCategory, ['support', 'return', 'order', 'product', 'general'], true) ? $rawCategory : 'support';
+        $category = in_array($rawCategory, ['support', 'return', 'order', 'product', 'general', 'spam'], true) ? $rawCategory : 'support';
+        $isSpam = $isCustomerService && ((bool) ($data['is_spam'] ?? false) || $category === 'spam');
+        if ($category === 'spam') {
+            $category = 'general';
+        }
         $ticketSubject = self::sanitizeCleanText((string) ($data['ticket_subject'] ?? ''), 180);
+        $suggestedReply = $isSpam ? '' : self::sanitizeCleanText((string) ($data['suggested_reply'] ?? ''), 1500);
 
         $customerId = !empty($data['customer_id']) && Str::isUuid((string) $data['customer_id'])
             ? (string) $data['customer_id']
@@ -710,16 +759,26 @@ class FunkiraPhoneConciergeService
                 $customerId = (string) $matchedCustomerId;
             }
         }
+        if ($isCustomerService && $customerId === null && $callerPhone !== '') {
+            $phoneLookup = self::matchCustomerContextByPhone($callerPhone);
+            if (!empty($phoneLookup['customer_id'])) {
+                $customerId = (string) $phoneLookup['customer_id'];
+            }
+        }
 
         if ($summary === '') {
-            $summary = $isCustomerService
-                ? 'Kunde hat angerufen und um Bearbeitung seines Anliegens gebeten.'
-                : 'Hat angerufen und bittet bei Gelegenheit um kurzen Rückruf.';
+            $summary = $isSpam
+                ? 'Unerwünschter Werbe- oder Robocall automatisch herausgefiltert.'
+                : ($isCustomerService
+                    ? 'Kunde hat angerufen und um Bearbeitung seines Anliegens gebeten.'
+                    : 'Hat angerufen und bittet bei Gelegenheit um kurzen Rückruf.');
         }
         if ($actionRequired === '') {
-            $actionRequired = $callbackRequested
-                ? ($isCustomerService ? 'Kundenanliegen prüfen und zeitnah zurückrufen.' : "{$greetingName} zurückrufen.")
-                : 'Zur Kenntnis nehmen.';
+            $actionRequired = $isSpam
+                ? 'Keine Aktion nötig (Spam gefiltert).'
+                : ($callbackRequested
+                    ? ($isCustomerService ? 'Kundenanliegen prüfen und zeitnah zurückrufen.' : "{$greetingName} zurückrufen.")
+                    : 'Zur Kenntnis nehmen.');
         }
 
         $sourceLabel = match ($effectiveHandledBy) {
@@ -768,7 +827,9 @@ class FunkiraPhoneConciergeService
             $verification,
             $category,
             $callerEmail,
-            $orderNumber
+            $orderNumber,
+            $suggestedReply,
+            $isSpam
         ): ?int {
             if ($isSimulation) {
                 return null;
@@ -793,6 +854,7 @@ class FunkiraPhoneConciergeService
                 $existingMeta['call_mode'] = $effectiveCallMode;
                 $existingMeta['handled_by'] = $effectiveHandledBy;
                 $existingMeta['is_fallback_stub'] = $fallbackFlag;
+                $existingMeta['is_spam'] = $isSpam;
                 $existingMeta['client_call_id'] = $callId;
                 if ($linkedTaskId !== null) {
                     $existingMeta['task_id'] = $linkedTaskId;
@@ -816,6 +878,12 @@ class FunkiraPhoneConciergeService
                     if ($orderNumber !== '') {
                         $existingMeta['order_number'] = $orderNumber;
                     }
+                    if ($suggestedReply !== '') {
+                        $existingMeta['suggested_reply'] = $suggestedReply;
+                    }
+                }
+                if ($isSpam) {
+                    $record->status = 'spam_filtered';
                 }
                 $record->next_steps = json_encode($existingMeta, JSON_UNESCAPED_UNICODE);
                 $record->save();
@@ -839,7 +907,7 @@ class FunkiraPhoneConciergeService
             $record->objective = $isCustomerService
                 ? "Funkira Kundenservice: Eingehender Kundenanruf ({$displayLabel})"
                 : "Funkira Telefon-Sekretärin: Eingehender Anruf von {$displayLabel}";
-            $record->status = 'completed';
+            $record->status = $isSpam ? 'spam_filtered' : 'completed';
             $record->duration_seconds = $durationSeconds > 0 ? $durationSeconds : ($record->duration_seconds ?? 0);
             $record->summary = $summary;
             if (!empty($transcriptLines)) {
@@ -853,6 +921,7 @@ class FunkiraPhoneConciergeService
                 'handled_by' => $effectiveHandledBy,
                 'client_call_id' => $callId,
                 'is_fallback_stub' => $fallbackFlag,
+                'is_spam' => $isSpam,
                 'rahmenbedingungen' => $rahmenbedingungen,
                 'action_required' => $actionRequired,
                 'urgency' => $urgency,
@@ -868,6 +937,8 @@ class FunkiraPhoneConciergeService
                 'category' => $isCustomerService ? $category : ($existingMeta['category'] ?? null),
                 'caller_email' => $callerEmail !== '' ? $callerEmail : ($existingMeta['caller_email'] ?? null),
                 'order_number' => $orderNumber !== '' ? $orderNumber : ($existingMeta['order_number'] ?? null),
+                'suggested_reply' => $suggestedReply !== '' ? $suggestedReply : ($existingMeta['suggested_reply'] ?? null),
+                'resolved' => (bool) ($existingMeta['resolved'] ?? false),
             ], JSON_UNESCAPED_UNICODE);
             $record->save();
 
@@ -1026,6 +1097,9 @@ class FunkiraPhoneConciergeService
                 $existingCompleted['action_required'] = $actionRequired;
                 $existingCompleted['urgency'] = $urgency;
                 $existingCompleted['callback_requested'] = $callbackRequested;
+                if ($suggestedReply !== '') {
+                    $existingCompleted['suggested_reply'] = $suggestedReply;
+                }
                 $existingCompleted['is_fallback_stub'] = false;
                 RedisResilienceService::safeCachePut($dedupKey, $existingCompleted, now()->addMinutes(30));
                 RedisResilienceService::safeCachePut(self::CACHE_LAST_SUMMARY, $existingCompleted, now()->addMinutes(30));
@@ -1041,6 +1115,43 @@ class FunkiraPhoneConciergeService
             $active['summary'] = $summary;
             $active['updated_at'] = now()->toIso8601String();
             RedisResilienceService::safeCachePut(self::CACHE_ACTIVE_CALL, $active, now()->addSeconds(30));
+        }
+
+        // 1b. Stiller Spam-/Werbeanruf-Filter: Archiviert nur im Telefon-Log ohne Ticket, To-Do oder Push!
+        if ($isSpam) {
+            $spamDbCallId = $persistAppCallRecord($isFallbackStub, null, null, null, null);
+            $spamPayload = [
+                'call_id' => $callId,
+                'db_call_id' => $spamDbCallId,
+                'is_simulation' => $isSimulation,
+                'is_fallback_stub' => $isFallbackStub,
+                'is_spam' => true,
+                'call_mode' => $effectiveCallMode,
+                'caller_name' => $displayLabel,
+                'summary' => $summary,
+                'rahmenbedingungen' => $rahmenbedingungen,
+                'action_required' => $actionRequired,
+                'urgency' => 'niedrig',
+                'callback_requested' => false,
+                'handled_by' => $effectiveHandledBy,
+                'task_id' => null,
+                'ticket_id' => null,
+                'ticket_number' => null,
+                'support_ticket_type' => null,
+                'support_ticket_id' => null,
+                'support_ticket_number' => null,
+                'category' => 'spam',
+                'caller_email' => null,
+                'order_number' => null,
+                'suggested_reply' => null,
+                'completed_at' => now()->toIso8601String(),
+            ];
+            RedisResilienceService::safeCachePut($dedupKey, $spamPayload, now()->addMinutes(30));
+            if (!$isSimulation) {
+                RealtimeBroadcastService::dispatch(new SupportTelephonyUpdated(), 'FunkiraPhoneConciergeService::completeCallSpam');
+            }
+
+            return $spamPayload;
         }
 
         // 2. Bei Kundenservice-Anruf zuerst strukturiertes Shop-Support-Ticket / Kontaktanfrage anlegen
@@ -1192,6 +1303,8 @@ class FunkiraPhoneConciergeService
             'category' => $isCustomerService ? $category : null,
             'caller_email' => $callerEmail !== '' ? $callerEmail : null,
             'order_number' => $orderNumber !== '' ? $orderNumber : null,
+            'suggested_reply' => $suggestedReply !== '' ? $suggestedReply : null,
+            'is_spam' => false,
             'completed_at' => now()->toIso8601String(),
         ];
 
@@ -1729,5 +1842,247 @@ class FunkiraPhoneConciergeService
         }
 
         return null;
+    }
+
+    /**
+     * Findet ein SupportTelephonyCall-Protokoll anhand der DB-ID, `twilio_<id>`, `app_<uuid>` oder `client_call_id`.
+     */
+    public static function findCallRecordByIdentifier(string $identifier): ?SupportTelephonyCall
+    {
+        $clean = trim($identifier);
+        if ($clean === '' || !Schema::hasTable('support_telephony_calls')) {
+            return null;
+        }
+
+        if (ctype_digit($clean)) {
+            $byId = SupportTelephonyCall::find((int) $clean);
+            if ($byId) {
+                return $byId;
+            }
+        }
+
+        if (str_starts_with($clean, 'twilio_') && ctype_digit(substr($clean, 7))) {
+            $byTwilioId = SupportTelephonyCall::find((int) substr($clean, 7));
+            if ($byTwilioId) {
+                return $byTwilioId;
+            }
+        }
+
+        $appSid = str_starts_with($clean, 'app_') ? $clean : ('app_' . Str::limit($clean, 100, ''));
+        $bySid = SupportTelephonyCall::where('twilio_sid', $appSid)
+            ->orWhere('twilio_sid', $clean)
+            ->first();
+        if ($bySid) {
+            return $bySid;
+        }
+
+        $recent = SupportTelephonyCall::orderByDesc('id')->limit(100)->get();
+        foreach ($recent as $row) {
+            $meta = is_string($row->next_steps)
+                ? (json_decode($row->next_steps, true) ?: [])
+                : (is_array($row->next_steps) ? $row->next_steps : []);
+            if (($meta['client_call_id'] ?? null) === $clean) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Sendet eine Antwort von Alina auf ein telefonisches Kundenanliegen direkt in das verknüpfte
+     * Support-Ticket bzw. die Kontaktanfrage (optional inkl. E-Mail-Versand) und protokolliert im Universum-Ticket.
+     *
+     * @return array<string, mixed>
+     */
+    public static function replyToCall(string $identifier, string $replyText, bool $sendEmail = false): array
+    {
+        $cleanReply = self::sanitizeCleanText($replyText, 3000);
+        if ($cleanReply === '') {
+            return ['success' => false, 'message' => 'Antworttext darf nicht leer sein.'];
+        }
+
+        $call = self::findCallRecordByIdentifier($identifier);
+        if (!$call) {
+            return ['success' => false, 'message' => 'Anrufprotokoll nicht gefunden.'];
+        }
+
+        $meta = is_string($call->next_steps)
+            ? (json_decode($call->next_steps, true) ?: [])
+            : (is_array($call->next_steps) ? $call->next_steps : []);
+
+        $supportType = (string) ($meta['support_ticket_type'] ?? '');
+        $supportId = (string) ($meta['support_ticket_id'] ?? '');
+        $universeTicketId = (string) ($meta['ticket_id'] ?? '');
+        $deliveredChannels = [];
+        $emailDispatched = false;
+
+        if ($supportType === 'support_ticket' && Str::isUuid($supportId) && Schema::hasTable('support_tickets')) {
+            $ticket = SupportTicket::find($supportId);
+            if ($ticket) {
+                $msg = SupportTicketMessage::create([
+                    'support_ticket_id' => $ticket->id,
+                    'sender_type' => 'admin',
+                    'message' => $cleanReply,
+                    'is_read_by_customer' => false,
+                    'is_read_by_admin' => true,
+                ]);
+                RealtimeBroadcastService::dispatch(
+                    new TicketMessageSent($msg, $ticket->id, $ticket->customer_id),
+                    'FunkiraPhoneConciergeService::replyToCall'
+                );
+                $deliveredChannels[] = 'support_ticket';
+
+                if ($sendEmail) {
+                    $recipient = trim((string) ($ticket->customer?->email ?? ($meta['caller_email'] ?? '')));
+                    if ($recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL) && !str_ends_with(strtolower($recipient), 'telefon-eingang@mein-seelenfunke.de')) {
+                        try {
+                            Mail::raw($cleanReply, function ($m) use ($recipient, $ticket) {
+                                $m->to($recipient)->subject('Re: ' . ($ticket->subject ?: ('Ihr Anliegen ' . $ticket->ticket_number)));
+                            });
+                            $emailDispatched = true;
+                            $deliveredChannels[] = 'email';
+                        } catch (\Throwable) {
+                            // E-Mail ist Best-Effort und blockiert niemals die Ticket-Antwort
+                        }
+                    }
+                }
+            }
+        } elseif ($supportType === 'contact_request' && Str::isUuid($supportId) && Schema::hasTable('support_contact_requests')) {
+            $req = SupportContactRequest::find($supportId);
+            if ($req) {
+                SupportContactRequestMessage::create([
+                    'support_contact_request_id' => $req->id,
+                    'sender_type' => 'admin',
+                    'message' => $cleanReply,
+                    'is_read_by_customer' => false,
+                    'is_read_by_admin' => true,
+                ]);
+                if ($req->status === 'new') {
+                    $req->status = 'in_progress';
+                    $req->save();
+                }
+                $deliveredChannels[] = 'contact_request';
+
+                if ($sendEmail) {
+                    $recipient = trim((string) ($req->email ?: ($meta['caller_email'] ?? '')));
+                    if ($recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL) && !str_ends_with(strtolower($recipient), 'telefon-eingang@mein-seelenfunke.de')) {
+                        try {
+                            Mail::raw($cleanReply, function ($m) use ($recipient, $req) {
+                                $m->to($recipient)->subject('Re: ' . ($req->subject ?: ('Ihr Anliegen ' . $req->ticket_number)));
+                            });
+                            $emailDispatched = true;
+                            $deliveredChannels[] = 'email';
+                        } catch (\Throwable) {
+                            // Best-Effort
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($universeTicketId !== '' && Str::isUuid($universeTicketId) && Schema::hasTable('ai_universe_ticket_messages')) {
+            $uTicket = AiUniverseTicket::find($universeTicketId);
+            if ($uTicket) {
+                AiUniverseTicketMessage::create([
+                    'ticket_id' => $uTicket->id,
+                    'sender_role' => 'admin',
+                    'sender_name' => 'Alina Steinhauer',
+                    'channel' => 'phone_reply',
+                    'content' => "**Antwort auf Telefonanliegen:**\n" . $cleanReply,
+                ]);
+                $uTicket->increment('messages_count');
+                $uTicket->update(['last_activity_at' => now()]);
+                $deliveredChannels[] = 'universe_ticket';
+            }
+        }
+
+        $meta['last_reply'] = $cleanReply;
+        $meta['last_reply_at'] = now()->toIso8601String();
+        $call->next_steps = json_encode($meta, JSON_UNESCAPED_UNICODE);
+        $call->save();
+
+        RealtimeBroadcastService::dispatch(new SupportTelephonyUpdated(), 'FunkiraPhoneConciergeService::replyToCall');
+
+        return [
+            'success' => true,
+            'call_id' => (string) $call->id,
+            'delivered_channels' => $deliveredChannels,
+            'email_dispatched' => $emailDispatched,
+            'last_reply' => $cleanReply,
+            'last_reply_at' => $meta['last_reply_at'],
+        ];
+    }
+
+    /**
+     * Markiert ein Telefonprotokoll samt verknüpfter Dashboard-Aufgabe, Universum-Ticket
+     * und (optional) Support-Ticket / Kontaktanfrage synchron als erledigt.
+     *
+     * @return array<string, mixed>
+     */
+    public static function resolveCall(string $identifier, bool $closeSupportRecord = true): array
+    {
+        $call = self::findCallRecordByIdentifier($identifier);
+        if (!$call) {
+            return ['success' => false, 'message' => 'Anrufprotokoll nicht gefunden.'];
+        }
+
+        $meta = is_string($call->next_steps)
+            ? (json_decode($call->next_steps, true) ?: [])
+            : (is_array($call->next_steps) ? $call->next_steps : []);
+
+        $meta['resolved'] = true;
+        $meta['resolved_at'] = now()->toIso8601String();
+        $call->next_steps = json_encode($meta, JSON_UNESCAPED_UNICODE);
+        $call->save();
+
+        $taskId = (string) ($meta['task_id'] ?? '');
+        if ($taskId !== '' && Schema::hasTable('management_tasks')) {
+            $task = ManagementTask::find($taskId);
+            if ($task) {
+                $task->is_completed = true;
+                $task->save();
+                ManagementTask::where('parent_id', $task->id)->update(['is_completed' => true]);
+            }
+        }
+
+        $universeTicketId = (string) ($meta['ticket_id'] ?? '');
+        if ($universeTicketId !== '' && Str::isUuid($universeTicketId) && Schema::hasTable('ai_universe_tickets')) {
+            $uTicket = AiUniverseTicket::find($universeTicketId);
+            if ($uTicket && $uTicket->status !== AiUniverseTicket::STATUS_COMPLETED) {
+                $uTicket->status = AiUniverseTicket::STATUS_COMPLETED;
+                $uTicket->completed_at = now();
+                $uTicket->last_activity_at = now();
+                $uTicket->save();
+            }
+        }
+
+        if ($closeSupportRecord) {
+            $supportType = (string) ($meta['support_ticket_type'] ?? '');
+            $supportId = (string) ($meta['support_ticket_id'] ?? '');
+            if ($supportType === 'support_ticket' && Str::isUuid($supportId) && Schema::hasTable('support_tickets')) {
+                $ticket = SupportTicket::find($supportId);
+                if ($ticket && $ticket->status !== 'closed') {
+                    $ticket->status = 'closed';
+                    $ticket->close_reason = 'Telefonisch / per App durch Alina erledigt';
+                    $ticket->save();
+                }
+            } elseif ($supportType === 'contact_request' && Str::isUuid($supportId) && Schema::hasTable('support_contact_requests')) {
+                $req = SupportContactRequest::find($supportId);
+                if ($req && $req->status !== 'resolved') {
+                    $req->status = 'resolved';
+                    $req->save();
+                }
+            }
+        }
+
+        RealtimeBroadcastService::dispatch(new SupportTelephonyUpdated(), 'FunkiraPhoneConciergeService::resolveCall');
+
+        return [
+            'success' => true,
+            'call_id' => (string) $call->id,
+            'resolved' => true,
+            'resolved_at' => $meta['resolved_at'],
+        ];
     }
 }

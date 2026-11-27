@@ -557,5 +557,187 @@ class TwilioWhitelistSecretaryTest extends TestCase
         $this->assertStringNotContainsString("\x00", $prompt);
         $this->assertStringNotContainsString(' – ', $prompt);
         $this->assertStringContainsString('Mein-Seelenfunke Kundenservice', $kickoff);
+        $this->assertStringContainsString('KI-Assistentin', $prompt);
+    }
+
+    public function test_customer_service_spam_call_is_filtered_silently_without_tickets_tasks_or_recent_calls(): void
+    {
+        FunkiraPhoneConciergeService::updateConfig(true, 0, true);
+        $reqCountBefore = SupportContactRequest::count();
+        $taskCountBefore = ManagementTask::count();
+
+        $inbound = $this->post('/api/twilio/inbound', [
+            'AccountSid' => 'AC_TEST_SEELENFUNKE_SID_1234567890',
+            'CallSid' => 'CA77772222333344445555666677778888',
+            'From' => '+493099988877',
+            'To' => '+4953717269023',
+        ]);
+        $inbound->assertStatus(200);
+        preg_match('#name="planned_call_id" value="(\d+:[a-f0-9]{64})"#', (string) $inbound->getContent(), $tokenMatch);
+        $this->assertNotEmpty($tokenMatch[1] ?? '');
+
+        Config::set('services.gemini.key', 'test-gemini-key');
+        Config::set('services.gemini.allow_in_tests', true);
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => [
+                        'parts' => [[
+                            'text' => json_encode([
+                                'caller_name' => 'Kaltakquise Agentur',
+                                'caller_email' => '',
+                                'order_number' => '',
+                                'category' => 'spam',
+                                'ticket_subject' => 'Werbeanruf',
+                                'summary' => 'Unerwünschte Stromtarif-Kaltakquise.',
+                                'rahmenbedingungen' => [],
+                                'action_required' => 'Keine Aktion nötig.',
+                                'urgency' => 'niedrig',
+                                'callback_requested' => false,
+                                'is_spam' => true,
+                                'suggested_reply' => '',
+                            ], JSON_UNESCAPED_UNICODE),
+                        ]],
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $this->postJson('/api/twilio/call-log', [
+            'planned_call_id' => $tokenMatch[1],
+            'twilio_sid' => 'CA77772222333344445555666677778888',
+            'duration_seconds' => 11,
+            'transcript' => [
+                'Anrufer: Hallo, wir verkaufen günstige Stromtarife für Unternehmen!',
+                'Funkira: Vielen Dank, wir haben kein Interesse. Auf Wiederhören!',
+            ],
+        ])->assertStatus(200);
+
+        $callId = (int) explode(':', $tokenMatch[1])[0];
+        $call = SupportTelephonyCall::findOrFail($callId);
+        $this->assertSame('spam_filtered', $call->status);
+        $this->assertSame($reqCountBefore, SupportContactRequest::count());
+        $this->assertSame($taskCountBefore, ManagementTask::count());
+
+        $recentIds = collect(FunkiraPhoneConciergeService::getConfigPayload()['recent_calls'])->pluck('id')->all();
+        $this->assertNotContains((string) $callId, $recentIds);
+    }
+
+    public function test_customer_service_live_tools_enforce_two_factor_order_gate_and_return_public_guidance(): void
+    {
+        $declsCustomer = TwilioGeminiLiveBridgeService::buildFunctionDeclarationsForMode('inbound_customer_service');
+        $declNames = array_column($declsCustomer, 'name');
+        $this->assertContains('end_call', $declNames);
+        $this->assertContains('lookup_shop_guidance', $declNames);
+        $this->assertContains('verify_customer_order', $declNames);
+
+        $declsSecretary = TwilioGeminiLiveBridgeService::buildFunctionDeclarationsForMode('inbound_secretary');
+        $this->assertSame(['end_call'], array_column($declsSecretary, 'name'));
+
+        $guidance = TwilioGeminiLiveBridgeService::executeCustomerServiceTool('lookup_shop_guidance', ['topic' => 'engraving']);
+        $this->assertTrue((bool) ($guidance['success'] ?? false));
+        $this->assertStringContainsString('UV-Laser', (string) ($guidance['guidance'] ?? ''));
+
+        $customer = Customer::factory()->create(['email' => 'anna.verify@example.com']);
+        OrderOrder::create([
+            'order_number' => 'ORD-2FA-2026',
+            'customer_id' => $customer->id,
+            'email' => 'anna.verify@example.com',
+            'status' => 'processing',
+            'payment_status' => 'paid',
+            'billing_address' => ['postal_code' => '38518', 'street' => 'Geheime Straße 99'],
+            'shipping_address' => ['postal_code' => '38518'],
+            'subtotal_price' => 4500,
+            'tax_amount' => 855,
+            'shipping_price' => 490,
+            'total_price' => 5845,
+        ]);
+
+        // Falsche PLZ -> strikt geblockt
+        $wrongZip = TwilioGeminiLiveBridgeService::executeCustomerServiceTool('verify_customer_order', [
+            'order_number' => 'ORD-2FA-2026',
+            'verification_value' => '10115',
+        ]);
+        $this->assertFalse((bool) ($wrongZip['verified'] ?? true));
+
+        // Korrekte PLZ -> Status ohne PII (keine Straße, kein Preis)
+        $okZip = TwilioGeminiLiveBridgeService::executeCustomerServiceTool('verify_customer_order', [
+            'order_number' => 'ORD-2FA-2026',
+            'verification_value' => '38518',
+        ]);
+        $this->assertTrue((bool) ($okZip['verified'] ?? false));
+        $this->assertStringContainsString('Bearbeitung', (string) ($okZip['status_summary'] ?? ''));
+        $encoded = json_encode($okZip);
+        $this->assertStringNotContainsString('Geheime Straße', (string) $encoded);
+        $this->assertStringNotContainsString('5845', (string) $encoded);
+    }
+
+    public function test_customer_service_reply_and_resolve_endpoints_sync_support_records_tasks_and_universe_tickets(): void
+    {
+        $admin = \App\Models\Admin\Admin::factory()->create();
+        $token = $admin->createToken('AndroidApp', ['*'])->plainTextToken;
+
+        $completed = FunkiraPhoneConciergeService::completeCall([
+            'call_id' => 'app-customer-sync-test-1',
+            'call_mode' => 'inbound_customer_service',
+            'caller_name' => 'Tobias Richter',
+            'caller_phone' => '+4917644556677',
+            'caller_email' => 'tobias.richter@example.com',
+            'order_number' => 'ORD-SYNC-12',
+            'category' => 'product',
+            'ticket_subject' => 'Gravurfrage Weinglas',
+            'suggested_reply' => 'Guten Tag Herr Richter, sehr gerne gravieren wir Ihr Wunschmotiv auf das Weinglas.',
+            'handled_by' => 'android_customer_service',
+            'summary' => 'Tobias Richter möchte zwei Weingläser zur Hochzeit gravieren lassen.',
+            'rahmenbedingungen' => ['2 Weingläser', 'Hochzeit im Dezember'],
+            'action_required' => 'Tobias Richter per E-Mail antworten.',
+            'urgency' => 'hoch',
+            'callback_requested' => true,
+            'duration_seconds' => 52,
+        ]);
+
+        $dbCallId = (int) ($completed['db_call_id'] ?? 0);
+        $this->assertGreaterThan(0, $dbCallId);
+        $this->assertSame('Guten Tag Herr Richter, sehr gerne gravieren wir Ihr Wunschmotiv auf das Weinglas.', $completed['suggested_reply']);
+
+        // 1. Reply endpoint persists message into SupportContactRequest & Universe Ticket
+        $replyRes = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->postJson("/api/system/phone-concierge/calls/{$dbCallId}/reply", [
+                'message' => 'Guten Tag Herr Richter, wir übernehmen die Gravur sehr gerne für Sie!',
+                'send_email' => false,
+            ]);
+
+        $replyRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.last_reply', 'Guten Tag Herr Richter, wir übernehmen die Gravur sehr gerne für Sie!');
+
+        $req = SupportContactRequest::find($completed['support_ticket_id']);
+        $this->assertNotNull($req);
+        $this->assertSame('in_progress', $req->status);
+        $this->assertTrue($req->messages()->where('sender_type', 'admin')->exists());
+
+        // 2. Resolve endpoint marks Call, ManagementTask, UniverseTicket & SupportContactRequest resolved
+        $resolveRes = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->postJson("/api/system/phone-concierge/calls/{$dbCallId}/resolve", [
+                'close_support_record' => true,
+            ]);
+
+        $resolveRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.resolved', true);
+
+        $req->refresh();
+        $this->assertSame('resolved', $req->status);
+
+        $task = ManagementTask::find($completed['task_id']);
+        $this->assertNotNull($task);
+        $this->assertTrue((bool) $task->is_completed);
+
+        $recent = collect(FunkiraPhoneConciergeService::getConfigPayload()['recent_calls'])
+            ->firstWhere('id', (string) $dbCallId);
+        $this->assertNotNull($recent);
+        $this->assertTrue((bool) ($recent['resolved'] ?? false));
+        $this->assertSame('+4917644556677', $recent['caller_phone'] ?? '');
     }
 }

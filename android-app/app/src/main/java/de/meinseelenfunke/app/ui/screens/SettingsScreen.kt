@@ -132,6 +132,7 @@ fun SettingsScreen(
     var showKdriveInfoDialog by remember { mutableStateOf(false) }
 
     val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
+    val phoneCustomerServiceEnabled by viewModel.phoneCustomerServiceEnabled.collectAsState()
     val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
     val phoneAnswerMode by viewModel.phoneAnswerMode.collectAsState()
     val carrierForwardingConfirmed by viewModel.carrierForwardingConfirmed.collectAsState()
@@ -279,7 +280,7 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Funkira übernimmt Anrufe deiner freigegebenen Kontakte sofort oder nach deiner gewählten Klingelzeit, klärt aktiv alle Rahmenbedingungen und prüft jede Notiz per KI-Abgleich (Verstandenes gegen Gesagtes). Unbekannte Nummern klingeln normal durch.",
+                        text = "Funkira übernimmt Anrufe deiner Whitelist-Kontakte vertraut als persönliche Sekretärin und bei aktivem 'Vollständiger Kundenservice' zusätzlich sämtliche Kunden- und Geschäftsanrufe (inkl. automatischem Support-Ticket, Spam-Filter und App-Protokoll). Alle Anrufer ohne Whitelist werden dabei einheitlich im Kundenservice-Modus betreut.",
                         fontSize = 13.sp,
                         color = AppTheme.colors.textPrimary
                     )
@@ -1360,6 +1361,30 @@ fun SettingsScreen(
                             onCheckedChange = {
                                 viewModel.setPhoneConciergeEnabled(it)
                                 if (it) ensurePhoneAssistantAccess()
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Gold,
+                                checkedTrackColor = Gold.copy(alpha = 0.45f)
+                            )
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Vollständiger Kundenservice",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppTheme.colors.textPrimary
+                        )
+                        Switch(
+                            checked = phoneCustomerServiceEnabled,
+                            onCheckedChange = {
+                                viewModel.setPhoneCustomerServiceEnabled(it)
+                                if (it && phoneConciergeEnabled) ensurePhoneAssistantAccess()
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Gold,

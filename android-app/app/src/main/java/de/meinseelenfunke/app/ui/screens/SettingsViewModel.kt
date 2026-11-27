@@ -40,6 +40,9 @@ class SettingsViewModel : ViewModel() {
     private val _phoneConciergeEnabled = MutableStateFlow(PhoneConciergeManager.isEnabled(ServiceLocator.context))
     val phoneConciergeEnabled: StateFlow<Boolean> = _phoneConciergeEnabled.asStateFlow()
 
+    private val _phoneCustomerServiceEnabled = MutableStateFlow(PhoneConciergeManager.isCustomerServiceEnabled(ServiceLocator.context))
+    val phoneCustomerServiceEnabled: StateFlow<Boolean> = _phoneCustomerServiceEnabled.asStateFlow()
+
     private val _phoneRingDelaySec = MutableStateFlow(PhoneConciergeManager.getRingDelaySeconds(ServiceLocator.context))
     val phoneRingDelaySec: StateFlow<Int> = _phoneRingDelaySec.asStateFlow()
 
@@ -130,6 +133,7 @@ class SettingsViewModel : ViewModel() {
             _whitelistContacts.value = synced
             _recentSecretaryCalls.value = PhoneConciergeManager.loadCachedRecentCalls(ctx)
             _phoneConciergeEnabled.value = PhoneConciergeManager.isEnabled(ctx)
+            _phoneCustomerServiceEnabled.value = PhoneConciergeManager.isCustomerServiceEnabled(ctx)
             _phoneRingDelaySec.value = PhoneConciergeManager.getRingDelaySeconds(ctx)
             _phoneAnswerMode.value = PhoneConciergeManager.getAnswerMode(ctx)
             _carrierForwardingConfirmed.value = PhoneConciergeManager.isCarrierForwardingConfirmed(ctx)
@@ -169,6 +173,15 @@ class SettingsViewModel : ViewModel() {
         PhoneConciergeManager.setEnabledLocal(ctx, enabled)
         viewModelScope.launch(Dispatchers.IO) {
             PhoneConciergeManager.updateGlobalConfig(ctx, enabled = enabled)
+        }
+    }
+
+    fun setPhoneCustomerServiceEnabled(enabled: Boolean) {
+        val ctx = ServiceLocator.context
+        _phoneCustomerServiceEnabled.value = enabled
+        PhoneConciergeManager.setCustomerServiceEnabledLocal(ctx, enabled)
+        viewModelScope.launch(Dispatchers.IO) {
+            PhoneConciergeManager.updateGlobalConfig(ctx, customerServiceEnabled = enabled)
         }
     }
 

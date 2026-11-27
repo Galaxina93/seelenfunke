@@ -30,12 +30,20 @@ class IncomingCallFallbackReceiver : BroadcastReceiver() {
         if (PhoneConciergeManager.wasScreenedRecently()) return
 
         val incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)?.trim().orEmpty()
-        if (incomingNumber.isEmpty()) return
 
         ServiceLocator.ensureInitialized(ctx)
         if (!PhoneConciergeManager.isEnabled(ctx)) return
 
-        val matched = PhoneConciergeManager.matchIncomingWhitelistedCaller(ctx, incomingNumber) ?: return
+        val customerServiceEnabled = PhoneConciergeManager.isCustomerServiceEnabled(ctx)
+        if (incomingNumber.isEmpty() && !customerServiceEnabled) return
+
+        val matched = if (incomingNumber.isNotEmpty()) {
+            PhoneConciergeManager.matchIncomingWhitelistedCaller(ctx, incomingNumber)
+        } else {
+            null
+        }
+        if (matched == null && !customerServiceEnabled) return
+
         val delaySec = PhoneConciergeManager.getRingDelaySeconds(ctx)
         val decision = PhoneConciergeManager.resolveCallRoutingDecision(
             answerMode = PhoneConciergeManager.getAnswerMode(ctx),
@@ -43,6 +51,26 @@ class IncomingCallFallbackReceiver : BroadcastReceiver() {
             delaySeconds = delaySec,
             hasAnswerPerms = PhoneConciergeManager.hasAnswerExecutionPermissions(ctx)
         )
+
+        if (matched == null) {
+            if (decision == CallRoutingDecision.ON_DEVICE_SECRETARY) {
+                StandalonePhoneSecretaryEngine.preWarmCredentialsAsync(ctx)
+                PhoneConciergeManager.appendDiagnosticTrace(ctx, "Fallback Direkt-Annahme Kundenservice (${delaySec}s)")
+                FunkiraPhoneConciergeService.startForIncomingCustomerCall(
+                    context = ctx,
+                    rawNumber = incomingNumber,
+                    sourceTag = "IncomingCallFallback"
+                )
+            } else {
+                PhoneConciergeManager.appendDiagnosticTrace(ctx, "Fallback-Umleitung Kundenservice (${delaySec}s)")
+                PhoneConciergeManager.scheduleDelayedCustomerDiversion(
+                    ctx = ctx,
+                    rawNumber = incomingNumber,
+                    delaySeconds = delaySec
+                )
+            }
+            return
+        }
 
         if (decision == CallRoutingDecision.ON_DEVICE_SECRETARY) {
             StandalonePhoneSecretaryEngine.preWarmCredentialsAsync(ctx)
