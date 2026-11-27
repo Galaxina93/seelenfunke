@@ -1129,20 +1129,8 @@ class FunkiraTicketRouter
             CentralBrainService::recordTicketCompletionReport($ticket);
         }
 
-        // Bidirektionale Rückspiegelung in AntigravityDirectInboxService, falls verknüpft
-        $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
-        $agId = trim((string) ($payload['ag_item_id'] ?? ''));
-        if ($agId !== '') {
-            try {
-                $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
-                if ($newStatus === AiUniverseTicket::STATUS_COMPLETED) {
-                    $inbox->completeItem($agId, 'Manuell durch Alina im Ticketsystem als Erledigt abgeschlossen.', true);
-                } elseif ($newStatus === AiUniverseTicket::STATUS_ARCHIVED && ($payload['type'] ?? '') === 'ag_inbox_blockade') {
-                    $inbox->resolveBlockadeItem($agId, 'dismissed', 'Manuell im Ticketsystem archiviert', 'Alina');
-                }
-            } catch (\Throwable) {
-            }
-        }
+        // Bidirektionale Rückspiegelung in AntigravityDirectInboxService (inkl. aller verknüpften Vorgänger-IDs)
+        self::mirrorStatusToDirectInbox($ticket, $newStatus, $note);
 
         return [
             'status' => 'ok',
@@ -1169,6 +1157,8 @@ class FunkiraTicketRouter
             'last_activity_at' => now(),
         ]);
 
+        self::mirrorStatusToDirectInbox($ticket, $status, $note);
+
         if ($status === AiUniverseTicket::STATUS_COMPLETED) {
             CentralBrainService::recordTicketCompletionReport($ticket, $note);
         }
@@ -1178,6 +1168,56 @@ class FunkiraTicketRouter
             'reply' => $note,
             'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
         ];
+    }
+
+    /**
+     * Spiegelt abgeschlossene oder archivierte Portal-Tickets bidirektional in AntigravityDirectInboxService
+     * zurück (inkl. ag_item_id, previous_concept_ag_id und ag_history_ids), damit die Android-App keine
+     * erledigten Aufgaben mehr als offen oder wartend anzeigt.
+     */
+    protected static function mirrorStatusToDirectInbox(AiUniverseTicket $ticket, string $status, string $note): void
+    {
+        if (!in_array($status, [AiUniverseTicket::STATUS_COMPLETED, AiUniverseTicket::STATUS_ARCHIVED], true)) {
+            return;
+        }
+
+        $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+        $agId = trim((string) ($payload['ag_item_id'] ?? ''));
+        $allIds = [];
+        if ($agId !== '') {
+            $allIds[] = $agId;
+        }
+        if (!empty($payload['previous_concept_ag_id'])) {
+            $allIds[] = trim((string) $payload['previous_concept_ag_id']);
+        }
+        if (!empty($payload['ag_history_ids']) && is_array($payload['ag_history_ids'])) {
+            foreach ($payload['ag_history_ids'] as $hid) {
+                $clean = trim((string) $hid);
+                if ($clean !== '') {
+                    $allIds[] = $clean;
+                }
+            }
+        }
+        $allIds = array_values(array_unique(array_filter($allIds)));
+        if ($allIds === []) {
+            return;
+        }
+
+        try {
+            $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
+            if ($status === AiUniverseTicket::STATUS_COMPLETED) {
+                if ($agId !== '') {
+                    $inbox->completeItem($agId, 'Über Ticketsystem als Erledigt synchronisiert: ' . mb_substr(strip_tags($note), 0, 300), true);
+                }
+                $inbox->closeSiblingItems($allIds, "Abgeschlossen über Portal-Ticket {$ticket->ticket_number}.");
+            } elseif ($status === AiUniverseTicket::STATUS_ARCHIVED) {
+                if ($agId !== '' && ($payload['type'] ?? '') === 'ag_inbox_blockade') {
+                    $inbox->resolveBlockadeItem($agId, 'dismissed', 'Im Ticketsystem archiviert', 'Alina');
+                }
+                $inbox->closeSiblingItems($allIds, "[Verworfen durch Alina: Im Ticketsystem {$ticket->ticket_number} archiviert]");
+            }
+        } catch (\Throwable) {
+        }
     }
 
     public static function setTicketBusinessScope(AiUniverseTicket $ticket, bool $isBusiness, string $channel = 'web_portal'): array

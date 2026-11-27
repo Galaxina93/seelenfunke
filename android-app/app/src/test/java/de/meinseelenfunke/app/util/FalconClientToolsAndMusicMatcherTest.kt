@@ -569,12 +569,12 @@ class FalconClientToolsAndMusicMatcherTest {
 
     @Test
     fun midCallAutoReconnectPolicyAnd3dArmClamp_enforceSeamlessRecoveryAndSafeGentlemanPosture() {
-        // 1. Mid-call auto-reconnect decision matrix (attempts 0..3 allowed, 4 blocked)
+        // 1. Mid-call auto-reconnect decision matrix (attempts 0..4 allowed, 5 blocked)
         assertEquals(
-            listOf(350L, 800L, 1500L, 2500L),
+            listOf(300L, 700L, 1400L, 2500L, 4000L),
             de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.RECONNECT_BACKOFF_MS.toList()
         )
-        for (attempt in 0..3) {
+        for (attempt in 0..4) {
             assertTrue(
                 de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
                     wasSetupComplete = true,
@@ -589,7 +589,7 @@ class FalconClientToolsAndMusicMatcherTest {
                 wasSetupComplete = true,
                 userInitiatedHangup = false,
                 shouldEndCall = false,
-                reconnectAttemptCount = 4
+                reconnectAttemptCount = 5
             )
         )
         assertFalse(
@@ -615,6 +615,23 @@ class FalconClientToolsAndMusicMatcherTest {
                 shouldEndCall = false,
                 reconnectAttemptCount = 0
             )
+        )
+
+        // 1b. Hörer-Button debounce & audio send-stall recovery threshold
+        assertTrue(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAllowCallButtonTap(0L, 100L)
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAllowCallButtonTap(1_000L, 1_300L)
+        )
+        assertTrue(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAllowCallButtonTap(1_000L, 1_700L)
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.isAudioSendStallThresholdReached(14)
+        )
+        assertTrue(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.isAudioSendStallThresholdReached(15)
         )
 
         // 2. Strict Gemini 3.1 Live schema hygiene across all local Falcone tools
@@ -1585,5 +1602,141 @@ class FalconClientToolsAndMusicMatcherTest {
         } finally {
             FalconClientTools.clearDeviceReflexCacheForTests()
         }
+    }
+
+    @Test
+    fun gemini31LivePacketsUseRealtimeInputTextToPreventMidCallSocketDrop() {
+        val kick31 = FalconClientTools.buildClientContentKickPacket(
+            "Hallo Alina",
+            "models/gemini-3.1-flash-live-preview"
+        )
+        assertTrue(kick31.has("realtimeInput"))
+        assertFalse(kick31.has("clientContent"))
+        assertEquals("Hallo Alina", kick31.getAsJsonObject("realtimeInput").get("text").asString)
+
+        val silent31 = FalconClientTools.buildSilentClientContextPacket(
+            "[Anhang aktiv]",
+            "models/gemini-3.1-flash-live-preview"
+        )
+        assertTrue(silent31.has("realtimeInput"))
+        assertFalse(silent31.has("clientContent"))
+
+        val kick25 = FalconClientTools.buildClientContentKickPacket(
+            "Hallo Alina",
+            "models/gemini-2.5-flash-native-audio-latest"
+        )
+        assertTrue(kick25.has("clientContent"))
+
+        // Regression: Vertex 2.5 effective model resolution & prompt/silent packets never emit realtimeInput.text
+        val vertexModel = "projects/gen-lang-client-0670786367/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio"
+        assertEquals(
+            vertexModel,
+            FalconClientTools.resolveEffectiveSetupModel(
+                wsUrl = "wss://stage.mein-seelenfunke.de/gemini-live",
+                activeLiveModel = vertexModel,
+                isDirectGoogle = false
+            )
+        )
+        assertEquals(
+            "models/gemini-3.1-flash-live-preview",
+            FalconClientTools.resolveEffectiveSetupModel(
+                wsUrl = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=AIzaTest1234567890123",
+                activeLiveModel = vertexModel,
+                isDirectGoogle = true
+            )
+        )
+        assertFalse(FalconClientTools.isGemini3LiveModel(vertexModel))
+        val vertexPrompt = FalconClientTools.buildRealtimePromptPacketForModel("Bist du noch da?", vertexModel)
+        assertTrue(vertexPrompt.has("clientContent"))
+        assertFalse(vertexPrompt.has("realtimeInput"))
+        val vertexSilent = FalconClientTools.buildSilentClientContextPacket("[Anhang aktiv]", vertexModel)
+        assertTrue(vertexSilent.has("clientContent"))
+        assertFalse(vertexSilent.getAsJsonObject("clientContent").get("turnComplete").asBoolean)
+
+        val secretaryVertexKick = de.meinseelenfunke.app.services.StandalonePhoneSecretaryEngine
+            .buildKickoffPacketJson("Papa", vertexModel)
+        assertTrue(secretaryVertexKick.has("clientContent"))
+        assertFalse(secretaryVertexKick.has("realtimeInput"))
+
+        // Regression: recent session context reuse only on unintended drops within window for same agent
+        assertTrue(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldReuseRecentSessionContext(
+                previousAgentKey = "funkira-1",
+                currentAgentKey = "funkira-1",
+                previousSessionId = "android_live_abc",
+                lastDisconnectAtUptimeMs = 100_000L,
+                nowUptimeMs = 130_000L,
+                lastDisconnectWasUserHangup = false
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldReuseRecentSessionContext(
+                previousAgentKey = "funkira-1",
+                currentAgentKey = "funkira-1",
+                previousSessionId = "android_live_abc",
+                lastDisconnectAtUptimeMs = 100_000L,
+                nowUptimeMs = 130_000L,
+                lastDisconnectWasUserHangup = true
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldReuseRecentSessionContext(
+                previousAgentKey = "funkira-1",
+                currentAgentKey = "buchi-2",
+                previousSessionId = "android_live_abc",
+                lastDisconnectAtUptimeMs = 100_000L,
+                nowUptimeMs = 130_000L,
+                lastDisconnectWasUserHangup = false
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldReuseRecentSessionContext(
+                previousAgentKey = "funkira-1",
+                currentAgentKey = "funkira-1",
+                previousSessionId = "android_live_abc",
+                lastDisconnectAtUptimeMs = 100_000L,
+                nowUptimeMs = 100_000L + de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.RECENT_SESSION_RESUME_WINDOW_MS + 1L,
+                lastDisconnectWasUserHangup = false
+            )
+        )
+
+        assertEquals(5, de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.RECONNECT_BACKOFF_MS.size)
+        assertTrue(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldAutoReconnectMidCall(
+                wasSetupComplete = true,
+                userInitiatedHangup = false,
+                shouldEndCall = false,
+                reconnectAttemptCount = 4
+            )
+        )
+
+        // Regression: sessionResumption handle MUST NOT cross endpoints (Bridge <-> Direct) or models
+        assertTrue(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldReuseSessionResumptionHandle(
+                handle = "handle-abc",
+                issuedIsDirect = false,
+                targetIsDirect = false,
+                issuedModel = "models/gemini-3.1-flash-live-preview",
+                targetModel = "models/gemini-3.1-flash-live-preview"
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldReuseSessionResumptionHandle(
+                handle = "handle-abc",
+                issuedIsDirect = false,
+                targetIsDirect = true,
+                issuedModel = "models/gemini-3.1-flash-live-preview",
+                targetModel = vertexModel
+            )
+        )
+        assertFalse(
+            de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.shouldReuseSessionResumptionHandle(
+                handle = "   ",
+                issuedIsDirect = true,
+                targetIsDirect = true,
+                issuedModel = vertexModel,
+                targetModel = vertexModel
+            )
+        )
     }
 }

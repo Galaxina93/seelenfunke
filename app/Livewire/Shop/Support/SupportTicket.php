@@ -238,11 +238,10 @@ class SupportTicket extends Component
             'is_read_by_customer' => false,
         ]);
 
-        try {
-            broadcast(new TicketMessageSent($message, $ticket->id, $ticket->customer_id));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Websocket Server Error (Reverb/Pusher offline?): ' . $e->getMessage());
-        }
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new TicketMessageSent($message, $ticket->id, $ticket->customer_id),
+            'SupportTicket::createTicket'
+        );
 
         $isOnline = Cache::has('is_online' . $ticket->customer_id);
         if (!$isOnline) {
@@ -652,12 +651,10 @@ class SupportTicket extends Component
         $ticket->update(['status' => 'answered']);
         $this->filterStatus = 'answered';
 
-        try {
-            // Versuchen das Event über Websockets zu schießen
-            broadcast(new TicketMessageSent($message, $ticket->id, $ticket->customer_id));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Websocket Server Error (Reverb/Pusher offline?): ' . $e->getMessage());
-        }
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new TicketMessageSent($message, $ticket->id, $ticket->customer_id),
+            'SupportTicket::sendReply'
+        );
 
         // Präzise Prüfung: Ist der Nutzer aktuell wirklich online? (1-Minuten-Zeitfenster durch UserLastActivity Middleware)
         $isOnline = \Illuminate\Support\Facades\Cache::has('is_online' . $ticket->customer_id);

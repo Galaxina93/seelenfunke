@@ -69,26 +69,22 @@
 </head>
 <body>
 <div class="container">
-    <div class="header">
-        <h1>System Nachricht</h1>
+    <div class="header" style="background-color:#18181B;border-bottom:3px solid #C5A059;padding:22px 30px;text-align:left;">
+        <div style="font-size:15px;font-weight:800;letter-spacing:0.14em;color:#F5DCA0;">Alina Steinhauer</div>
     </div>
 
-    <div class="content">
-        <div class="agent-badge">
-            Generiert von Agent: <strong>{{ $agentName }}</strong>
-        </div>
-        
-        <p>Hallo,</p>
-        <p>Du hast eine neue Nachricht erhalten:</p>
+    <div class="content" style="padding:30px;">
+        <div class="message-box" style="background:#FFFFFF;border:none;padding:0;margin:0 0 22px 0;color:#27272A;font-size:14px;line-height:1.65;">{!! nl2br(e($messageContent)) !!}</div>
 
-        <div class="message-box">{!! nl2br(e($messageContent)) !!}</div>
-
-        <p>Herzliche Grüße,<br>{{ $agentName }}</p>
+        <p style="margin:22px 0 0 0;font-size:14px;line-height:1.6;color:#27272A;">
+            Mit freundlichen Grüßen<br>
+            <strong style="color:#18181B;">Alina Steinhauer</strong>
+        </p>
     </div>
 
-    <div class="footer">
-        Diese E-Mail wurde automatisch generiert.<br>
-        {{ date('d.m.Y H:i') }} Uhr
+    <div class="footer" style="background-color:#FAF8F4;padding:18px 30px;text-align:left;font-size:11.5px;line-height:1.6;color:#71717A;border-top:1px solid #EAE4D9;">
+        <strong style="color:#18181B;">Alina Steinhauer</strong> · Carl-Goerdeler-Ring 26 · 38518 Gifhorn<br>
+        Tel.: +49 1590 1966864
     </div>
 </div>
 </body>

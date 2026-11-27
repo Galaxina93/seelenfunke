@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -1815,7 +1816,9 @@ private fun AgHistoryItemCard(
                     }
                 }
 
-                Box(
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(badgeBg)
@@ -1828,6 +1831,20 @@ private fun AgHistoryItemCard(
                         fontWeight = FontWeight.Bold,
                         color = badgeText
                     )
+                    when (item.status) {
+                        AgDirectStatus.DELIVERED -> CircularProgressIndicator(
+                            color = badgeText,
+                            strokeWidth = 1.6.dp,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        AgDirectStatus.COMPLETED -> Icon(
+                            imageVector = Icons.Rounded.CheckCircle,
+                            contentDescription = "Fertig",
+                            tint = Emerald500,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        else -> Unit
+                    }
                 }
             }
 

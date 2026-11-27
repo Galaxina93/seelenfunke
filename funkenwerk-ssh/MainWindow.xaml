@@ -158,16 +158,71 @@
                             <Button x:Name="NewProfileBtn" Content="+ NEU" Height="26" Padding="9,0" Click="NewProfile_Click"
                                     Background="{DynamicResource SshBgButton}" Foreground="#C5A059"
                                     BorderBrush="{DynamicResource SshBorderStrong}" FontWeight="Bold" Cursor="Hand" Margin="0,0,4,0"/>
+                            <Button x:Name="RenameProfileBtn" Content="✎" Width="26" Height="26" Click="RenameProfile_Click"
+                                    Background="{DynamicResource SshBgButton}" Foreground="#C5A059"
+                                    BorderBrush="{DynamicResource SshBorderStrong}" Cursor="Hand" Margin="0,0,4,0"
+                                    ToolTip="Profil umbenennen (F2)"/>
                             <Button x:Name="DeleteProfileBtn" Content="✕" Width="26" Height="26" Click="DeleteProfile_Click"
                                     Background="{DynamicResource SshBgButton}" Foreground="#EF4444"
-                                    BorderBrush="{DynamicResource SshBorderStrong}" Cursor="Hand" ToolTip="Profil löschen"/>
+                                    BorderBrush="{DynamicResource SshBorderStrong}" Cursor="Hand" ToolTip="Profil löschen (Entf)"/>
                         </StackPanel>
                     </Grid>
 
                     <ListBox x:Name="ProfilesListBox" Grid.Row="1" Background="Transparent" BorderThickness="0"
                              SelectionChanged="ProfilesListBox_SelectionChanged"
                              MouseDoubleClick="ProfilesListBox_MouseDoubleClick"
+                             PreviewKeyDown="ProfilesListBox_PreviewKeyDown"
+                             PreviewMouseRightButtonDown="ProfilesListBox_PreviewMouseRightButtonDown"
+                             ContextMenuOpening="ProfilesListBox_ContextMenuOpening"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ContextMenu>
+                            <ContextMenu x:Name="ProfilesContextMenu"
+                                         Background="{DynamicResource SshBgSidebar}"
+                                         Foreground="{DynamicResource SshFgPrimary}"
+                                         BorderBrush="{DynamicResource SshBorderStrong}"
+                                         BorderThickness="1"
+                                         Padding="4">
+                                <ContextMenu.Resources>
+                                    <Style TargetType="MenuItem">
+                                        <Setter Property="Foreground" Value="{DynamicResource SshFgPrimary}"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Padding" Value="10,6"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="MenuItem">
+                                                    <Border x:Name="MenuBd" Background="{TemplateBinding Background}"
+                                                            CornerRadius="6" Padding="{TemplateBinding Padding}" Margin="2,1">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <ContentPresenter Grid.Column="0" ContentSource="Header" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+                                                            <TextBlock Grid.Column="1" Text="{TemplateBinding InputGestureText}"
+                                                                       Foreground="{DynamicResource SshFgSecondary}" FontSize="11"
+                                                                       Margin="18,0,0,0" VerticalAlignment="Center"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsHighlighted" Value="True">
+                                                            <Setter TargetName="MenuBd" Property="Background" Value="{DynamicResource SshBgCardHover}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter Property="Opacity" Value="0.45"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ContextMenu.Resources>
+                                <MenuItem x:Name="MenuConnectProfile" Header="⚡ Verbinden" Click="MenuConnectProfile_Click"/>
+                                <MenuItem x:Name="MenuRenameProfile" Header="✎ Umbenennen" InputGestureText="F2" Click="RenameProfile_Click"/>
+                                <Separator Background="{DynamicResource SshBorderSubtle}"/>
+                                <MenuItem x:Name="MenuDeleteProfile" Header="✕ Entfernen" InputGestureText="Entf" Foreground="#EF4444" Click="DeleteProfile_Click"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>

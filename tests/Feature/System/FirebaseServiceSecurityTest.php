@@ -77,4 +77,35 @@ class FirebaseServiceSecurityTest extends TestCase
         // Only active admin1 device should be sent
         $this->assertEquals(1, $count);
     }
+
+    public function test_send_push_notification_suppresses_empty_and_silent_sync_visible_notifications()
+    {
+        $service = new class extends FirebaseService {
+            protected function getAccessToken(): ?string {
+                return 'mock-token-xyz';
+            }
+        };
+
+        Http::fake([
+            'https://fcm.googleapis.com/*' => Http::response(['name' => 'projects/test/messages/456'], 200)
+        ]);
+
+        // Completely empty payload must not dispatch any FCM request
+        $this->assertFalse($service->sendPushNotification('device-token-12345', '   ', '', []));
+        Http::assertNothingSent();
+
+        // Silent sync payload must omit OS notification block so no launcher badge appears
+        $sent = $service->sendPushNotification('device-token-12345', 'Ignored Title', 'Ignored Body', [
+            'silent' => '1',
+            'action' => 'sync_calendar',
+        ]);
+        $this->assertTrue($sent);
+
+        Http::assertSent(function ($request) {
+            $message = $request->data()['message'] ?? [];
+            return isset($message['data'])
+                && !isset($message['notification'])
+                && !isset($message['android']['notification']);
+        });
+    }
 }

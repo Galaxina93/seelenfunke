@@ -53,6 +53,20 @@ Route::prefix('ai')->group(function () {
         // Detaillierte Fehler- & Auto-Heal-Protokollierung des Live-AI Web-Clients
         Route::post('/client-error-log', [AIController::class, 'clientErrorLog'])->middleware('throttle:30,1');
 
+        // Zentrales Lob-/Kritik-Tracking & Verhaltensprofil (alle internen Kanäle, Funki strikt ausgeschlossen)
+        Route::post('/behavior-feedback', [AIController::class, 'storeBehaviorFeedback'])->middleware('throttle:60,1');
+        Route::get('/behavior-profile', [AIController::class, 'getBehaviorProfile'])->middleware('throttle:60,1');
+
+        // Funkira Mobile Verhaltens- & Lern-API für die Funkenwerk Android-App (strikt Admin-only, Funki ausgeschlossen)
+        Route::prefix('/funkira/behavior')
+            ->middleware([\App\Http\Middleware\EnsureAdminExecutiveAccess::class])
+            ->group(function () {
+                Route::get('/summary', [\App\Http\Controllers\Api\FunkiraMobileBehaviorController::class, 'summary'])->middleware('throttle:60,1');
+                Route::post('/feedback', [\App\Http\Controllers\Api\FunkiraMobileBehaviorController::class, 'feedback'])->middleware('throttle:60,1');
+                Route::post('/rules/approve', [\App\Http\Controllers\Api\FunkiraMobileBehaviorController::class, 'approveRule'])->middleware('throttle:30,1');
+                Route::post('/rules/dismiss', [\App\Http\Controllers\Api\FunkiraMobileBehaviorController::class, 'dismissRule'])->middleware('throttle:30,1');
+            });
+
         // Geschützter Abruf der System-Brain-Map (Architektur-Graph inkl. Live-SystemLog-Fehlerkerne in Rot, mit mtime-Cache)
         Route::get('/system-brain-map', function () {
             $jsonPath = storage_path('app/private/system-brain-map.json');

@@ -49,13 +49,14 @@ import kotlin.math.roundToInt
 enum class AgDirectStatus(val code: String, val badgeLabel: String) {
     QUEUED("queued", "Wartet"),
     PENDING("pending", "Gesendet"),
-    DELIVERED("delivered", "Bei Antigravity"),
+    DELIVERED("delivered", "in Arbeit"),
     AWAITING_GO("awaiting_go", "Go / Antwort fehlt"),
-    COMPLETED("completed", "Erledigt ✓")
+    COMPLETED("completed", "fertig")
 }
 
 enum class AgDirectChannel(val code: String, val chipLabel: String) {
     LEITUNG("leitung", "👑 Leitung"),
+    INVEST("invest", "🏛️ Invest-Chat"),
     SHOP("shop", "🛍️ Shop"),
     ANDROID("android", "📱 Android"),
     MINIPC("minipc", "🖥️ Mini-PC"),
@@ -256,7 +257,7 @@ object AgDirectInboxManager {
         if (isLocalOutbox) return AgDirectStatus.QUEUED
         return when (rawStatus?.trim()?.lowercase(Locale.ROOT)) {
             "queued", "outbox", "waiting" -> AgDirectStatus.QUEUED
-            "delivered", "in_chat", "processing" -> AgDirectStatus.DELIVERED
+            "delivered", "in_chat", "processing", "in_progress" -> AgDirectStatus.DELIVERED
             "awaiting_go", "needs_go", "waiting_for_go" -> AgDirectStatus.AWAITING_GO
             "completed", "done", "resolved" -> AgDirectStatus.COMPLETED
             else -> AgDirectStatus.PENDING
@@ -268,7 +269,12 @@ object AgDirectInboxManager {
     }
 
     fun resolveChannelEnum(rawChannel: String?): AgDirectChannel {
-        return when (rawChannel?.trim()?.lowercase(Locale.ROOT)) {
+        val norm = rawChannel?.trim()?.lowercase(Locale.ROOT)?.replace(Regex("\\s+"), " ")
+        return when (norm) {
+            "invest", "steinhauer", "steinhauer-invest", "steinhauer_invest", "steinhauer invest", "steinhauer-invest.de",
+            "steinauer", "steinauer-invest", "steinauer_invest", "steinauer invest", "steinauer-invest.de",
+            "steini", "steini-app", "steini_app", "steini app", "android-steini", "steini-command",
+            "invest-chat", "invest_chat", "invest chat" -> AgDirectChannel.INVEST
             "shop", "laravel", "konfigurator", "produkte" -> AgDirectChannel.SHOP
             "android", "app", "mobile", "widget", "widgets" -> AgDirectChannel.ANDROID
             "minipc", "mini-pc", "mini_pc", "funkenwerk", "laser", "werkstatt" -> AgDirectChannel.MINIPC
@@ -280,6 +286,51 @@ object AgDirectInboxManager {
 
     fun normalizeChannel(rawChannel: String?): String {
         return resolveChannelEnum(rawChannel).code
+    }
+
+    private val steinhauerInvestRegex = Regex(
+        """(?:\bsteinh?auer[\s\-_]*invest(?:\.de)?\b|\bsteini(?:[\s\-_]*(?:app|chat|command|portal|android|apk|ota))?\b|android[\s\-_]*steini|\bjan\s+steinh?auer\b|\binvest[\s\-_]*(?:chat|portal|app|projekt|br(?:ü|ue)cke)\b)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val seelenfunkeScopeRegex = Regex(
+        """\b(seelenfunke|mein[\s\-_]*seelenfunke|funkenwerk|funkira|falcone|xtool|konfigurator|laser[\s\-]*manufaktur|funkenreich)\b""",
+        RegexOption.IGNORE_CASE
+    )
+    private val metaRoutingTaskRegex = Regex(
+        """\b(routing|weiterleit\w*|pipeline|kanal\w*|channel\w*|sidecar|br(?:ü|ue)cke|antr(?:ä|ae)ge|auftr(?:ä|ae)ge)\b""",
+        RegexOption.IGNORE_CASE
+    )
+    private val shop3dModelRegex = Regex(
+        """\b(3d[-\s]*(?:modell\w*|druck\w*|konstruktion\w*|entwurf\w*|vorlage\w*|halter\w*|regal\w*|adapter\w*)|konstruktion\w*|klicksystem\w*|bambu\w*|\.stl\b|\.3mf\b|\.glb\b|cad\b|openscad\w*|wandregal\w*|produktmodell\w*)\b""",
+        RegexOption.IGNORE_CASE
+    )
+    private val explicitMiniPcRegex = Regex(
+        """\b(kiosk\w*|xrdp|rdp\b|192\.168\.188\.151|funkenwerk-os|linux[-\s]*passwort|bildschirm\s+schwarz|mini[-\s]*pc\s+(?:absturz|fehler|offline|verbind\w*))\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    fun resolveEffectiveChannel(rawChannel: String?, title: String = "", body: String = ""): String {
+        val channel = normalizeChannel(rawChannel)
+        val combined = "$title $body".trim()
+        if (combined.isEmpty()) return channel
+
+        val isSteinhauerInvest = steinhauerInvestRegex.containsMatchIn(combined)
+        val isSeelenfunkeScope = seelenfunkeScopeRegex.containsMatchIn(combined)
+        val isMetaRoutingTask = isSteinhauerInvest && isSeelenfunkeScope && metaRoutingTaskRegex.containsMatchIn(combined)
+
+        if (isMetaRoutingTask) {
+            return if (channel == AgDirectChannel.INVEST.code) AgDirectChannel.LEITUNG.code else channel
+        }
+        if (isSteinhauerInvest && channel in setOf("leitung", "invest", "buchhaltung", "shop", "android", "minipc")) {
+            return AgDirectChannel.INVEST.code
+        }
+        if (channel == AgDirectChannel.INVEST.code && isSeelenfunkeScope && !isSteinhauerInvest) {
+            return AgDirectChannel.LEITUNG.code
+        }
+        if (shop3dModelRegex.containsMatchIn(combined) && !explicitMiniPcRegex.containsMatchIn(combined) && channel in setOf("minipc", "leitung")) {
+            return AgDirectChannel.SHOP.code
+        }
+        return channel
     }
 
     fun splitTitleAndBody(
@@ -945,7 +996,7 @@ object AgDirectInboxManager {
         if (title.isBlank()) return@withContext false
 
         val normalizedMode = normalizeExecutionMode(executionMode)
-        val normalizedChannel = normalizeChannel(channel)
+        val normalizedChannel = resolveEffectiveChannel(channel, title, body)
         val entry = AgDirectOutboxEntry(
             client_uuid = clientUuid,
             title = title,

@@ -14,6 +14,8 @@ import de.meinseelenfunke.app.data.api.ChatMessage
 import de.meinseelenfunke.app.data.api.ChatRequest
 import de.meinseelenfunke.app.data.api.ChatResponse
 import de.meinseelenfunke.app.data.api.CameraSnapshotResponse
+import de.meinseelenfunke.app.data.api.SaveLiveTranscriptRequest
+import de.meinseelenfunke.app.data.api.SaveLiveTranscriptResponse
 import de.meinseelenfunke.app.data.api.UltimateCommandResponse
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.AppLogger
@@ -415,6 +417,42 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                 throwable = e,
                 allowOfflineAutoHeal = false
             )
+            Result.failure(e)
+        }
+    }
+
+    suspend fun saveLiveTranscript(
+        sessionId: String,
+        role: String,
+        content: String,
+        agentId: String? = null,
+        agentName: String? = null,
+        channel: String = "android_live_call"
+    ): Result<SaveLiveTranscriptResponse> = withContext(Dispatchers.IO) {
+        val cleanSession = sessionId.trim().take(100)
+        val cleanContent = content.trim()
+        if (cleanSession.isEmpty() || cleanContent.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("session_id oder content leer"))
+        }
+        val normalizedRole = if (role.equals("user", ignoreCase = true) || role.equals("alina", ignoreCase = true)) {
+            "user"
+        } else {
+            "assistant"
+        }
+        return@withContext try {
+            val response = serviceLocator.getAiApi().saveLiveTranscript(
+                SaveLiveTranscriptRequest(
+                    session_id = cleanSession,
+                    role = normalizedRole,
+                    content = cleanContent.take(49_000),
+                    agent_id = agentId,
+                    agent_name = agentName,
+                    channel = channel
+                )
+            )
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }

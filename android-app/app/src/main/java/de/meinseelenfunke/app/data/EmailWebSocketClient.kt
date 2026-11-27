@@ -1,15 +1,18 @@
 package de.meinseelenfunke.app.data
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import de.meinseelenfunke.app.MainActivity
 import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.di.ServiceLocator
@@ -135,6 +138,42 @@ object EmailWebSocketClient {
         mainHandler.postDelayed(reconnectRunnable, 5000L)
     }
 
+    internal data class VisibleEmailPayload(
+        val id: String,
+        val from: String,
+        val subject: String,
+        val snippet: String,
+        val notificationId: Int
+    )
+
+    internal fun extractVisibleEmailPayload(messageObj: JSONObject?): VisibleEmailPayload? {
+        if (messageObj == null) return null
+        fun cleanField(key: String): String {
+            if (!messageObj.has(key) || messageObj.isNull(key)) return ""
+            val value = messageObj.optString(key, "").trim()
+            return if (value.equals("null", ignoreCase = true)) "" else value
+        }
+
+        val from = cleanField("from")
+        val subject = cleanField("subject")
+        val snippet = cleanField("snippet")
+        if (from.isEmpty() && subject.isEmpty() && snippet.isEmpty()) {
+            return null
+        }
+
+        val rawId = cleanField("id")
+        val stableKey = rawId.ifEmpty { "$from|$subject|$snippet" }
+        val notifId = (stableKey.hashCode() and 0x7FFFFFFF).coerceAtLeast(3000)
+
+        return VisibleEmailPayload(
+            id = rawId,
+            from = from.ifEmpty { "Unbekannt" },
+            subject = subject.ifEmpty { "(Kein Betreff)" },
+            snippet = snippet,
+            notificationId = notifId
+        )
+    }
+
     private fun handleMessage(text: String) {
         try {
             val json = JSONObject(text)
@@ -146,14 +185,9 @@ object EmailWebSocketClient {
             }
 
             if (event == "new_email") {
-                val messageObj = json.optJSONObject("data")
-                if (messageObj != null) {
-                    val from = messageObj.optString("from", "Unbekannt")
-                    val subject = messageObj.optString("subject", "(Kein Betreff)")
-                    val snippet = messageObj.optString("snippet", "")
-                    val id = messageObj.optString("id", "")
-
-                    showNotification(id, from, subject, snippet)
+                val payload = extractVisibleEmailPayload(json.optJSONObject("data"))
+                if (payload != null) {
+                    showNotification(payload)
                     SoundManager.playNotificationSound()
                 }
             }
@@ -162,19 +196,24 @@ object EmailWebSocketClient {
         }
     }
 
-    private fun showNotification(id: String, from: String, subject: String, snippet: String) {
+    private fun showNotification(payload: VisibleEmailPayload) {
         val ctx = context ?: return
-        val notificationManager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        val notificationManager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
         val clickIntent = SecurityIntentHelper.signIntent(ctx, Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("navigate_to", "email")
-            putExtra("email_id", id)
+            putExtra("email_id", payload.id)
         })
 
         val pendingIntent = PendingIntent.getActivity(
             ctx,
-            id.hashCode(),
+            payload.notificationId,
             clickIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -187,11 +226,12 @@ object EmailWebSocketClient {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
+        val contentText = if (payload.snippet.isNotBlank()) "${payload.subject}: ${payload.snippet}" else payload.subject
         val notification = NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setColor(0xFFC5A059.toInt())
-            .setContentTitle("Neue E-Mail von $from")
-            .setContentText(if (subject.isNotBlank()) "$subject: $snippet" else snippet)
+            .setContentTitle("Neue E-Mail von ${payload.from}")
+            .setContentText(contentText)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicNotification)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -199,7 +239,7 @@ object EmailWebSocketClient {
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(id.hashCode(), notification)
+        notificationManager.notify(payload.notificationId, notification)
     }
 
     fun addListener(listener: (event: String, data: String) -> Unit) {

@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261127v1';
 
     function ensurePrewarmRegistryAndRegister(audioEl) {
         if (!audioEl || typeof window === 'undefined') return audioEl;
@@ -768,15 +768,15 @@
             '      <div class="sf-lobby-char-grid">',
             '        <button type="button" data-lobby-char-card="male" data-testid="lobby-char-select-male" class="sf-lobby-char-card is-selected">',
             '          <span data-lobby-char-chk="male" class="sf-lobby-char-check">&#10003;</span>',
-            '          <span class="sf-lobby-char-emblem" aria-hidden="true"><svg width="42" height="42" viewBox="0 0 48 48" fill="none"><path d="M24 5L28 13H20L24 5Z" fill="#C5A059"/><circle cx="24" cy="25" r="14" fill="#171C26" stroke="#C5A059" stroke-width="2"/><rect x="13" y="19" width="22" height="11" rx="5.5" fill="#0B101B" stroke="#C5A059" stroke-width="1.3"/><ellipse cx="19" cy="24" rx="2.4" ry="2.8" fill="#FAF8F5"/><ellipse cx="29" cy="24" rx="2.4" ry="2.8" fill="#FAF8F5"/><path d="M20.5 27.6Q24 29.8 27.5 27.6" stroke="#F4D58D" stroke-width="1.8" stroke-linecap="round"/></svg></span>',
-            '          <span class="sf-lobby-char-name">Männlich</span>',
-            '          <span class="sf-lobby-char-tag">Starter · Barfuß</span>',
+            '          <span class="sf-lobby-char-emblem" aria-hidden="true"><svg width="44" height="44" viewBox="0 0 48 48" fill="none"><rect x="19.5" y="4.5" width="9" height="4.8" rx="2" fill="#151720" stroke="#C5A059" stroke-width="1.2"/><rect x="18" y="8.6" width="12" height="2.4" rx="1.2" fill="#E5BA64"/><rect x="8.5" y="11" width="31" height="20.5" rx="6" fill="#E2B256" stroke="#9E7328" stroke-width="1.4"/><rect x="6" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#C5A059"/><rect x="39.5" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#C5A059"/><rect x="11" y="13.2" width="26" height="16.1" rx="4.2" fill="#12141C" stroke="#F5D589" stroke-width="1"/><path d="M14.5 16.5Q18.2 14.8 21.6 16.8" stroke="#F4CF78" stroke-width="1.6" stroke-linecap="round"/><path d="M26.4 16.8Q29.8 14.8 33.5 16.5" stroke="#F4CF78" stroke-width="1.6" stroke-linecap="round"/><circle cx="18.2" cy="21" r="3.4" fill="#EF9B24"/><circle cx="18.2" cy="21" r="1.6" fill="#190C05"/><circle cx="17.1" cy="19.9" r="0.9" fill="#FFFFFF"/><circle cx="29.8" cy="21" r="3.4" fill="#EF9B24"/><circle cx="29.8" cy="21" r="1.6" fill="#190C05"/><circle cx="28.7" cy="19.9" r="0.9" fill="#FFFFFF"/><path d="M21.2 25.4Q24 27.9 26.8 25.4" stroke="#F5D589" stroke-width="1.6" stroke-linecap="round"/><path d="M13 42C14 34.8 18.2 32.5 24 32.5C29.8 32.5 34 34.8 35 42Z" fill="#171A24" stroke="#C5A059" stroke-width="1.6"/><rect x="19" y="36" width="10" height="2.2" rx="1.1" fill="#E5BA64"/></svg></span>',
+            '          <span class="sf-lobby-char-name">Funki</span>',
+            '          <span class="sf-lobby-char-tag">Männlich</span>',
             '        </button>',
             '        <button type="button" data-lobby-char-card="female" data-testid="lobby-char-select-female" class="sf-lobby-char-card">',
             '          <span data-lobby-char-chk="female" class="sf-lobby-char-check" style="display:none;">&#10003;</span>',
-            '          <span class="sf-lobby-char-emblem" aria-hidden="true"><svg width="42" height="42" viewBox="0 0 48 48" fill="none"><path d="M16 13L20 8L24 11L28 8L32 13" stroke="#C5A059" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="25" r="13.5" fill="#F6F2EA" stroke="#C5A059" stroke-width="2"/><rect x="13.5" y="19" width="21" height="11" rx="5.5" fill="#0B101B" stroke="#C5A059" stroke-width="1.3"/><ellipse cx="19" cy="24" rx="2.4" ry="2.9" fill="#FAF8F5"/><ellipse cx="29" cy="24" rx="2.4" ry="2.9" fill="#FAF8F5"/><path d="M16.2 21.6L14.8 20.5M31.8 21.6L33.2 20.5" stroke="#F4D58D" stroke-width="1.5" stroke-linecap="round"/><path d="M20.5 27.6Q24 30.1 27.5 27.6" stroke="#F4D58D" stroke-width="1.8" stroke-linecap="round"/></svg></span>',
-            '          <span class="sf-lobby-char-name">Weiblich</span>',
-            '          <span class="sf-lobby-char-tag">Starter · Barfuß</span>',
+            '          <span class="sf-lobby-char-emblem" aria-hidden="true"><svg width="44" height="44" viewBox="0 0 48 48" fill="none"><rect x="20" y="4.2" width="8" height="5" rx="2.2" fill="#EC7E9B" stroke="#E5BA64" stroke-width="1.2"/><rect x="18.5" y="8.6" width="11" height="2.3" rx="1.1" fill="#E5BA64"/><rect x="9" y="11" width="30" height="20.5" rx="6.2" fill="#E593A8" stroke="#B65D75" stroke-width="1.4"/><rect x="6.5" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#E593A8"/><rect x="39" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#E593A8"/><rect x="11.5" y="13.2" width="25" height="16.1" rx="4.2" fill="#16111B" stroke="#F6B6C7" stroke-width="1"/><path d="M14.2 19.2L12.6 17.8M33.8 19.2L35.4 17.8" stroke="#E88DA3" stroke-width="1.4" stroke-linecap="round"/><path d="M15 16.5Q18.4 14.6 21.5 16.6" stroke="#E88DA3" stroke-width="1.5" stroke-linecap="round"/><path d="M26.5 16.6Q29.6 14.6 33 16.5" stroke="#E88DA3" stroke-width="1.5" stroke-linecap="round"/><circle cx="18.4" cy="21" r="3.4" fill="#DF4B78"/><circle cx="18.4" cy="21" r="1.6" fill="#1B060E"/><circle cx="17.3" cy="19.9" r="0.9" fill="#FFFFFF"/><circle cx="29.6" cy="21" r="3.4" fill="#DF4B78"/><circle cx="29.6" cy="21" r="1.6" fill="#1B060E"/><circle cx="28.5" cy="19.9" r="0.9" fill="#FFFFFF"/><path d="M21.2 25.4Q24 28 26.8 25.4" stroke="#F6B6C7" stroke-width="1.6" stroke-linecap="round"/><path d="M13.5 42C14.5 34.8 18.5 32.5 24 32.5C29.5 32.5 33.5 34.8 34.5 42Z" fill="#1D1722" stroke="#E593A8" stroke-width="1.6"/><path d="M17.5 32.8Q24 35.2 30.5 32.8L29.2 39.2L26.2 39.2L27 34.8" fill="#BD2B4F"/></svg></span>',
+            '          <span class="sf-lobby-char-name">Funkira</span>',
+            '          <span class="sf-lobby-char-tag">Weiblich</span>',
             '        </button>',
             '      </div>',
             '    </div>',
@@ -814,8 +814,8 @@
             '        <div class="sf-lobby-settings-row">',
             '          <span class="sf-lobby-settings-label">Charakter</span>',
             '          <div style="display:flex;align-items:center;gap:6px;">',
-            '            <button type="button" data-lobby-char="male" class="sf-lobby-step-btn is-active">Männlich</button>',
-            '            <button type="button" data-lobby-char="female" class="sf-lobby-step-btn">Weiblich</button>',
+            '            <button type="button" data-lobby-char="male" class="sf-lobby-step-btn is-active">Funki · Männlich</button>',
+            '            <button type="button" data-lobby-char="female" class="sf-lobby-step-btn">Funkira · Weiblich</button>',
             '          </div>',
             '        </div>',
             '      </div>',
@@ -2809,7 +2809,7 @@
         var isFem = Boolean(this.userSettings && this.userSettings.characterGender === 'female');
         var charTopBtn = root.querySelector('[data-lobby-char-btn]');
         if (charTopBtn) {
-            charTopBtn.textContent = isFem ? '✦ Weiblich' : '✦ Männlich';
+            charTopBtn.textContent = isFem ? '✦ Funkira · Weiblich' : '✦ Funki · Männlich';
         }
         var charCardM = root.querySelector('[data-lobby-char-card="male"]');
         var charCardF = root.querySelector('[data-lobby-char-card="female"]');

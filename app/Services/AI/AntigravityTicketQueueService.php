@@ -262,12 +262,9 @@ class AntigravityTicketQueueService
                 $execMode = 'direct';
             }
 
-            // Wenn es ein expliziter Fachabteilungs-Kanal (z. B. shop, buchhaltung) aus der App ist, respektieren;
+            // Wenn es ein expliziter Fachabteilungs-Kanal (z. B. shop, buchhaltung, invest) aus der App ist, respektieren;
             // ansonsten in den dedizierten "[SF] Ticket-Autopilot" Kanal ("tickets") routen, damit "leitung" frei bleibt.
-            $rawChannel = strtolower(trim((string) ($payload['ag_channel'] ?? self::WORKER_CHANNEL)));
-            $targetChannel = in_array($rawChannel, ['shop', 'buchhaltung', 'android', 'minipc'], true)
-                ? $rawChannel
-                : self::WORKER_CHANNEL;
+            $targetChannel = $this->resolveQueueTargetChannel($selectedTicket);
 
             $prompt = $this->buildQueueWorkerPrompt(
                 $selectedTicket,
@@ -437,8 +434,10 @@ class AntigravityTicketQueueService
                 ? "\n\nAutopilot-Mandat (Lösen + Härten in einem Atemzug): Behebe nicht nur das akute Symptom, sondern härte den betroffenen Code-Pfad inkl. Nachbarstellen dauerhaft gegen Wiederauftreten ab und verankere einen automatisierten Regressions-Test."
                 : "\n\nKonzept-Mandat: Plane neben der Fachlösung direkt die präventive Code-Härtung und den Regressions-Schutz mit ein.";
 
+            $targetChannel = $this->resolveQueueTargetChannel($ticket);
+
             $enqueued = $this->inboxService->enqueueMessage([
-                'channel' => self::WORKER_CHANNEL,
+                'channel' => $targetChannel,
                 'title' => "[{$ticket->ticket_number}] {$ticket->title}",
                 'body' => Str::limit($firstMessage, 3700) . $mandateSuffix,
                 'execution_mode' => $execMode,
@@ -452,7 +451,7 @@ class AntigravityTicketQueueService
             }
 
             $payload['ag_item_id'] = $agId;
-            $payload['ag_channel'] = $payload['ag_channel'] ?? self::WORKER_CHANNEL;
+            $payload['ag_channel'] = $targetChannel;
             $payload['execution_mode'] = $execMode;
             $ticket->update(['action_payload' => $payload]);
 
@@ -460,6 +459,21 @@ class AntigravityTicketQueueService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function resolveQueueTargetChannel(AiUniverseTicket $ticket): string
+    {
+        $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+        $normalized = $this->inboxService->normalizeChannel($payload['ag_channel'] ?? self::WORKER_CHANNEL);
+        $effective = $this->inboxService->resolveEffectiveChannel(
+            $normalized,
+            (string) ($ticket->title ?? ''),
+            ''
+        );
+
+        return in_array($effective, ['shop', 'buchhaltung', 'android', 'minipc', 'invest'], true)
+            ? $effective
+            : self::WORKER_CHANNEL;
     }
 
     /**

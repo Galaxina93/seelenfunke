@@ -250,6 +250,21 @@ data class BehaviorRuleActionResponse(
     val prompt_block: String? = null
 )
 
+data class SaveLiveTranscriptRequest(
+    val session_id: String,
+    val role: String,
+    val content: String,
+    val agent_id: String? = null,
+    val agent_name: String? = null,
+    val channel: String = "android_live_call"
+)
+
+data class SaveLiveTranscriptResponse(
+    val status: String? = null,
+    val id: String? = null,
+    val content: String? = null
+)
+
 interface AiApi {
     @GET("funki/command")
     suspend fun getUltimateCommand(): UltimateCommandResponse
@@ -307,5 +322,10 @@ interface AiApi {
     suspend fun dismissBehaviorRule(
         @Body request: BehaviorRuleActionRequest
     ): BehaviorRuleActionResponse
+
+    @POST("ai/save-live-transcript")
+    suspend fun saveLiveTranscript(
+        @Body request: SaveLiveTranscriptRequest
+    ): SaveLiveTranscriptResponse
 }
 

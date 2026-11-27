@@ -727,18 +727,21 @@ class MasterAnalytics extends Component
                         \Illuminate\Support\Facades\Cache::store('redis')->get('ping_test');
                         $time = round((microtime(true) - $start) * 1000, 1);
                         $health['redis'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
+                        if (\App\Services\System\RedisResilienceService::isRedisConnectivityException($e)) {
+                            \App\Services\System\RedisResilienceService::tripCircuitBreakerAndFallback($e);
+                        }
                         $health['redis'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Redis-Server nicht erreichbar.'];
                         $this->logSystemFailure('redis', 'Redis ist installiert, aber der Service verweigert die Verbindung.', ['exception' => $e->getMessage()]);
                     }
                 }
             } else {
                 // Wenn in der .env z.B. CACHE_DRIVER=file oder array steht (Standard für Lokal)
-                \Illuminate\Support\Facades\Cache::has('test_ping');
+                \App\Services\System\RedisResilienceService::safeCacheGet('test_ping');
                 $time = round((microtime(true) - $start) * 1000, 1);
                 $health['redis'] = ['status' => 'connected', 'value' => "{$cacheDriver} ({$time}ms)", 'error' => null];
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $health['redis'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Kritischer Cache-Fehler.'];
             $this->logSystemFailure('redis', 'Cache-Systemausfall: ' . $e->getMessage());
         }
@@ -759,7 +762,7 @@ class MasterAnalytics extends Component
 
         // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob & CLI Diagnose inkl. persistentem Heartbeat-Fallback)
         try {
-            $lastRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
+            $lastRunRaw = \App\Services\System\RedisResilienceService::safeCacheGet('scheduler_last_run');
             if (!$lastRunRaw && class_exists(\App\Services\System\SystemHealthPulseService::class)) {
                 $lastRunRaw = app(\App\Services\System\SystemHealthPulseService::class)->resolveSchedulerLastRunTimestamp();
             }
@@ -770,15 +773,18 @@ class MasterAnalytics extends Component
             }
 
             // Bootstrap-Monitoring (Artisan-Ladezeit)
-            $bootstrapRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_bootstrap_last_run');
+            $bootstrapRunRaw = \App\Services\System\RedisResilienceService::safeCacheGet('scheduler_bootstrap_last_run');
             $diffBootstrapMinutes = null;
             if ($bootstrapRunRaw) {
                 $bootstrapRun = \Carbon\Carbon::createFromTimestamp((int)$bootstrapRunRaw);
                 $diffBootstrapMinutes = (int) abs(now()->diffInMinutes($bootstrapRun));
             }
 
-            $lastException = \Illuminate\Support\Facades\Cache::get('scheduler_last_exception');
-            $jobErrors = \Illuminate\Support\Facades\Cache::get('scheduler_job_errors', []);
+            $lastException = \App\Services\System\RedisResilienceService::safeCacheGet('scheduler_last_exception');
+            $jobErrors = \App\Services\System\RedisResilienceService::safeCacheGet('scheduler_job_errors', []);
+            if (!is_array($jobErrors)) {
+                $jobErrors = [];
+            }
 
             $schedulerStatus = 'connected';
             $schedulerValue = 'Aktiv';
@@ -1648,6 +1654,7 @@ class MasterAnalytics extends Component
         $this->syncGeminiBridgeAlertIntoHealthChecks();
         $this->syncExperienceReviewsIntoHealthChecks();
         $this->syncAiAutopilotIntoHealthChecks();
+        $this->syncUniverseTicketsIntoHealthChecks();
 
         $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins, $this->systemHealth, $this->healthChecks);
         $this->stats = json_decode(json_encode($rawStats), true);
@@ -1898,6 +1905,52 @@ class MasterAnalytics extends Component
                 'title' => 'KI-Vorlagen (Buchi & Bestelli)',
                 'message' => $openTotal > 0 ? implode(', ', $parts) . ' bereit' : 'Keine offenen KI-Vorlagen',
                 'count' => $openTotal,
+                'data' => [],
+            ];
+        } catch (\Throwable $ignore) {
+        }
+    }
+
+    /**
+     * Spiegelt offene System- & Konzept-Rückfragen (Wartet auf mich / Tresor bereit) aus /admin/tickets
+     * direkt in den Operativen Status & Stabilitäts-Tacho, damit 100 % nur erscheint, wenn nichts auf Antwort wartet.
+     */
+    protected function syncUniverseTicketsIntoHealthChecks(): void
+    {
+        if (
+            !class_exists(\App\Models\Ai\AiUniverseTicket::class)
+            || !\Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')
+        ) {
+            return;
+        }
+
+        try {
+            $waitingAlina = \App\Models\Ai\AiUniverseTicket::query()
+                ->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA)
+                ->count();
+
+            $waitingTresor = \App\Models\Ai\AiUniverseTicket::query()
+                ->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_TRESOR)
+                ->count();
+
+            $totalAttention = $waitingAlina + $waitingTresor;
+
+            $parts = [];
+            if ($waitingAlina > 0) {
+                $parts[] = $waitingAlina . ' Rückfrage' . ($waitingAlina > 1 ? 'n / Konzepte' : ' / Konzept');
+            }
+            if ($waitingTresor > 0) {
+                $parts[] = $waitingTresor . ' Tresor-Freigabe' . ($waitingTresor > 1 ? 'n' : '');
+            }
+
+            $this->healthChecks['universe_waiting_alina'] = [
+                'status' => $waitingAlina > 0 ? 'warning' : ($waitingTresor > 0 ? 'todo' : 'success'),
+                'icon' => 'chat-bubble-left-right',
+                'title' => 'System- & Konzept-Rückfragen',
+                'message' => $totalAttention > 0
+                    ? (implode(', ', $parts) . ' warten auf deine Antwort')
+                    : 'Keine offenen Rückfragen oder Freigaben',
+                'count' => $totalAttention,
                 'data' => [],
             ];
         } catch (\Throwable $ignore) {
@@ -2864,6 +2917,7 @@ class MasterAnalytics extends Component
         $this->syncGeminiBridgeAlertIntoHealthChecks();
         $this->syncExperienceReviewsIntoHealthChecks();
         $this->syncAiAutopilotIntoHealthChecks();
+        $this->syncUniverseTicketsIntoHealthChecks();
 
         return view('livewire.shop.master.master-analytics', [
             'activeLogins' => $this->activeLogins,

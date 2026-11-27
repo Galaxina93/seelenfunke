@@ -103,6 +103,10 @@
                 </div>
             </div>
 
+            <div class="mb-8 w-full">
+                <x-shop.customer-feedback-banner :compact="true" />
+            </div>
+
             @if(session()->has('success'))
                 <div class="mb-8 p-4 bg-green-50 text-green-800 rounded-xl text-sm flex items-center shadow-sm w-full border border-green-200">
                     <i class="bi bi-check-circle mr-2 text-lg"></i> {{ session('success') }}

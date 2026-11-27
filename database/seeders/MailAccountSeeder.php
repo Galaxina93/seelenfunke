@@ -76,6 +76,19 @@ class MailAccountSeeder extends Seeder
                 'folders' => ['Objego'],
             ],
             [
+                'name' => 'support@elocrest.gg',
+                'email' => 'support@elocrest.gg',
+                'imap_host' => 'mail.agenturserver.de',
+                'imap_port' => 993,
+                'imap_encryption' => 'ssl',
+                'smtp_host' => 'mail.agenturserver.de',
+                'smtp_port' => 465,
+                'smtp_encryption' => 'ssl',
+                'is_default' => false,
+                'is_commercial' => true,
+                'folders' => ['Support', 'Rechnungen', 'Widerrufe', 'Stripe', 'Riot'],
+            ],
+            [
                 'name' => 'alina.stone@t-online.de',
                 'email' => 'alina.stone@t-online.de',
                 'imap_host' => 'secureimap.t-online.de',
@@ -105,9 +118,11 @@ class MailAccountSeeder extends Seeder
 
         foreach ($accounts as $accData) {
             $existingAcc = MailAccount::where('email', $accData['email'])->first();
-            $fallbackPassword = $accData['email'] === 'kontakt@mein-seelenfunke.de'
-                ? (string) env('MAIL_PASSWORD', '')
-                : '';
+            $fallbackPassword = match ($accData['email']) {
+                'kontakt@mein-seelenfunke.de' => (string) env('MAIL_PASSWORD', ''),
+                'support@elocrest.gg' => (string) env('ELOCREST_MAIL_PASSWORD', ''),
+                default => '',
+            };
 
             $updatePayload = [
                 'name' => $accData['name'],

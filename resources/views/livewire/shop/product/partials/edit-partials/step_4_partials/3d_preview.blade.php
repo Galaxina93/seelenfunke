@@ -14,7 +14,10 @@
             <video x-ref="adminBgVideo"
                    :key="bgVideoUrl"
                    :src="bgVideoUrl"
+                   preload="auto"
                    x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
+                   @ended="$el.currentTime = 0; $el.play().catch(() => {})"
+                   @stalled="if ($el.paused && !document.hidden) { $el.play().catch(() => {}); }"
                    autoplay
                    loop
                    muted

@@ -168,7 +168,7 @@ trait ManagesAiChat
                 'status' => 'assigned'
             ]);
             
-            \App\Events\TaskUpdated::dispatch($task);
+            \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($task), 'ManagesAiChat::assignAgent');
             ProcessAiWorkspaceTask::dispatch($task);
         }
     }
@@ -199,6 +199,8 @@ trait ManagesAiChat
 
                     $formattedTime = $mem->created_at ? $mem->created_at->format('d.m.Y, H:i \U\h\r') : now()->format('d.m.Y, H:i \U\h\r');
                     $messages[] = [
+                        'id' => $mem->id,
+                        'is_tool' => true,
                         'role' => 'assistant',
                         'name' => 'System Execution',
                         'content' => $markdown,
@@ -216,6 +218,8 @@ trait ManagesAiChat
                 $ctx = $mem->context_data ?? [];
                 $formattedTime = $mem->created_at ? $mem->created_at->format('d.m.Y, H:i \U\h\r') : now()->format('d.m.Y, H:i \U\h\r');
                 $messages[] = [
+                    'id' => $mem->id,
+                    'is_tool' => false,
                     'role' => $mem->role,
                     'name' => $ctx['name'] ?? ucfirst($mem->role),
                     'content' => $mem->content,
@@ -669,6 +673,26 @@ trait ManagesAiChat
 
         $this->saveMessageToDb('user', $this->input, $userCtx);
 
+        // 0-Token implizite Lob-/Kritik-Erfassung im Web-Portal-Chat (strikt intern, Funki ausgeschlossen)
+        try {
+            $primaryAgentId = $this->activeAgentIds[0] ?? null;
+            $primaryAgent = $primaryAgentId ? \App\Models\Ai\AiAgent::find($primaryAgentId) : null;
+            $prevAssistant = AiChatMemory::where('session_id', $this->getAiSessionId())
+                ->where('role', 'assistant')
+                ->latest('created_at')
+                ->first();
+            \App\Services\AI\AiBehaviorAnalysisService::scanAndRecordImplicitMessage(
+                (string) $this->input,
+                $primaryAgent,
+                'web_portal',
+                [
+                    'session_id' => $this->getAiSessionId(),
+                    'agent_excerpt' => $prevAssistant?->content,
+                ]
+            );
+        } catch (\Throwable) {
+        }
+
         $this->pendingRouterMessage = $this->input;
 
         $this->input = '';
@@ -678,6 +702,52 @@ trait ManagesAiChat
         $this->typingAgents = array_merge($this->typingAgents, $this->activeAgentIds);
         
         $this->dispatch('start-auto-routing', targetComponentId: $this->getId());
+    }
+
+    public array $behaviorFeedbackStates = [];
+
+    public function submitBehaviorFeedback(string $memoryId, string $polarity, ?string $reasonKey = null, string $channel = 'web_portal'): void
+    {
+        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+            return;
+        }
+
+        $mem = AiChatMemory::find($memoryId);
+        if (!$mem || $mem->role !== 'assistant') {
+            return;
+        }
+
+        $ctx = is_array($mem->context_data) ? $mem->context_data : [];
+        $agentName = (string) ($ctx['name'] ?? '');
+        $agent = $agentName !== '' ? \App\Models\Ai\AiAgent::where('name', $agentName)->first() : null;
+
+        $prevUser = AiChatMemory::where('session_id', $mem->session_id)
+            ->where('role', 'user')
+            ->where('created_at', '<=', $mem->created_at)
+            ->latest('created_at')
+            ->first();
+
+        $saved = \App\Services\AI\AiBehaviorAnalysisService::recordExplicitReaction(
+            $agent,
+            $channel,
+            $polarity,
+            null,
+            $reasonKey,
+            [
+                'agent_name' => $agentName,
+                'session_id' => $mem->session_id,
+                'ai_chat_memory_id' => $mem->id,
+                'user_excerpt' => $prevUser?->content,
+                'agent_excerpt' => $mem->content,
+            ]
+        );
+
+        if ($saved) {
+            $this->behaviorFeedbackStates[$memoryId] = [
+                'polarity' => $saved->polarity,
+                'reason' => $saved->reason_note,
+            ];
+        }
     }
 
     public function saveUserLiveMessage($text, $sessionId = null)
@@ -1547,7 +1617,7 @@ trait ManagesAiChat
                     'assigned_agent_id' => $task->assigned_agent_id,
                     'status' => 'assigned'
                 ]);
-                \App\Events\TaskUpdated::dispatch($newTask);
+                \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($newTask), 'ManagesAiChat::retryTask');
                 \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($newTask));
             }
         }
@@ -1612,7 +1682,7 @@ trait ManagesAiChat
         ]);
 
         if ($agent) {
-            \App\Events\TaskUpdated::dispatch($task);
+            \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($task), 'ManagesAiChat::createWorkspaceTask');
             ProcessAiWorkspaceTask::dispatch($task);
         }
 

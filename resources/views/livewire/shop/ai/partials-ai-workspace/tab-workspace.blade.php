@@ -243,7 +243,12 @@
                                 <span class="text-[10px] font-mono text-gray-500 uppercase tracking-widest">#{{ substr($task->id, 0, 8) }}</span>
                                 <div class="flex items-center gap-2">
                                     @if($task->status === 'completed')
-                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest">Fertig</span>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 tracking-wide">
+                                            <span>fertig</span>
+                                            <svg class="w-3 h-3 text-emerald-500 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                            </svg>
+                                        </span>
                                         <button wire:click="undoTask('{{ $task->id }}')" 
                                                 class="text-gray-500 hover:text-[var(--theme-color)] p-1 rounded-md hover:bg-[var(--theme-color-10)] transition-colors"
                                                 title="Aufgabe rückgängig machen (Umkehren)">
@@ -477,15 +482,24 @@
                                             <!-- Status -->
                                             <td class="px-6 py-5 align-top">
                                                 @if($task->status === 'completed')
-                                                    <span class="px-2.5 py-1 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest shadow-sm">Fertig</span>
+                                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 tracking-wide shadow-sm">
+                                                        <span>fertig</span>
+                                                        <svg class="w-3.5 h-3.5 text-emerald-500 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </span>
                                         @elseif($task->status === 'awaiting_approval')
                                             <span class="px-2.5 py-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/30 uppercase tracking-widest shadow-sm flex items-center w-max gap-1">
                                                 <x-heroicon-o-hand-raised class="w-3 h-3" /> Warten auf Freigabe
                                             </span>
                                                 @elseif($task->status === 'processing')
                                                     <div class="flex flex-col gap-2.5">
-                                                        <span class="inline-flex w-fit px-2.5 py-1 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest items-center gap-1.5 shadow-[0_0_10px_var(--theme-color-10)]">
-                                                            <span class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] animate-pulse-slow"></span> Läuft
+                                                        <span class="inline-flex w-fit px-2.5 py-1 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] tracking-wide items-center gap-1.5">
+                                                            <span>in Arbeit</span>
+                                                            <svg class="w-3 h-3 animate-spin shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                                <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle>
+                                                                <path class="opacity-90" fill="currentColor" d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 0 0-6-6V3z"></path>
+                                                            </svg>
                                                         </span>
                                                         
                                                         @if($task->assigned_agent_id)

@@ -155,11 +155,12 @@ class FunkiraPresenceContext
     }
 
     /**
-     * Erzeugt den ultrakompakten (~35 Tokens) System-Header für Funkira & Abteilungs-Agenten.
+     * Erzeugt den ultrakompakten (~35 Tokens) System-Header für Funkira & Abteilungs-Agenten
+     * inkl. freigegebener, kanalspezifischer Verhaltensregeln (strikt gesperrt im Besuchermodus & für Funki).
      *
      * @param array<string, mixed> $presence
      */
-    public static function toPromptHeader(array $presence): string
+    public static function toPromptHeader(array $presence, ?\App\Models\Ai\AiAgent $agent = null): string
     {
         $env = $presence['environment_tier'] ?? self::ENV_LOCAL;
         $channelLabel = $presence['channel_label'] ?? 'Web-Portal';
@@ -184,6 +185,24 @@ class FunkiraPresenceContext
             default => 'Lokale Entwicklungsumgebung (127.0.0.1, keine unbestätigten Echtgeld-Käufe)',
         };
 
-        return "[AKTIVER KONTEXT: Ort={$channelLabel}{$routeInfo} | Umgebung={$env} ({$envNote}) | {$agInfo} | {$tresorInfo}{$sensorInfo}]";
+        $header = "[AKTIVER KONTEXT: Ort={$channelLabel}{$routeInfo} | Umgebung={$env} ({$envNote}) | {$agInfo} | {$tresorInfo}{$sensorInfo}]";
+
+        if (empty($presence['visitor_sandbox_locked']) && !AiBehaviorAnalysisService::isAgentExcluded($agent)) {
+            $header .= "\n[STIL & BÜNDELUNG: Antworte militärisch-knackig in maximal 1 bis 3 kurzen Sätzen ohne Füllwörter/Floskeln. Schnüre mehrteilige Tech-Anforderungen inkl. optionalem Fotoanhang priorisiert ins Sammelpaket statt Einzel-Aufträge zu spammen.]";
+        }
+
+        try {
+            $behaviorBlock = AiBehaviorAnalysisService::buildActiveBehaviorDirectivesBlock(
+                (string) ($presence['channel'] ?? 'web_portal'),
+                $agent,
+                !empty($presence['visitor_sandbox_locked'])
+            );
+            if ($behaviorBlock !== '') {
+                $header .= "\n" . $behaviorBlock;
+            }
+        } catch (\Throwable) {
+        }
+
+        return $header;
     }
 }

@@ -210,7 +210,13 @@ class NotificationIconAlphaAndMonochromeTest {
         assertTrue(directive!!.contains("WICHTIGER APP-STATUS: Alina hat BEREITS"))
         assertTrue(directive.contains("alina_screenshot_weisser_kreis.jpg"))
         val silentPacket = de.meinseelenfunke.app.util.FalconClientTools.buildSilentClientContextPacket(directive)
-        assertFalse(silentPacket.getAsJsonObject("clientContent").get("turnComplete").asBoolean)
+        assertTrue(silentPacket.has("realtimeInput"))
+        assertFalse(silentPacket.has("clientContent"))
+        val legacySilentPacket = de.meinseelenfunke.app.util.FalconClientTools.buildSilentClientContextPacket(
+            directive,
+            "models/gemini-2.5-flash-native-audio-latest"
+        )
+        assertFalse(legacySilentPacket.getAsJsonObject("clientContent").get("turnComplete").asBoolean)
 
         // 2. LLM tries falcon_camera_control(action="take_photo") without force_new_photo -> MUST NOT open camera!
         val takePhotoArgs = com.google.gson.JsonObject().apply {

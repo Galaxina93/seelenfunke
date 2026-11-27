@@ -116,6 +116,43 @@
                                             <x-heroicon-s-chevron-down class="w-3 h-3 transition-transform" x-bind:class="expanded ? 'rotate-180' : ''" />
                                         </button>
                                     </div>
+                                    @if(!empty($msg['id']) && empty($msg['is_tool']) && strtolower((string) ($msg['name'] ?? '')) !== 'funki')
+                                        @php
+                                            $fbState = $this->behaviorFeedbackStates[$msg['id']] ?? null;
+                                        @endphp
+                                        <div class="mt-2 pt-2 border-t border-gray-200/70 dark:border-gray-800/80 flex flex-wrap items-center gap-1.5"
+                                             x-data="{ showReasons: false }">
+                                            <button type="button"
+                                                    wire:click="submitBehaviorFeedback('{{ $msg['id'] }}', 'praise', null, 'web_portal')"
+                                                    @click="showReasons = false"
+                                                    title="Hilfreich (Lob)"
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer {{ ($fbState['polarity'] ?? null) === 'praise' ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40' : 'bg-white/70 dark:bg-gray-950/60 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400' }}">
+                                                <x-heroicon-o-hand-thumb-up class="w-3.5 h-3.5" />
+                                                @if(($fbState['polarity'] ?? null) === 'praise')
+                                                    <span>✓</span>
+                                                @endif
+                                            </button>
+                                            <button type="button"
+                                                    @click="showReasons = !showReasons"
+                                                    title="Verbesserung melden (Kritik)"
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer {{ in_array($fbState['polarity'] ?? null, ['criticism', 'correction'], true) ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-500/40' : 'bg-white/70 dark:bg-gray-950/60 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:border-rose-400 hover:text-rose-600 dark:hover:text-rose-400' }}">
+                                                <x-heroicon-o-hand-thumb-down class="w-3.5 h-3.5" />
+                                                @if(in_array($fbState['polarity'] ?? null, ['criticism', 'correction'], true))
+                                                    <span>{{ $fbState['reason'] ?? 'Erfasst' }}</span>
+                                                @endif
+                                            </button>
+                                            <div x-show="showReasons" x-cloak style="display: none;" class="flex flex-wrap items-center gap-1 ml-1">
+                                                @foreach(\App\Services\AI\AiBehaviorAnalysisService::quickReasonChips() as $chipKey => $chipMeta)
+                                                    <button type="button"
+                                                            wire:click="submitBehaviorFeedback('{{ $msg['id'] }}', '{{ $chipMeta['polarity'] }}', '{{ $chipKey }}', 'web_portal')"
+                                                            @click="showReasons = false"
+                                                            class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-[#C5A059] hover:text-[#9A742B] dark:hover:text-[#C5A059] transition-colors cursor-pointer">
+                                                        {{ $chipMeta['label'] }}
+                                                    </button>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
                                 @endif
                             </div>
                         </div>

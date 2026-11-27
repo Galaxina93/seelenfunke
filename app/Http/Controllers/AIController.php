@@ -188,9 +188,28 @@ class AIController extends Controller
             }
         }
 
+        $execChannel = (string) ($request->input('channel') ?: 'web_portal');
+        $execVisitorLocked = ($execChannel === 'workshop_minipc')
+            && !$request->boolean('camera_alina_verified', true)
+            && !$request->boolean('voice_alina_verified', true);
+
         try {
             // Forward execution to the registry
             $result = AIFunctionsRegistry::execute($functionName, $args, $agent);
+
+            // Deterministisches Tool-Fehler-Signal für Verhaltensanalyse erfassen
+            if (is_array($result) && (($result['status'] ?? null) === 'error' || !empty($result['error']))) {
+                \App\Services\AI\AiBehaviorAnalysisService::recordToolErrorSignal(
+                    (string) $functionName,
+                    (string) ($result['message'] ?? $result['error'] ?? 'Werkzeug meldete Fehlerstatus'),
+                    $agent,
+                    $execChannel,
+                    [
+                        'session_id' => $sessionId,
+                        'visitor_sandbox_locked' => $execVisitorLocked,
+                    ]
+                );
+            }
 
             // Persist tool execution into chat memory if session is active
             if ($sessionId && class_exists(\App\Models\Ai\AiChatMemory::class)) {
@@ -218,6 +237,16 @@ class AIController extends Controller
             ]);
 
         } catch (\InvalidArgumentException $e) {
+            \App\Services\AI\AiBehaviorAnalysisService::recordToolErrorSignal(
+                (string) $functionName,
+                $e->getMessage(),
+                $agent,
+                $execChannel,
+                [
+                    'session_id' => $sessionId,
+                    'visitor_sandbox_locked' => $execVisitorLocked,
+                ]
+            );
             // Function not found
             return response()->json([
                 'status' => 'error',
@@ -225,6 +254,16 @@ class AIController extends Controller
             ], 404);
 
         } catch (\Exception $e) {
+            \App\Services\AI\AiBehaviorAnalysisService::recordToolErrorSignal(
+                (string) $functionName,
+                $e->getMessage(),
+                $agent,
+                $execChannel,
+                [
+                    'session_id' => $sessionId,
+                    'visitor_sandbox_locked' => $execVisitorLocked,
+                ]
+            );
             // Internal execution error
             return response()->json([
                 'status' => 'error',
@@ -510,11 +549,13 @@ class AIController extends Controller
         }
 
         if (method_exists($agent, 'setDynamicSystemPrompt')) {
-            $agent->setDynamicSystemPrompt(
-                \App\Services\AI\FunkiraPresenceContext::toPromptHeader($chatPresence)
-                . "\n\n"
-                . \App\Services\AI\FunkiraTicketRouter::loadFlatDepartmentKnowledge($aiAgent?->ai_department_id)
-            );
+            $presenceHeader = \App\Services\AI\FunkiraPresenceContext::toPromptHeader($chatPresence, $aiAgent);
+            $deptKnowledge = \App\Services\AI\FunkiraTicketRouter::loadFlatDepartmentKnowledge($aiAgent?->ai_department_id);
+            $promptParts = [$presenceHeader, $deptKnowledge];
+            if (!\App\Services\AI\AiBehaviorAnalysisService::isAgentExcluded($aiAgent) && trim($dynamicSystemPrompt) !== '') {
+                $promptParts[] = $dynamicSystemPrompt;
+            }
+            $agent->setDynamicSystemPrompt(implode("\n\n", array_filter($promptParts, static fn ($p) => trim((string) $p) !== '')));
         }
 
         $executedChatTools = [];
@@ -538,19 +579,31 @@ class AIController extends Controller
             ], 503);
         }
 
+        $qualityGateResult = null;
         if (!empty($result['response']) && ($aiAgent?->name ?? 'Funkira') !== 'Funki') {
-            $gate = \App\Services\AI\AiOutputQualityGate::inspectAndClean((string) $result['response'], $executedChatTools);
-            $result['response'] = $gate['text'];
-            $result['response_raw'] = $gate['text'];
+            $qualityGateResult = \App\Services\AI\AiOutputQualityGate::inspectAndClean((string) $result['response'], $executedChatTools);
+            $result['response'] = $qualityGateResult['text'];
+            $result['response_raw'] = $qualityGateResult['text'];
         }
 
         // Was hat der User gesagt? (Finde die neuste User-Nachricht)
         $userMsg = collect($history)->reverse()->firstWhere('role', 'user');
         $dbContent = '';
+        $assistantMemoryId = null;
+        $userMemoryId = null;
+        $cannedRefusalDetected = false;
+        $prevAssistantExcerpt = null;
 
         try {
             $chatSession = $sessionId ? \App\Models\Ai\AiChatSession::find($sessionId) : null;
             $user = $chatSession ? $chatSession->user : (auth()->user() ?? null);
+
+            if ($sessionId) {
+                $prevAssistantExcerpt = AiChatMemory::where('session_id', $sessionId)
+                    ->where('role', 'assistant')
+                    ->latest('created_at')
+                    ->value('content');
+            }
 
             $userCtx = [
                 'name' => $user ? ($user->first_name ?? 'User') : 'User',
@@ -576,12 +629,13 @@ class AIController extends Controller
                     $dbContent = implode("\n", $textParts);
                 }
                 if ($sessionId) {
-                    AiChatMemory::create([
+                    $createdUserMem = AiChatMemory::create([
                         'session_id' => $sessionId,
                         'role' => 'user',
                         'content' => (string) $dbContent,
                         'context_data' => $userCtx,
                     ]);
+                    $userMemoryId = $createdUserMem->id;
                 }
             }
 
@@ -598,18 +652,59 @@ class AIController extends Controller
             // Was hat die KI final geantwortet?
             if (!empty($result['response'])) {
                 if (self::isCannedModelRefusal((string) $result['response'])) {
+                    $cannedRefusalDetected = true;
                     $isEmpOnly = \App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin();
                     $klartext = self::buildConcreteRefusalReplacement((string) ($dbContent ?? ''), $isEmpOnly);
                     $result['response'] = $klartext;
                     $result['response_raw'] = $klartext;
                 } elseif ($sessionId) {
-                    AiChatMemory::create([
+                    $createdAssistantMem = AiChatMemory::create([
                         'session_id' => $sessionId,
                         'role' => 'assistant',
                         'content' => $result['response'],
                         'context_data' => $assistantCtx,
                     ]);
+                    $assistantMemoryId = $createdAssistantMem->id;
                 }
+            }
+
+            // 0-Token Verhaltensanalyse (implizites Lob/Kritik + Quality-Gate-Signale, Funki & Besuchermodus strikt ausgeschlossen)
+            $chatLatencyMs = (int) round((microtime(true) - $chatStartedAt) * 1000);
+            $behaviorChannel = (string) ($chatPresence['channel'] ?? 'web_portal');
+            if ($dbContent !== '') {
+                \App\Services\AI\AiBehaviorAnalysisService::scanAndRecordImplicitMessage(
+                    (string) $dbContent,
+                    $aiAgent,
+                    $behaviorChannel,
+                    [
+                        'session_id' => $sessionId,
+                        'ai_chat_memory_id' => $userMemoryId,
+                        'executed_tools' => $executedChatTools,
+                        'latency_ms' => $chatLatencyMs,
+                        'environment_tier' => $chatPresence['environment_tier'] ?? null,
+                        'agent_excerpt' => $prevAssistantExcerpt,
+                        'visitor_sandbox_locked' => !empty($chatPresence['visitor_sandbox_locked']),
+                    ]
+                );
+            }
+            if ($qualityGateResult !== null || $cannedRefusalDetected) {
+                $gatePayload = is_array($qualityGateResult) ? $qualityGateResult : [];
+                $gatePayload['canned_refusal_detected'] = $cannedRefusalDetected;
+                \App\Services\AI\AiBehaviorAnalysisService::recordQualityGateSignal(
+                    $gatePayload,
+                    $aiAgent,
+                    $behaviorChannel,
+                    [
+                        'session_id' => $sessionId,
+                        'ai_chat_memory_id' => $assistantMemoryId,
+                        'executed_tools' => $executedChatTools,
+                        'latency_ms' => $chatLatencyMs,
+                        'environment_tier' => $chatPresence['environment_tier'] ?? null,
+                        'user_excerpt' => (string) $dbContent,
+                        'agent_excerpt' => (string) ($result['response'] ?? ''),
+                        'visitor_sandbox_locked' => !empty($chatPresence['visitor_sandbox_locked']),
+                    ]
+                );
             }
         } catch (\Throwable $memEx) {
             \Illuminate\Support\Facades\Log::warning('AIController::chat memory persistence warning: ' . $memEx->getMessage());
@@ -652,6 +747,7 @@ class AIController extends Controller
         $responsePayload = [
             'status' => 'success',
             'chat_session_id' => $sessionId,
+            'memory_id' => $assistantMemoryId,
             'agent_name' => $aiAgent ? $aiAgent->name : 'Funkira',
             'tts_enabled' => $ttsEnabled,
             'response' => $result['response'],
@@ -741,6 +837,7 @@ class AIController extends Controller
         
         $voiceName = $aiAgent ? ($aiAgent->tts_voice ?: 'Aoede') : 'Aoede';
         $agentName = $aiAgent ? $aiAgent->name : 'Funkira';
+        $isFunkiAgent = $aiAgent && strcasecmp(trim((string) ($aiAgent->name ?? '')), 'Funki') === 0;
         
         $payload = [];
         $systemInstruction = "";
@@ -779,7 +876,7 @@ class AIController extends Controller
             'detected_persons' => $request->input('detected_persons', []),
             'is_voice_mode' => true,
         ], $request);
-        $presenceHeader = \App\Services\AI\FunkiraPresenceContext::toPromptHeader($livePresence);
+        $presenceHeader = \App\Services\AI\FunkiraPresenceContext::toPromptHeader($livePresence, $aiAgent);
         $locationGuard = "VERBINDLICHER STANDORT- & KANAL-KONTEXT: Dein aktueller Kommunikationskanal ist '{$livePresence['channel_label']}' (technischer Kanal: '{$livePresence['channel']}'). "
             . ($livePresence['channel'] === 'live_widget' || $livePresence['channel'] === 'web_portal'
                 ? "Du sprichst mit Alina im Webportal Live AI Widget (NICHT im 3D-Atelier und NICHT in der mobilen 3D-App!). Nenne bei Fragen zu deinem Standort oder Kanal immer klar 'Webportal Live AI Widget'" . ($resolvedActiveRoute !== '' ? " auf der Seite '{$resolvedActiveRoute}'" : '') . "."
@@ -803,11 +900,11 @@ class AIController extends Controller
             "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ".\n" .
             "WICHTIG FÜR DEN ECHTZEIT-SPRACHMODUS (wie in der mobilen Google Gemini App):\n" .
             "- Du führst ein flüssiges, direktes Sprachgespräch in Echtzeit.\n" .
-            "- Antworte extrem schnell, direkt und prägnant (meist 1 bis 3 kurze Sätze auf den Punkt, niemals doppelt ansetzen oder dieselbe Aussage wiederholen).\n" .
+            "- Antworte militärisch-knackig und extrem präzise (maximal 1 bis 3 kurze Sätze auf den Punkt, null Füllwörter, null Floskeln, niemals doppelt ansetzen oder dieselbe Aussage wiederholen).\n" .
             "- KEINE VORAB-SPRACHE VOR WERKZEUGAUFRUFEN: Wenn du ein Werkzeug aufrufst, sprich VOR dem Werkzeugaufruf KEINEN Satz und KEINE Begrüßung aus! Führe das Werkzeug sofort stumm aus und antworte erst NACH Erhalt des Werkzeug-Ergebnisses EINMALIG und klar.\n" .
             "- Verwende in deiner Sprachantwort NIEMALS Markdown, Sternchen, Tabellen oder Listenpunkte.\n" .
             "- Rufe Werkzeuge nur auf, wenn der Benutzer dich explizit um eine konkrete Aktion bittet.\n" .
-            "- DIREKTLEITUNG ZU ANTIGRAVITY (`ag_send_to_antigravity`, `ag_check_antigravity_status`): Genau wie Falcone kannst du technische Probleme, Code-Bugs oder konkrete Entwicklungsaufträge von Alina direkt über `ag_send_to_antigravity` in den passenden Antigravity-Kanal (`shop`, `android`, `minipc`, `buchhaltung`, `leitung`) übermitteln und den Bearbeitungsstand mit `ag_check_antigravity_status` abfragen.\n" .
+            "- PRIORISIERTE PAKETBÜNDELUNG & DIREKTLEITUNG ZU ANTIGRAVITY: Bündle mehrere technische Anforderungen, Bugs oder Ideen samt optionalem Fotoanhang vorab priorisiert ins Sammelpaket (`falcon_stage_to_package` mit `priority='urgent'|'high'|'normal'`, `attach_captured_photo=true`) statt Einzel-Aufträge zu spammen. Nutze `ag_send_to_antigravity` / `falcon_send_to_antigravity` ausschließlich für explizite Sofort-Einzelaufträge in den passenden Kanal (`shop`, `android`, `minipc`, `buchhaltung`, `invest` für Steinhauer Invest / Steini -> Invest-Chat, `leitung` für Seelenfunke Standard) und `ag_check_antigravity_status` für Statusabfragen.\n" .
             "- HINTERLEGTE FOTOS / DATEIEN IN DER APP (STRIKTES KAMERA-VERBOT): Wenn bereits ein Foto, Screenshot oder eine Datei in der App hinterlegt/ausgewählt wurde oder Alina sagt 'Ich habe schon ein Foto/Bild hinterlegt', öffne NIEMALS die Kamera und rufe KEIN Foto-Aufnahme-Werkzeug (`falcon_take_photo`, `ui_analyze_camera` o. Ä.) auf! Nutze direkt das bereits hinterlegte Bild.\n\n" .
             "WICHTIG ZU HINTERGRUND-AUFGABEN & MASSEN-AKTIONEN:\n" .
             "- Wenn der Benutzer dir zeitaufwändige Aufgaben, Massen-Operationen oder Hintergrundjobs erteilt, bestätige dem Nutzer SOFORT in 1 kurzen Satz, dass die Aufgabe im Hintergrund läuft.\n\n" .
@@ -850,15 +947,79 @@ class AIController extends Controller
         
         if ($sessionId) {
             $rawHistory = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)
+                ->whereIn('role', ['user', 'assistant'])
                 ->orderBy('created_at', 'desc')
                 ->orderBy('id', 'desc')
                 ->take(24)
                 ->get()
                 ->reverse()
                 ->values();
+            $isFallbackHistory = false;
+
+            // Falls eine neue Live-Call-Session (z.B. android_live_<uuid>) noch 0 Eintraege hat,
+            // uebernehmen wir nahtlos die juengsten Gespraechs-Turns desselben Nutzers (max. 12h alt),
+            // damit der Gespraechskontext zwischen Telefonaten und Chat nicht abreisst.
+            if ($rawHistory->isEmpty() && $currentUserId && !$isFunkiAgent) {
+                $cutoff = now()->subHours(12);
+                $latestUserSessionId = \App\Models\Ai\AiChatSession::where('user_id', $currentUserId)
+                    ->where('id', '!=', $sessionId)
+                    ->where('is_archived', false)
+                    ->whereHas('messages', function ($q) use ($cutoff) {
+                        $q->whereIn('role', ['user', 'assistant'])
+                            ->where('created_at', '>=', $cutoff);
+                    })
+                    ->orderBy('updated_at', 'desc')
+                    ->value('id');
+
+                $latestLiveMemory = \App\Models\Ai\AiChatMemory::where('session_id', '!=', $sessionId)
+                    ->where('session_id', 'like', 'android_live_%')
+                    ->whereIn('role', ['user', 'assistant'])
+                    ->where('created_at', '>=', $cutoff)
+                    ->where(function ($q) use ($currentUserId, $isAdminUser) {
+                        $q->where('context_data->user_id', (string) $currentUserId);
+                        if ($isAdminUser) {
+                            $q->orWhereNull('context_data->user_id');
+                        }
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $fallbackSessionId = null;
+                if ($latestUserSessionId && $latestLiveMemory) {
+                    $sessionLatestAt = \App\Models\Ai\AiChatMemory::where('session_id', $latestUserSessionId)
+                        ->whereIn('role', ['user', 'assistant'])
+                        ->max('created_at');
+                    $liveTs = $latestLiveMemory->created_at?->getTimestamp() ?? 0;
+                    $sessTs = $sessionLatestAt ? strtotime((string) $sessionLatestAt) : 0;
+                    $fallbackSessionId = $liveTs >= $sessTs ? (string) $latestLiveMemory->session_id : (string) $latestUserSessionId;
+                } elseif ($latestLiveMemory) {
+                    $fallbackSessionId = (string) $latestLiveMemory->session_id;
+                } elseif ($latestUserSessionId) {
+                    $fallbackSessionId = (string) $latestUserSessionId;
+                }
+
+                if ($fallbackSessionId !== null && $fallbackSessionId !== '') {
+                    $rawHistory = \App\Models\Ai\AiChatMemory::where('session_id', $fallbackSessionId)
+                        ->whereIn('role', ['user', 'assistant'])
+                        ->where('created_at', '>=', $cutoff)
+                        ->orderBy('created_at', 'desc')
+                        ->orderBy('id', 'desc')
+                        ->take(14)
+                        ->get()
+                        ->reverse()
+                        ->values();
+                    $isFallbackHistory = $rawHistory->isNotEmpty();
+                }
+            }
+
             $cleanHistory = [];
             foreach ($rawHistory as $msg) {
-                if ($msg->role === 'assistant' && self::isCannedModelRefusal((string) $msg->content)) {
+                $contentText = trim((string) ($msg->content ?? ''));
+                if ($contentText === '') {
+                    continue;
+                }
+                if ($msg->role === 'assistant' && self::isCannedModelRefusal($contentText)) {
                     if (!empty($cleanHistory) && end($cleanHistory)->role === 'user') {
                         array_pop($cleanHistory);
                     }
@@ -868,11 +1029,15 @@ class AIController extends Controller
             }
             $cleanHistory = array_slice($cleanHistory, -20);
             if (count($cleanHistory) > 0) {
-                $historyText = "\n\n--- BISHERIGER CHAT-VERLAUF DIESER SESSION (ZUR ERINNERUNG) ---\n";
+                $historyHeader = $isFallbackHistory
+                    ? "\n\n--- LETZTER GESPRÄCHSVERLAUF (ZUR NAHTLOSEN FORTSETZUNG) ---\n"
+                    : "\n\n--- BISHERIGER CHAT-VERLAUF DIESER SESSION (ZUR ERINNERUNG) ---\n";
+                $historyText = $historyHeader;
                 foreach ($cleanHistory as $msg) {
-                    $roleName = strtoupper($msg->role);
-                    $authorName = $msg->context_data['name'] ?? ucfirst($msg->role);
-                    $historyText .= "[{$roleName} / {$authorName}]: " . $msg->content . "\n";
+                    $roleName = strtoupper((string) $msg->role);
+                    $ctx = is_array($msg->context_data) ? $msg->context_data : [];
+                    $authorName = (string) ($ctx['name'] ?? ucfirst((string) $msg->role));
+                    $historyText .= "[{$roleName} / {$authorName}]: " . mb_substr((string) $msg->content, 0, 1200) . "\n";
                 }
                 $systemInstruction .= $historyText . "\n--- ENDE CHAT-VERLAUF ---\nSetze das Gespräch natürlich fort. Beziehe dich bei Fragen zum Chatverlauf auf diese Einträge.";
             }
@@ -903,7 +1068,6 @@ class AIController extends Controller
 
         // Für den Echtzeit-Sprachmodus (Gemini Live) optimieren wir die Tools VOR dem JSON-Deep-Clone auf die hochrelevanten
         // Sprach- und Interaktions-Funktionen und cachen die bereinigten Deklarationen (spart ~80% CPU/Serialisierung beim Verbindungsaufbau).
-        $isFunkiAgent = $aiAgent && strcasecmp(trim((string) ($aiAgent->name ?? '')), 'Funki') === 0;
         $blockadeContext = ['items' => [], 'directive' => '', 'proactive_kick_prompt' => null];
         if ($isAdminUser && !$isFunkiAgent) {
             $systemInstruction .= "\n\n" . $this->buildSubdomainReadinessDirective();
@@ -1096,6 +1260,14 @@ class AIController extends Controller
         if ($isAdminUser && !$isFunkiAgent) {
             $responsePayload['pending_ag_blockades'] = $blockadeContext['items'];
             $responsePayload['proactive_kick_prompt'] = $blockadeContext['proactive_kick_prompt'];
+            $liveBehaviorBlock = \App\Services\AI\AiBehaviorAnalysisService::buildActiveBehaviorDirectivesBlock(
+                (string) ($livePresence['channel'] ?? 'android_live_call'),
+                $aiAgent,
+                !empty($livePresence['visitor_sandbox_locked'])
+            );
+            if ($liveBehaviorBlock !== '') {
+                $responsePayload['behavior_prompt_block'] = $liveBehaviorBlock;
+            }
         }
 
         if ($wantsDirect) {
@@ -1370,9 +1542,10 @@ class AIController extends Controller
         }
 
         $token = $request->input('token');
-        if (empty($token) || !is_string($token)) {
+        if (!is_string($token) || trim($token) === '' || strlen($token) > 128 || preg_match('/\s/', $token)) {
             return response()->json(['error' => 'Token missing'], 400);
         }
+        $token = trim($token);
 
         $cacheKey = 'gemini_live_token_' . $token;
         $data = null;
@@ -1460,14 +1633,21 @@ class AIController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $sessionId = (string) ($request->input('session_id') ?: $request->input('chat_session_id', ''));
-        $role = (string) $request->input('role', 'assistant');
+        $sessionId = trim((string) ($request->input('session_id') ?: $request->input('chat_session_id', '')));
+        $role = trim((string) $request->input('role', 'assistant'));
         $content = trim((string) $request->input('content', ''));
-        $agentId = $request->input('agent_id');
-        $agentName = $request->input('agent_name');
-        $userId = $request->input('user_id') ?: ($sanctumAdmin instanceof \App\Models\Admin\Admin ? $sanctumAdmin->id : null);
+        $rawAgentId = $request->input('agent_id');
+        $agentId = is_string($rawAgentId) && trim($rawAgentId) !== '' ? trim($rawAgentId) : null;
+        $rawAgentName = $request->input('agent_name');
+        $agentName = is_string($rawAgentName) && trim($rawAgentName) !== '' ? trim($rawAgentName) : null;
+        $rawUserId = $request->input('user_id');
+        $userId = (is_string($rawUserId) && trim($rawUserId) !== '')
+            ? trim($rawUserId)
+            : ($sanctumAdmin instanceof \App\Models\Admin\Admin
+                ? (string) $sanctumAdmin->id
+                : (\App\Services\AI\AiAuthHelper::getUserId() ? (string) \App\Services\AI\AiAuthHelper::getUserId() : null));
 
-        if (empty($content) || empty($sessionId)) {
+        if ($content === '' || $sessionId === '') {
             return response()->json(['error' => 'Missing session_id or content'], 400);
         }
 
@@ -1488,11 +1668,60 @@ class AIController extends Controller
             ]);
         }
 
+        $transcriptChannel = \App\Services\AI\AiBehaviorAnalysisService::normalizeChannel(
+            (string) ($request->input('channel') ?: 'android_live_call')
+        );
+
         // Security: Prevent cross-user session transcript injection if session belongs to a different user
         $targetSession = \App\Models\Ai\AiChatSession::find($sessionId);
         if ($targetSession && !empty($targetSession->user_id) && !empty($userId) && (string) $targetSession->user_id !== (string) $userId) {
             return response()->json(['error' => 'Session ownership mismatch'], 403);
         }
+        if (!$targetSession && !empty($userId) && \Illuminate\Support\Str::isUuid($sessionId)) {
+            try {
+                $targetSession = \App\Models\Ai\AiChatSession::firstOrCreate(
+                    ['id' => $sessionId],
+                    [
+                        'user_id' => $userId,
+                        'title' => $transcriptChannel === 'android_live_call' ? 'Android Live-Call' : 'Live-AI Gespräch',
+                        'is_archived' => false,
+                    ]
+                );
+            } catch (\Throwable) {
+            }
+        }
+        $transcriptVisitorLocked = ($transcriptChannel === 'workshop_minipc')
+            && !$request->boolean('camera_alina_verified', true)
+            && !$request->boolean('voice_alina_verified', true);
+
+        $captureTranscriptBehavior = function (string $memId, string $textContent) use ($role, $sessionId, $agentId, $agentName, $transcriptChannel, $transcriptVisitorLocked): void {
+            if ($role !== 'user' || $transcriptVisitorLocked) {
+                return;
+            }
+            try {
+                $targetAgent = !empty($agentId)
+                    ? \App\Models\Ai\AiAgent::find($agentId)
+                    : (!empty($agentName) ? \App\Models\Ai\AiAgent::where('name', $agentName)->first() : \App\Models\Ai\AiAgent::where('name', 'Funkira')->first());
+                $prevAssistant = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)
+                    ->where('role', 'assistant')
+                    ->latest('created_at')
+                    ->value('content');
+
+                \App\Services\AI\AiBehaviorAnalysisService::scanAndRecordImplicitMessage(
+                    $textContent,
+                    $targetAgent,
+                    $transcriptChannel,
+                    [
+                        'agent_name' => $agentName,
+                        'session_id' => $sessionId,
+                        'ai_chat_memory_id' => $memId,
+                        'agent_excerpt' => $prevAssistant,
+                        'visitor_sandbox_locked' => $transcriptVisitorLocked,
+                    ]
+                );
+            } catch (\Throwable) {
+            }
+        };
 
         // Deduplication check: inspect recent messages for this session
         $recent = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)
@@ -1516,17 +1745,17 @@ class AIController extends Controller
             // Case 2: New text extends the existing text (e.g. earlier partial chunk) -> update to complete
             if (str_starts_with($content, $existingText) && strlen($content) > strlen($existingText)) {
                 $recent->update(['content' => $content]);
+                $captureTranscriptBehavior((string) $recent->id, $content);
                 \App\Models\Ai\AiChatSession::where('id', $sessionId)->update(['updated_at' => now()]);
-                try {
-                    broadcast(new \App\Events\AiFrontendEvent('chat-memory-updated', [
+                \App\Services\System\RealtimeBroadcastService::dispatch(
+                    new \App\Events\AiFrontendEvent('chat-memory-updated', [
                         'session_id' => $sessionId,
                         'message_id' => $recent->id,
                         'role' => $role,
                         'content' => $content
-                    ]));
-                } catch (\Throwable $e) {
-                    // Silently continue if pusher/echo server is offline
-                }
+                    ]),
+                    'AIController::chatMemoryExtended'
+                );
                 return response()->json([
                     'status' => 'updated_extended',
                     'id' => $recent->id,
@@ -1558,6 +1787,8 @@ class AIController extends Controller
             }
             $contextData = [
                 'name' => $user ? ($user->first_name ?? $user->name ?? 'User') : 'User',
+                'user_id' => $userId ? (string) $userId : null,
+                'channel' => $transcriptChannel,
                 'color' => 'gray-400',
                 'icon' => 'user',
                 'is_live_mode' => true,
@@ -1577,6 +1808,8 @@ class AIController extends Controller
             }
             $contextData = [
                 'name' => $agent ? $agent->name : ($agentName ?: 'Funkira'),
+                'user_id' => $userId ? (string) $userId : null,
+                'channel' => $transcriptChannel,
                 'color' => $agent ? $agent->color : 'purple-500',
                 'icon' => 'robot',
                 'is_live_audio' => true,
@@ -1591,18 +1824,19 @@ class AIController extends Controller
             'context_data' => $contextData,
         ]);
 
+        $captureTranscriptBehavior((string) $memory->id, $content);
+
         \App\Models\Ai\AiChatSession::where('id', $sessionId)->update(['updated_at' => now()]);
 
-        try {
-            broadcast(new \App\Events\AiFrontendEvent('chat-memory-updated', [
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new \App\Events\AiFrontendEvent('chat-memory-updated', [
                 'session_id' => $sessionId,
                 'message_id' => $memory->id,
                 'role' => $role,
                 'content' => $memory->content
-            ]));
-        } catch (\Throwable $e) {
-            // Silently continue if pusher/echo server is offline
-        }
+            ]),
+            'AIController::chatMemoryCreated'
+        );
 
         return response()->json([
             'status' => 'created',
@@ -1763,6 +1997,8 @@ class AIController extends Controller
                 'counts' => ['waiting_for_alina' => 0, 'in_progress' => 0, 'completed' => 0],
             ]);
         }
+
+        \App\Services\AI\AntigravityUniverseTicketBridge::reconcileIfNeeded(20);
 
         $isAdmin = \App\Models\Ai\AiUniverseTicket::isStrictAdminActor();
         $status = (string) $request->query('status', 'open');
@@ -2025,6 +2261,105 @@ class AIController extends Controller
             'status' => 'success',
             'notebook_online' => true,
             'tickets' => $queued,
+        ]);
+    }
+
+    /**
+     * Erfasst explizites 1-Klick-Lob oder Kritik (Daumen hoch/runter + Schnellgrund) aus Web, Live-Widget, Desktop oder App.
+     */
+    public function storeBehaviorFeedback(Request $request)
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return response()->json(['status' => 'error', 'message' => 'Zugriff verweigert.'], 403);
+        }
+
+        $validated = $request->validate([
+            'polarity' => 'required|string|in:praise,criticism,correction',
+            'channel' => 'nullable|string|max:40',
+            'category' => 'nullable|string|max:40',
+            'reason_key' => 'nullable|string|max:240',
+            'reason_note' => 'nullable|string|max:240',
+            'agent_id' => 'nullable|string|max:64',
+            'agent_name' => 'nullable|string|max:80',
+            'session_id' => 'nullable|string|max:191',
+            'ai_chat_memory_id' => 'nullable|string|max:64',
+            'user_excerpt' => 'nullable|string|max:1200',
+            'agent_excerpt' => 'nullable|string|max:1200',
+            'camera_alina_verified' => 'nullable|boolean',
+            'voice_alina_verified' => 'nullable|boolean',
+        ]);
+
+        $channel = \App\Services\AI\AiBehaviorAnalysisService::normalizeChannel($validated['channel'] ?? 'live_widget');
+        $visitorLocked = ($channel === 'workshop_minipc')
+            && !$request->boolean('camera_alina_verified', true)
+            && !$request->boolean('voice_alina_verified', true);
+
+        if ($visitorLocked) {
+            return response()->json([
+                'status' => 'ignored_visitor_sandbox',
+                'message' => 'Besuchermodus aktiv: Feedback vom persönlichen Profil isoliert.',
+            ]);
+        }
+
+        $agent = null;
+        if (!empty($validated['agent_id'])) {
+            $agent = \App\Models\Ai\AiAgent::find($validated['agent_id']);
+        }
+        if (!$agent && !empty($validated['agent_name'])) {
+            $agent = \App\Models\Ai\AiAgent::where('name', $validated['agent_name'])->first();
+        }
+        if (\App\Services\AI\AiBehaviorAnalysisService::isAgentExcluded($agent, $validated['agent_name'] ?? null)) {
+            return response()->json([
+                'status' => 'ignored_immutable_agent',
+                'message' => 'Support-Agent Funki ist vom internen Leitungs-Verhaltensprofil getrennt.',
+            ]);
+        }
+
+        $record = \App\Services\AI\AiBehaviorAnalysisService::recordExplicitReaction(
+            $agent,
+            $channel,
+            $validated['polarity'],
+            $validated['category'] ?? null,
+            $validated['reason_key'] ?? $validated['reason_note'] ?? null,
+            [
+                'agent_name' => $validated['agent_name'] ?? null,
+                'session_id' => $validated['session_id'] ?? null,
+                'ai_chat_memory_id' => $validated['ai_chat_memory_id'] ?? null,
+                'user_excerpt' => $validated['user_excerpt'] ?? null,
+                'agent_excerpt' => $validated['agent_excerpt'] ?? null,
+                'visitor_sandbox_locked' => false,
+            ]
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'feedback_id' => $record?->id,
+            'polarity' => $record?->polarity,
+            'category' => $record?->category,
+            'reason_note' => $record?->reason_note,
+        ]);
+    }
+
+    /**
+     * Liefert das aggregierte Verhaltensprofil & die Kanal-Matrix für Admin-Cockpits.
+     */
+    public function getBehaviorProfile(Request $request)
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return response()->json(['status' => 'error', 'message' => 'Nur für Administratoren freigegeben.'], 403);
+        }
+
+        $windowDays = (int) $request->query('days', 30);
+        $channel = (string) $request->query('channel', 'all');
+        $agentId = $request->query('agent_id') ? (string) $request->query('agent_id') : null;
+
+        $profile = \App\Services\AI\AiBehaviorAnalysisService::rebuildProfile($agentId, $channel, $windowDays);
+        $matrix = \App\Services\AI\AiBehaviorAnalysisService::buildChannelMatrix($windowDays, $agentId);
+
+        return response()->json([
+            'status' => 'success',
+            'profile' => $profile,
+            'channel_matrix' => $matrix,
         ]);
     }
 

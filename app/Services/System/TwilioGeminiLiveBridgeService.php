@@ -88,15 +88,24 @@ class TwilioGeminiLiveBridgeService
         return trim((string) (config('services.gemini.key') ?: env('GEMINI_API_KEY', '')));
     }
 
+    private static function sanitizePromptField(mixed $raw, int $maxLength = 600): string
+    {
+        $clean = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', (string) ($raw ?? '')) ?? '';
+        $clean = str_replace([' – ', ' — '], ', ', $clean);
+        $clean = trim(preg_replace('/\s{2,}/u', ' ', $clean) ?? $clean);
+
+        return $maxLength > 0 ? mb_substr($clean, 0, $maxLength) : $clean;
+    }
+
     public static function buildInboundSecretarySystemPrompt(array $callContext): string
     {
-        $ownerName = trim((string) ($callContext['agent_name'] ?? 'Alina Steinhauer')) ?: 'Alina Steinhauer';
-        $greetName = trim((string) ($callContext['greeting_name'] ?? ($callContext['contact_name'] ?? 'du'))) ?: 'du';
-        $contactDisplay = trim((string) ($callContext['contact_name'] ?? $greetName));
-        $relation = trim((string) ($callContext['relation_type'] ?? ''));
-        $instructions = trim((string) ($callContext['system_instructions'] ?? ''));
-        $learnedFacts = trim((string) ($callContext['ai_learned_facts'] ?? ''));
-        $calendarSlots = trim((string) ($callContext['calendar_events'] ?? ''));
+        $ownerName = self::sanitizePromptField($callContext['agent_name'] ?? 'Alina Steinhauer', 120) ?: 'Alina Steinhauer';
+        $greetName = self::sanitizePromptField($callContext['greeting_name'] ?? ($callContext['contact_name'] ?? 'du'), 80) ?: 'du';
+        $contactDisplay = self::sanitizePromptField($callContext['contact_name'] ?? $greetName, 140) ?: $greetName;
+        $relation = self::sanitizePromptField($callContext['relation_type'] ?? '', 120);
+        $instructions = self::sanitizePromptField($callContext['system_instructions'] ?? '', 800);
+        $learnedFacts = self::sanitizePromptField($callContext['ai_learned_facts'] ?? '', 800);
+        $calendarSlots = self::sanitizePromptField($callContext['calendar_events'] ?? '', 800);
 
         $formalKeywords = ['arzt', 'praxis', 'steuer', 'kanzlei', 'behörde', 'bank', 'versicherung', 'lieferant', 'geschäft'];
         $useFormalSie = false;
@@ -153,14 +162,54 @@ class TwilioGeminiLiveBridgeService
             . "und führe danach ein lebendiges Gespräch.";
     }
 
+    public static function buildInboundCustomerServiceSystemPrompt(array $callContext): string
+    {
+        $shopName = self::sanitizePromptField($callContext['shop_name'] ?? 'Mein-Seelenfunke', 80) ?: 'Mein-Seelenfunke';
+        $ownerName = self::sanitizePromptField($callContext['agent_name'] ?? 'Alina Steinhauer', 120) ?: 'Alina Steinhauer';
+        $ownerFirst = explode(' ', $ownerName)[0] ?: 'Alina';
+
+        return implode("\n", [
+            'ROLLE & IDENTITÄT (HÖCHSTE PRIORITÄT):',
+            '- Du sprichst zu 100 Prozent ausschließlich natürliches, herzliches und professionelles Deutsch.',
+            "- Dein Name ist Funkira. Du bist der KI-Kundenservice von {$shopName} (Manufaktur für personalisierte Laser-Gravur & Geschenke).",
+            "- Sprich Anrufer höflich, warm und professionell per 'Sie' an (wechsle nur auf 'Du', falls der Anrufer dich von sich aus duzt).",
+            '',
+            'LIVE-KUNDENSERVICE-GESPRÄCHSFÜHRUNG:',
+            '- Sage NIEMALS Sätze wie "Bitte sprechen Sie nach dem Signalton" oder "Ich starte eine Aufnahme". Führe ein echtes, lebendiges Dialog-Telefonat!',
+            '- Halte jeden Sprechbeitrag angenehm kurz (1 bis maximal 2 kurze Sätze, keine Listen vorlesen) und stelle immer nur EINE Rückfrage auf einmal.',
+            '- Kläre freundlich und strukturiert folgende Punkte, damit daraus sofort ein vollständiges Ticket für Alina erstellt wird:',
+            '  1. Vor- und Nachname des Anrufers.',
+            '  2. Konkretes Anliegen (z. B. Bestellstatus, Wunschgravur/Sonderanfertigung, Produktfrage, Änderung oder Reklamation).',
+            '  3. Falls vorhanden: Bestellnummer oder E-Mail-Adresse (und ggf. beste Rückrufnummer).',
+            '  4. Wichtige Rahmenbedingungen (Wunschtermin, Frist, Produktdetails oder Erreichbarkeit).',
+            '',
+            'VERBINDLICHKEIT & DATENSCHUTZ-SCHRANKE:',
+            '- Gib am Telefon NIEMALS interne Kundendaten, Bestelldetails, Adressen, Passwörter oder Finanzzahlen preis.',
+            '- Versprich keine eigenmächtigen Erstattungen, Rabatte oder verbindlichen Lieferzusagen, sondern sichere eine priorisierte Prüfung und Rückmeldung durch Alina / das Team zu.',
+            '',
+            'GESPRÄCHSABSCHLUSS:',
+            "- Sobald Anliegen, Name, Kontaktdaten/Bestellnummer (falls vorhanden) und Rahmenbedingungen geklärt sind, fasse das Anliegen in einem kurzen freundlichen Satz zusammen, kündige die direkte Weiterleitung als Ticket an {$ownerFirst} an, verabschiede dich herzlich und rufe direkt das Tool 'end_call' auf.",
+        ]);
+    }
+
+    public static function buildInboundCustomerServiceKickoffPrompt(array $callContext): string
+    {
+        $shopName = self::sanitizePromptField($callContext['shop_name'] ?? 'Mein-Seelenfunke', 80) ?: 'Mein-Seelenfunke';
+
+        return "[KUNDENANRUF LIVE VERBUNDEN] Ein Anrufer hat die Service-Nummer von {$shopName} gewählt. "
+            . "Begrüße die anrufende Person jetzt sofort freundlich, herzlich und kurz auf Deutsch als Funkira vom {$shopName} Kundenservice "
+            . "(nur 1 kurzer Satz, z. B.: 'Guten Tag, hier ist Funkira vom Kundenservice von {$shopName}! Womit darf ich Ihnen heute weiterhelfen?') "
+            . 'und nimm das Anliegen strukturiert im Dialog auf.';
+    }
+
     public static function buildOutboundSystemPrompt(array $callContext): string
     {
-        $ownerName = trim((string) ($callContext['agent_name'] ?? 'Alina Steinhauer')) ?: 'Alina Steinhauer';
-        $contactName = trim((string) ($callContext['contact_name'] ?? 'Unbekannt')) ?: 'Unbekannt';
-        $objective = trim((string) ($callContext['objective'] ?? 'Führe ein freundliches, zielgerichtetes Gespräch.'));
-        $instructions = trim((string) ($callContext['system_instructions'] ?? ''));
-        $facts = trim((string) ($callContext['ai_learned_facts'] ?? ''));
-        $calendar = trim((string) ($callContext['calendar_events'] ?? 'Keine anstehenden Termine.'));
+        $ownerName = self::sanitizePromptField($callContext['agent_name'] ?? 'Alina Steinhauer', 120) ?: 'Alina Steinhauer';
+        $contactName = self::sanitizePromptField($callContext['contact_name'] ?? 'Unbekannt', 140) ?: 'Unbekannt';
+        $objective = self::sanitizePromptField($callContext['objective'] ?? 'Führe ein freundliches, zielgerichtetes Gespräch.', 800);
+        $instructions = self::sanitizePromptField($callContext['system_instructions'] ?? '', 800);
+        $facts = self::sanitizePromptField($callContext['ai_learned_facts'] ?? '', 800);
+        $calendar = self::sanitizePromptField($callContext['calendar_events'] ?? 'Keine anstehenden Termine.', 800);
 
         return implode("\n", [
             "Du bist die persönliche Telefon-Sekretärin von {$ownerName}.",
@@ -419,11 +468,15 @@ class TwilioGeminiLiveBridgeService
 
                         if (array_key_exists('setupComplete', $resp)) {
                             $isGeminiSetupComplete = true;
-                            if (($callContext['call_mode'] ?? '') === 'inbound_secretary') {
+                            $mode = (string) ($callContext['call_mode'] ?? '');
+                            if (in_array($mode, ['inbound_secretary', 'inbound_customer_service'], true)) {
                                 $kickoffSentAtMs = microtime(true) * 1000.0;
+                                $kickoffText = $mode === 'inbound_customer_service'
+                                    ? self::buildInboundCustomerServiceKickoffPrompt($callContext)
+                                    : self::buildInboundSecretaryKickoffPrompt($callContext);
                                 $kickoff = [
                                     'realtimeInput' => [
-                                        'text' => self::buildInboundSecretaryKickoffPrompt($callContext),
+                                        'text' => $kickoffText,
                                     ],
                                 ];
                                 $sendGoogleFrame((string) json_encode($kickoff, JSON_UNESCAPED_UNICODE));
@@ -580,10 +633,12 @@ class TwilioGeminiLiveBridgeService
 
                             $handshakeDone = true;
 
-                            $isInbound = ($callContext['call_mode'] ?? '') === 'inbound_secretary';
-                            $systemPrompt = $isInbound
-                                ? self::buildInboundSecretarySystemPrompt($callContext)
-                                : self::buildOutboundSystemPrompt($callContext);
+                            $mode = (string) ($callContext['call_mode'] ?? '');
+                            $systemPrompt = match ($mode) {
+                                'inbound_secretary' => self::buildInboundSecretarySystemPrompt($callContext),
+                                'inbound_customer_service' => self::buildInboundCustomerServiceSystemPrompt($callContext),
+                                default => self::buildOutboundSystemPrompt($callContext),
+                            };
 
                             $setupPayload = [
                                 'setup' => [

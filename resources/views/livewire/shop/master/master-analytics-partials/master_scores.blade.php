@@ -111,7 +111,9 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
         $opWarningCount = collect($healthChecks)->where('status', 'warning')->count();
 
         $operativeScore = 100 - ($opErrorCount * 25) - ($opWarningCount * 10) - ($totalTodos * 1);
-        $operativeScore = max(0, min(100, $operativeScore));
+        $operativeScore = $totalTodos > 0
+            ? max(0, min(99, $operativeScore))
+            : 100;
 
         $opColorClass = $operativeScore >= 80 ? 'text-emerald-400' : ($operativeScore >= 50 ? 'text-amber-400' : 'text-red-400');
         $opStrokeColor = $operativeScore >= 80 ? '#34d399' : ($operativeScore >= 50 ? '#fbbf24' : '#f87171');
@@ -408,6 +410,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             'special_issues' => '/admin/financial-variable-costs',
             'leitung/contracts' => '/admin/financial-fix-costs',
             'open_tickets' => '/admin/support-tickets',
+            'universe_waiting_alina' => '/admin/tickets',
             'open_chats' => '/admin/support-chats',
             'open_contact_requests' => '/admin/support-contact-form',
             'experience_reviews' => '/admin/support/reviews?filterStatus=open',
@@ -2326,18 +2329,34 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
             <!-- 2. OPERATIVE DETAILS -->
             <div x-show="activeTab === 'operative'" x-cloak x-transition.opacity.duration.300ms x-data="{ showAllOperative: false }">
-                <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
+                @php
+                    $pillarDailyKeys = ['open_orders', 'product_readiness', 'inventory', 'open_tasks', 'shopping_list', 'routine', 'open_quotes', 'open_losses', 'open_abandoned_carts', 'gemini_bridge', 'storage', 'system_logs', 'security_audit'];
+                    $pillarAccountingKeys = ['open_invoices', 'special_issues', 'leitung/contracts', 'open_credits', 'influencer_payouts', 'unassigned_tx', 'open_revocations'];
+                    $pillarServiceKeys = ['open_tickets', 'universe_waiting_alina', 'open_chats', 'open_contact_requests', 'experience_reviews', 'ai_autopilot_drafts', 'open_mails', 'product_reviews'];
+
+                    $sumKeys = fn(array $keys): int => collect($keys)->sum(fn(string $k): int => (int) ($healthChecks[$k]['count'] ?? 0));
+                    $tachoPillars = [
+                        ['label' => 'Tagesgeschäft', 'count' => $sumKeys($pillarDailyKeys)],
+                        ['label' => 'Buchhaltung', 'count' => $sumKeys($pillarAccountingKeys)],
+                        ['label' => 'Service', 'count' => $sumKeys($pillarServiceKeys)],
+                    ];
+                @endphp
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-5 border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">To-do Liste & Operatives</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Aufgaben aus dem Tagesgeschäft, Buchhaltung und Service.</p>
                     </div>
-                    <button type="button" @click="showAllOperative = !showAllOperative" :class="showAllOperative ? 'bg-[#C5A059]/20 text-[#C5A059] border-[#C5A059]/50' : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500'" class="w-10 h-10 rounded-full border flex items-center justify-center transition-colors dark:shadow-lg" title="Ansicht umschalten (Nur offene / Alle zeigen)">
-                        <x-heroicon-o-funnel class="w-5 h-5" />
-                    </button>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <x-backend.stability-tacho :score="$operativeScore" :openCount="$totalTodos" :pillars="$tachoPillars" />
+                        <button type="button" @click="showAllOperative = !showAllOperative" :class="showAllOperative ? 'bg-[#C5A059]/20 text-[#C5A059] border-[#C5A059]/50' : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500'" class="w-10 h-10 rounded-full border flex items-center justify-center transition-colors dark:shadow-lg shrink-0" title="Ansicht umschalten (Nur offene / Alle zeigen)">
+                            <x-heroicon-o-funnel class="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 @php
                     $descriptions = [
+                        'universe_waiting_alina' => 'Offene System-, Konzept- und Tresor-Rückfragen unter /admin/tickets, die auf deine Entscheidung oder dein Go warten.',
                         'gemini_bridge' => 'Echtzeit-Gesundheitsprüfung der Mittwald-Container a-yeq7el (api-live-bridge.mein-seelenfunke.de/health) und a-iurgq8 (ws.mein-seelenfunke.de/twilio-health).',
                         'product_readiness' => 'Prüft über den 9-Punkte-Check (Basis, Preis, Gewicht, Galerie, Lieferant, Verpackung/LUCID, Konfigurator/Laser, Vorlagen), ob alle Produkte zu 100% vollständig eingerichtet sind.',
                         'inventory' => 'Prüft anhand des produktspezifischen Mindestbestands (bzw. globalen Limits), ob physische Artikel nachbestellt werden müssen oder ausverkauft sind.',

@@ -747,6 +747,11 @@
                         {{ $products->links() }}
                     </div>
                 @endif
+
+                {{-- Kundenfeedback- & Verbesserungs-Hinweis im Shop --}}
+                <div class="mt-12">
+                    <x-shop.customer-feedback-banner />
+                </div>
             </div>
         </div>
     </div>
@@ -2310,7 +2315,7 @@
                             <span class="sf-lobby-unit-avatar">✦</span>
                             <div class="sf-lobby-unit-meta">
                                 <span style="max-width:128px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-                                      x-text="playerHud.name || 'Funki'"></span>
+                                      x-text="(!playerHud.name || playerHud.name === 'Gast-Funki' || playerHud.name === 'Funki') ? (userSettings.characterGender === 'female' ? 'Funkira' : 'Funki') : playerHud.name"></span>
                                 <span style="color:#9A7738;white-space:nowrap;"
                                       x-text="'Stufe ' + (playerHud.level || 2) + ' · ✨ ' + (playerHud.funkenBalance || 0)"></span>
                             </div>
@@ -2324,7 +2329,7 @@
                                     data-testid="lobby-char-switch-btn"
                                     @click="openCharacterPicker()"
                                     class="sf-lobby-stages-btn">
-                                <span x-text="userSettings.characterGender === 'female' ? '✦ Weiblich' : '✦ Männlich'"></span>
+                                <span x-text="userSettings.characterGender === 'female' ? '✦ Funkira · Weiblich' : '✦ Funki · Männlich'"></span>
                             </button>
                             <button type="button"
                                     x-show="equippedArmory && equippedArmory.weapon"
@@ -2976,17 +2981,28 @@
                                     <span x-show="(userSettings.characterGender || 'male') !== 'female'"
                                           class="sf-lobby-char-check">&#10003;</span>
                                     <span class="sf-lobby-char-emblem" aria-hidden="true">
-                                        <svg width="42" height="42" viewBox="0 0 48 48" fill="none">
-                                            <circle cx="24" cy="18.5" r="9.5" fill="#F3D2BA" stroke="#C5A059" stroke-width="1.8"/>
-                                            <path d="M14.8 16.5C15.5 10.5 19.5 8 24 8C28.5 8 32.5 10.5 33.2 16.5C30.2 14.2 27.2 13.4 24 13.4C20.8 13.4 17.8 14.2 14.8 16.5Z" fill="#6B442A"/>
-                                            <circle cx="20.6" cy="19.2" r="1.35" fill="#3B2314"/>
-                                            <circle cx="27.4" cy="19.2" r="1.35" fill="#3B2314"/>
-                                            <path d="M21.4 22.8Q24 24.6 26.6 22.8" stroke="#9C5A44" stroke-width="1.5" stroke-linecap="round"/>
-                                            <path d="M12.5 40C13.5 32.5 18 29.5 24 29.5C30 29.5 34.5 32.5 35.5 40Z" fill="#C9B38C" stroke="#C5A059" stroke-width="1.6"/>
+                                        <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
+                                            <rect x="19.5" y="4.5" width="9" height="4.8" rx="2" fill="#151720" stroke="#C5A059" stroke-width="1.2"/>
+                                            <rect x="18" y="8.6" width="12" height="2.4" rx="1.2" fill="#E5BA64"/>
+                                            <rect x="8.5" y="11" width="31" height="20.5" rx="6" fill="#E2B256" stroke="#9E7328" stroke-width="1.4"/>
+                                            <rect x="6" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#C5A059"/>
+                                            <rect x="39.5" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#C5A059"/>
+                                            <rect x="11" y="13.2" width="26" height="16.1" rx="4.2" fill="#12141C" stroke="#F5D589" stroke-width="1"/>
+                                            <path d="M14.5 16.5Q18.2 14.8 21.6 16.8" stroke="#F4CF78" stroke-width="1.6" stroke-linecap="round"/>
+                                            <path d="M26.4 16.8Q29.8 14.8 33.5 16.5" stroke="#F4CF78" stroke-width="1.6" stroke-linecap="round"/>
+                                            <circle cx="18.2" cy="21" r="3.4" fill="#EF9B24"/>
+                                            <circle cx="18.2" cy="21" r="1.6" fill="#190C05"/>
+                                            <circle cx="17.1" cy="19.9" r="0.9" fill="#FFFFFF"/>
+                                            <circle cx="29.8" cy="21" r="3.4" fill="#EF9B24"/>
+                                            <circle cx="29.8" cy="21" r="1.6" fill="#190C05"/>
+                                            <circle cx="28.7" cy="19.9" r="0.9" fill="#FFFFFF"/>
+                                            <path d="M21.2 25.4Q24 27.9 26.8 25.4" stroke="#F5D589" stroke-width="1.6" stroke-linecap="round"/>
+                                            <path d="M13 42C14 34.8 18.2 32.5 24 32.5C29.8 32.5 34 34.8 35 42Z" fill="#171A24" stroke="#C5A059" stroke-width="1.6"/>
+                                            <rect x="19" y="36" width="10" height="2.2" rx="1.1" fill="#E5BA64"/>
                                         </svg>
                                     </span>
-                                    <span class="sf-lobby-char-name">Männlich</span>
-                                    <span class="sf-lobby-char-tag">Starter · Barfuß</span>
+                                    <span class="sf-lobby-char-name">Funki</span>
+                                    <span class="sf-lobby-char-tag">Männlich</span>
                                 </button>
 
                                 <button type="button"
@@ -2997,19 +3013,29 @@
                                     <span x-show="userSettings.characterGender === 'female'"
                                           class="sf-lobby-char-check">&#10003;</span>
                                     <span class="sf-lobby-char-emblem" aria-hidden="true">
-                                        <svg width="42" height="42" viewBox="0 0 48 48" fill="none">
-                                            <path d="M31.5 17C35.8 18.5 37.5 23.5 35.2 28.5C33.8 25.5 32.5 23.2 30.8 21.5Z" fill="#6B442A"/>
-                                            <circle cx="24" cy="18.5" r="9.2" fill="#F6D8C2" stroke="#C5A059" stroke-width="1.8"/>
-                                            <path d="M14.8 17.5C15.4 10.6 19.4 8 24 8C28.6 8 32.6 10.6 33.2 17.5C30.4 14.6 27.3 13.5 24 13.5C20.7 13.5 17.6 14.6 14.8 17.5Z" fill="#7A4E31"/>
-                                            <circle cx="20.6" cy="19.2" r="1.4" fill="#3B2314"/>
-                                            <circle cx="27.4" cy="19.2" r="1.4" fill="#3B2314"/>
-                                            <path d="M18.9 18.1L17.7 17.2M29.1 18.1L30.3 17.2" stroke="#3B2314" stroke-width="1.2" stroke-linecap="round"/>
-                                            <path d="M21.4 22.8Q24 24.8 26.6 22.8" stroke="#B65E53" stroke-width="1.5" stroke-linecap="round"/>
-                                            <path d="M13.2 40C14.2 32.8 18.4 29.8 24 29.8C29.6 29.8 33.8 32.8 34.8 40Z" fill="#CEB994" stroke="#C5A059" stroke-width="1.6"/>
+                                        <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
+                                            <rect x="20" y="4.2" width="8" height="5" rx="2.2" fill="#EC7E9B" stroke="#E5BA64" stroke-width="1.2"/>
+                                            <rect x="18.5" y="8.6" width="11" height="2.3" rx="1.1" fill="#E5BA64"/>
+                                            <rect x="9" y="11" width="30" height="20.5" rx="6.2" fill="#E593A8" stroke="#B65D75" stroke-width="1.4"/>
+                                            <rect x="6.5" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#E593A8"/>
+                                            <rect x="39" y="17.5" width="2.5" height="7.5" rx="1.2" fill="#E593A8"/>
+                                            <rect x="11.5" y="13.2" width="25" height="16.1" rx="4.2" fill="#16111B" stroke="#F6B6C7" stroke-width="1"/>
+                                            <path d="M14.2 19.2L12.6 17.8M33.8 19.2L35.4 17.8" stroke="#E88DA3" stroke-width="1.4" stroke-linecap="round"/>
+                                            <path d="M15 16.5Q18.4 14.6 21.5 16.6" stroke="#E88DA3" stroke-width="1.5" stroke-linecap="round"/>
+                                            <path d="M26.5 16.6Q29.6 14.6 33 16.5" stroke="#E88DA3" stroke-width="1.5" stroke-linecap="round"/>
+                                            <circle cx="18.4" cy="21" r="3.4" fill="#DF4B78"/>
+                                            <circle cx="18.4" cy="21" r="1.6" fill="#1B060E"/>
+                                            <circle cx="17.3" cy="19.9" r="0.9" fill="#FFFFFF"/>
+                                            <circle cx="29.6" cy="21" r="3.4" fill="#DF4B78"/>
+                                            <circle cx="29.6" cy="21" r="1.6" fill="#1B060E"/>
+                                            <circle cx="28.5" cy="19.9" r="0.9" fill="#FFFFFF"/>
+                                            <path d="M21.2 25.4Q24 28 26.8 25.4" stroke="#F6B6C7" stroke-width="1.6" stroke-linecap="round"/>
+                                            <path d="M13.5 42C14.5 34.8 18.5 32.5 24 32.5C29.5 32.5 33.5 34.8 34.5 42Z" fill="#1D1722" stroke="#E593A8" stroke-width="1.6"/>
+                                            <path d="M17.5 32.8Q24 35.2 30.5 32.8L29.2 39.2L26.2 39.2L27 34.8" fill="#BD2B4F"/>
                                         </svg>
                                     </span>
-                                    <span class="sf-lobby-char-name">Weiblich</span>
-                                    <span class="sf-lobby-char-tag">Starter · Barfuß</span>
+                                    <span class="sf-lobby-char-name">Funkira</span>
+                                    <span class="sf-lobby-char-tag">Weiblich</span>
                                 </button>
                             </div>
                         </div>
@@ -3104,14 +3130,14 @@
                                                 @click="selectCharacterGender('male')"
                                                 class="sf-lobby-step-btn"
                                                 :class="{ 'is-active': (userSettings.characterGender || 'male') !== 'female' }">
-                                            Männlich
+                                            Funki · Männlich
                                         </button>
                                         <button type="button"
                                                 data-testid="lobby-settings-char-female"
                                                 @click="selectCharacterGender('female')"
                                                 class="sf-lobby-step-btn"
                                                 :class="{ 'is-active': userSettings.characterGender === 'female' }">
-                                            Weiblich
+                                            Funkira · Weiblich
                                         </button>
                                     </div>
                                 </div>
@@ -5003,7 +5029,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261127v1');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {

@@ -385,4 +385,164 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
         $this->assertStringContainsString('$isBulkOperation = (bool) $runInBackground;', $aiSystemCode);
         $this->assertStringContainsString("Artisan::call('backup:run', ['--only-db' => true]);", $aiSystemCode);
     }
+
+    public function test_websocket_code_1007_frame_sanitization_and_widget_guards(): void
+    {
+        $part2 = file_get_contents(resource_path('views/livewire/shop/ai/ai-widget-part2.blade.php'));
+        $this->assertStringContainsString('sendLiveTextTurn(promptText, turnComplete = true)', $part2);
+        $this->assertStringContainsString('this.liveEffectiveModel = setupModelName;', $part2);
+        $this->assertStringContainsString('if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete)', $part2);
+        $this->assertStringContainsString('if (!base64Audio) return;', $part2);
+        $this->assertStringContainsString('if (cleanTools.length > 0)', $part2);
+        $this->assertStringContainsString('flushPendingLiveTranscripts(', $part2);
+        $this->assertStringContainsString('stale.onclose = null;', $part2);
+        $this->assertStringContainsString('contextWindowCompression: { slidingWindow: {} }', $part2);
+        $this->assertStringContainsString("!String(wsUrl || '').includes('aiplatform.googleapis.com')", $part2);
+
+        $bridgePath = base_path('server-twilio.js');
+        $nodeBinary = trim((string) @shell_exec('command -v node 2>/dev/null'));
+        $this->assertNotEmpty($nodeBinary, 'Node.js binary must be available to validate server-twilio.js normalizers.');
+
+        $script = <<<'JS'
+import assert from 'node:assert/strict';
+import {
+    sanitizeGeminiLiveSetup,
+    sanitizeGeminiLiveRealtimeInput,
+    sanitizeGeminiLiveClientContent,
+    sanitizeGeminiLiveToolResponse,
+    normalizeWsOutboundPayload,
+    isFastAudioPassthroughFrame
+} from './server-twilio.js';
+
+// 1. Setup: strip incompatible thinkingLevel on Vertex 2.5, empty tools, and mismatched sessionResumption handle
+const vertexSetup = sanitizeGeminiLiveSetup({
+    model: 'models/gemini-3.1-flash-live-preview',
+    generationConfig: { responseModalities: ['AUDIO'], thinkingConfig: { thinkingLevel: 'minimal' } },
+    tools: [{ functionDeclarations: [] }, { functionDeclarations: [{ name: 'search_orders' }] }],
+    systemInstruction: { parts: [{ text: '   ' }, { text: 'Du bist Funkira.' }] },
+    sessionResumption: { handle: 'stale-31-handle' }
+}, {
+    useVertexLive: true,
+    targetVertexModel: 'projects/p/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio'
+});
+assert.equal(vertexSetup.modelRewritten, true);
+assert.deepEqual(vertexSetup.setup.generationConfig.thinkingConfig, { thinkingBudget: 0 });
+assert.equal(vertexSetup.setup.tools.length, 1);
+assert.equal(vertexSetup.setup.tools[0].functionDeclarations[0].name, 'search_orders');
+assert.equal(vertexSetup.setup.systemInstruction.parts.length, 1);
+assert.deepEqual(vertexSetup.setup.sessionResumption, {});
+
+// 1b. Setup: keep valid handle when model is unchanged, strip blank handle
+const sameModelSetup = sanitizeGeminiLiveSetup({
+    model: 'models/gemini-3.1-flash-live-preview',
+    sessionResumption: { handle: '  valid-handle-123  ' }
+}, { useVertexLive: false });
+assert.deepEqual(sameModelSetup.setup.sessionResumption, { handle: 'valid-handle-123' });
+
+const blankHandleSetup = sanitizeGeminiLiveSetup({
+    model: 'models/gemini-3.1-flash-live-preview',
+    sessionResumption: { handle: '   ' }
+}, { useVertexLive: false });
+assert.deepEqual(blankHandleSetup.setup.sessionResumption, {});
+
+// 1c. Outbound WS payload must convert Buffers to UTF-8 text strings (prevents binary frame 1007 on Google WS)
+assert.equal(typeof normalizeWsOutboundPayload(Buffer.from('{"realtimeInput":{}}', 'utf8')), 'string');
+assert.equal(normalizeWsOutboundPayload(Buffer.from('{"ok":true}', 'utf8')), '{"ok":true}');
+assert.equal(isFastAudioPassthroughFrame('{"realtimeInput":{"audio":{"mimeType":"audio/pcm;rate=16000","data":"AAAA"}}}'), true);
+assert.equal(isFastAudioPassthroughFrame('{"realtimeInput":{"text":"audio check"}}'), false);
+assert.equal(isFastAudioPassthroughFrame('{"clientContent":{"turns":[{"parts":[{"text":"audio"}]}]}}'), false);
+
+// 2. Setup: strip incompatible thinkingBudget on Gemini 3.1 and remove empty tools entirely
+const studio3Setup = sanitizeGeminiLiveSetup({
+    model: 'models/gemini-3.1-flash-live-preview',
+    generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
+    tools: [{ functionDeclarations: [] }]
+}, { useVertexLive: false });
+assert.deepEqual(studio3Setup.setup.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
+assert.equal(studio3Setup.setup.tools, undefined);
+
+// 3. RealtimeInput: always strip mediaChunks, convert audio+image, drop empty frames
+const rtConverted = sanitizeGeminiLiveRealtimeInput({
+    mediaChunks: [
+        { mimeType: 'audio/pcm;rate=16000', data: 'AAAA' },
+        { mimeType: 'image/jpeg', data: 'BBBB' },
+        { mimeType: 'audio/webm', data: 'CCCC' }
+    ]
+});
+assert.equal(rtConverted.convertedMediaChunks, true);
+assert.equal(rtConverted.realtimeInput.mediaChunks, undefined);
+assert.equal(rtConverted.realtimeInput.audio.data, 'AAAA');
+assert.equal(rtConverted.realtimeInput.video.data, 'BBBB');
+
+assert.equal(sanitizeGeminiLiveRealtimeInput({ audio: { mimeType: 'audio/pcm', data: '' } }).realtimeInput, null);
+assert.equal(sanitizeGeminiLiveRealtimeInput({ text: '   ' }).realtimeInput, null);
+
+const rtVertexText = sanitizeGeminiLiveRealtimeInput(
+    { text: 'Bist du noch da?' },
+    'projects/p/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio'
+);
+assert.equal(rtVertexText.realtimeInput, null);
+assert.equal(rtVertexText.convertedTextFrame.clientContent.turns[0].parts[0].text, 'Bist du noch da?');
+assert.equal(rtVertexText.convertedTextFrame.clientContent.turnComplete, true);
+
+// 4. ClientContent: drop empty turns, convert 3.x image+text to realtimeInput, keep 2.5 valid turns
+assert.equal(sanitizeGeminiLiveClientContent({ turns: [{ role: 'user', parts: [{ text: '  ' }] }], turnComplete: false }, 'models/gemini-3.1-flash-live-preview').isWhitespaceInterrupt, true);
+assert.equal(sanitizeGeminiLiveClientContent({ turns: [{ role: 'user', parts: [{ text: '' }] }], turnComplete: true }, 'gemini-live-2.5-flash-native-audio').drop, true);
+
+const cc3x = sanitizeGeminiLiveClientContent({
+    turns: [{
+        role: 'user',
+        parts: [
+            { inlineData: { mimeType: 'image/png', data: 'IMG64' } },
+            { text: 'Analysiere dieses Bild' }
+        ]
+    }],
+    turnComplete: true
+}, 'models/gemini-3.1-flash-live-preview');
+assert.equal(cc3x.drop, false);
+assert.equal(cc3x.frames.length, 2);
+assert.equal(cc3x.frames[0].realtimeInput.video.data, 'IMG64');
+assert.equal(cc3x.frames[1].realtimeInput.text, 'Analysiere dieses Bild');
+
+const cc25 = sanitizeGeminiLiveClientContent({
+    turns: [{ role: 'invalid', parts: [{ text: 'Hallo' }, { text: '  ' }] }],
+    turnComplete: true
+}, 'projects/p/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio');
+assert.equal(cc25.drop, false);
+assert.equal(cc25.frames[0].clientContent.turns[0].role, 'user');
+assert.equal(cc25.frames[0].clientContent.turns[0].parts.length, 1);
+
+// 5. ToolResponse: filter invalid entries, wrap scalar responses, drop empty
+assert.equal(sanitizeGeminiLiveToolResponse({ functionResponses: [{ id: '1', name: '' }] }), null);
+const trValid = sanitizeGeminiLiveToolResponse({
+    functionResponses: [
+        { id: 'c1', name: 'end_call', response: 'ok' },
+        { id: 'c2', name: '' }
+    ]
+});
+assert.equal(trValid.functionResponses.length, 1);
+assert.deepEqual(trValid.functionResponses[0].response, { result: 'ok' });
+
+console.log('NODE_1007_OK');
+JS;
+
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $proc = proc_open($nodeBinary . ' --input-type=module', $descriptors, $pipes, base_path());
+        $this->assertIsResource($proc);
+        fwrite($pipes[0], $script);
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($proc);
+
+        $this->assertSame(0, $exitCode, "Node Code-1007 normalizer assertions failed: {$stderr}\n{$stdout}");
+        $this->assertStringContainsString('NODE_1007_OK', (string) $stdout);
+        $this->assertFileExists($bridgePath);
+    }
 }

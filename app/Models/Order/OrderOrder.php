@@ -133,21 +133,19 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         static::created(function ($order) use ($syncCapacityRealtime) {
             $syncCapacityRealtime();
             if (!app()->runningUnitTests()) {
-                try {
-                    broadcast(new \App\Events\OrderScopeUpdated($order, true));
-                } catch (\Throwable $e) {
-                    // WebSocket / Broadcaster optional
-                }
+                \App\Services\System\RealtimeBroadcastService::dispatch(
+                    new \App\Events\OrderScopeUpdated($order, true),
+                    'OrderOrder::created'
+                );
             }
         });
 
         static::updated(function ($order) use ($syncCapacityRealtime) {
             if ($order->isDirty(['status', 'payment_status', 'total_price']) && !app()->runningUnitTests()) {
-                try {
-                    broadcast(new \App\Events\OrderScopeUpdated($order, false));
-                } catch (\Throwable $e) {
-                    // WebSocket / Broadcaster optional
-                }
+                \App\Services\System\RealtimeBroadcastService::dispatch(
+                    new \App\Events\OrderScopeUpdated($order, false),
+                    'OrderOrder::updated'
+                );
             }
 
             // 1. Synchronize "paid" status

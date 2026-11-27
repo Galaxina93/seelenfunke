@@ -285,21 +285,24 @@
          @mousedown="deselectAll($event)"
          @touchstart="deselectAll($event)">
 
-        {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D im Hintergrund hinter dem Produkt) --}}
+        {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D im Hintergrund hinter dem Produkt, RAM-Blob-gepuffert für 0-ms-Loop ohne Nachladen) --}}
         <div wire:ignore class="contents">
             <template x-if="activeBgVideo && videoEnabled">
                 <video x-ref="bgVideo"
                        data-snapshot-ignore="true"
                        :key="activeBgVideo"
-                       :src="activeBgVideo"
-                       x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
-                       x-effect="if (activeBgVideo && videoEnabled) { $el.muted = true; $el.play().catch(() => {}); }"
+                       :src="resolvedBgVideoSrc || activeBgVideo"
+                       preload="auto"
                        autoplay
                        loop
                        muted
                        playsinline
-                       style="transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;"
-                       class="absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500 z-[5] opacity-95"></video>
+                       x-init="mountBgVideoElement($el)"
+                       @ended="$el.currentTime = 0; $el.play().catch(() => {})"
+                       @stalled="resumeBgVideoIfNeeded($el)"
+                       @suspend="resumeBgVideoIfNeeded($el)"
+                       style="transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden;"
+                       class="absolute inset-0 w-full h-full object-cover pointer-events-none z-[5] opacity-95"></video>
             </template>
         </div>
 
@@ -392,10 +395,10 @@
                  :src="activeOverlayImg || config.fallbackImg"
                  x-on:error="if (config.fallbackImg && $el.src !== config.fallbackImg) { $el.src = config.fallbackImg; }"
                  loading="eager"
-                 decoding="sync"
+                 decoding="async"
                  :style="(Boolean(activeOverlayImg || config.fallbackImg) ? '' : 'display: none; ') + (hasTransparentOverlay
-                     ? ('transform: translate3d(0,0,0)' + (isMirroredBackSide() ? ' scaleX(-1)' : '') + '; -webkit-transform: translate3d(0,0,0)' + (isMirroredBackSide() ? ' scaleX(-1)' : '') + '; backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform; filter: drop-shadow(0 12px 24px rgba(0,0,0,0.45));')
-                     : 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;')"
+                     ? ('transform: translate3d(0,0,0)' + (isMirroredBackSide() ? ' scaleX(-1)' : '') + '; -webkit-transform: translate3d(0,0,0)' + (isMirroredBackSide() ? ' scaleX(-1)' : '') + '; backface-visibility: hidden; -webkit-backface-visibility: hidden;' + (videoEnabled && activeBgVideo ? '' : ' filter: drop-shadow(0 12px 24px rgba(0,0,0,0.45));'))
+                     : 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden;')"
                  class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
 
             <div x-show="config.area_shape !== 'custom'" data-snapshot-ignore="true" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"

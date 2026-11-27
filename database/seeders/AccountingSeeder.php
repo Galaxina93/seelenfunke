@@ -666,6 +666,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '50x Runde Kristallglas-Trophäe / Glas-Pokal Rohling klar für Lasergravur (160 x 180 x 40 mm)',
+                'location'       => 'Alibaba.com (Pujiang Wangzhe Crafts Co., Ltd.)',
+                'amount'         => -364.25,
+                'date'           => '2026-11-26',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 0,
+                'invoice_number' => '34839608501044580',
+                'note'           => "Receipt / Order Number: #34839608501044580 | Bezahlt am: 26.11.2026 (Kredit-/Debitkarte •••• 7826: 364,25 € | Amount paid Anzeige: 364,26 € / USD 395,49; Wechselkurs: 1 USD = 0,921019 EUR) | Bestellanlage: 25.10.2026\nVerkäufer (Drittland China): Pujiang Wangzhe Crafts Co., Ltd., Room 8101, First Floor, No. 7-1, East Zone, Bailin Jiangyi Road, Puyang Subdistrict, Pujiang County, Jinhua, Zhejiang, CN | Marktplatzbetreiber: Alibaba.com Singapore E-Commerce Private Limited (51 Bras Basah Road, #01-21 Lazada One, Singapore 189554)\nPositionen (excl. tax / 0 % deutsche USt.):\n- 50x Blank Glass Trophy Custom Laser Engraved Round Crystal Award (Farbe: klar, Maße: 160 x 180 x 40 mm): je 3,28 € = 163,95 €\n- Versandkosten (Shipping fee): 189,73 € (Order total: 353,68 € / USD 384,00)\n- Zahlungsabwicklungsgebühr (Payment processing fee): 10,59 €\nGesamtbetrag (Netto = Brutto, 0 % USt. Drittland-Import): 364,25 € (ca. 7,29 € inkl. Fracht & Gebühr pro Trophäen-Rohling)\nSteuerhinweis: Drittland-Warenimport (China) ohne deutsche Umsatzsteuer (0 % USt., SKR03 Kto. 3200). Nach Auftragsabschluss bei Alibaba Tax Invoice ergänzen; falls der Paketdienst/Zoll bei Einfuhr separat Einfuhrumsatzsteuer (EUSt) abrechnet, wird der EUSt-Bescheid gesondert erfasst.",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-26_Alibaba-Pujiang-Wangzhe_50x-Kristallglas-Trophae-Rund-160x180x40mm_Receipt-34839608501044580.pdf',
+                ]
+            ],
+            [
                 'title'          => '20x Edelstahl-Hundemarke Knochenform Gold, 16x Edelstahl-Schlüsselanhänger Gold & 20x Herz-Aluminium-Schlüsselanhänger Schwarz (LS20002)',
                 'location'       => 'Temu (CTHOLD / HaoYiZF / Gifts Crafts Zone)',
                 'amount'         => -88.93,

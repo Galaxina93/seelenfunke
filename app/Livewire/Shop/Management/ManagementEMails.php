@@ -1101,7 +1101,7 @@ class ManagementEMails extends Component
                 $query->where('has_attachments', true);
             }
 
-            $messages = $query->orderBy('received_at', 'desc')->get();
+            $messages = $query->orderByRaw('COALESCE(received_at, created_at) DESC')->orderBy('id', 'desc')->get();
         } elseif ($this->selectedFolder === 'AllInboxes') {
             $query = MailMessage::where('folder', 'INBOX')->where('is_archived', false);
             if ($this->filterMode === 'unread') {
@@ -1109,7 +1109,7 @@ class ManagementEMails extends Component
             } elseif ($this->filterMode === 'attachments') {
                 $query->where('has_attachments', true);
             }
-            $messages = $query->orderBy('received_at', 'desc')->get();
+            $messages = $query->orderByRaw('COALESCE(received_at, created_at) DESC')->orderBy('id', 'desc')->get();
         } elseif ($this->selectedFolder === 'Processed') {
             $query = MailMessage::where('folder', 'Processed')->where('is_archived', false);
             if ($this->filterMode === 'unread') {
@@ -1117,7 +1117,7 @@ class ManagementEMails extends Component
             } elseif ($this->filterMode === 'attachments') {
                 $query->where('has_attachments', true);
             }
-            $messages = $query->orderBy('received_at', 'desc')->get();
+            $messages = $query->orderByRaw('COALESCE(received_at, created_at) DESC')->orderBy('id', 'desc')->get();
         } elseif ($this->selectedAccountId) {
             // Normal Folder View Mode
             $query = MailMessage::where('mail_account_id', $this->selectedAccountId);
@@ -1135,7 +1135,7 @@ class ManagementEMails extends Component
                 $query->where('has_attachments', true);
             }
 
-            $messages = $query->orderBy('received_at', 'desc')->get();
+            $messages = $query->orderByRaw('COALESCE(received_at, created_at) DESC')->orderBy('id', 'desc')->get();
         }
 
         $contactEmails = ManagementContact::whereNotNull('email')

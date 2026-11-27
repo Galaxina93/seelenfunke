@@ -193,6 +193,7 @@ namespace FunkenwerkMcp
 
         public const string StageAllowedHost = "ssh.altgemeinde.project.host";
         public const string StageWebRemoteDir = "/home/p-g27wim/html/seelenfunke-stage";
+        public const string SteinhauerInvestRemoteDir = "/home/p-g27wim/html/steinhauer-invest";
         public const string StageWorkerRemoteDir = "/home/p-g27wim/html/worker-stage-3";
         public const string StageTwilioBridgeRemoteDir = "/home/p-g27wim/html/twilio-bridge";
         public const string StageTwilioBridgeSshUser = "kontakt@mein-seelenfunke.de@a-yeq7el";
@@ -1567,10 +1568,20 @@ namespace FunkenwerkMcp
                             }
                         }
 
-                        if (string.IsNullOrWhiteSpace(keyPath) || keyPath.EndsWith(".ppk", StringComparison.OrdinalIgnoreCase) || !File.Exists(keyPath))
+                        string sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+                        string dedicatedMittwaldKey = Path.Combine(sshDir, "id_ed25519_mittwald_seelenfunke");
+                        string defaultEd25519 = Path.Combine(sshDir, "id_ed25519");
+
+                        if (host.Equals(StageAllowedHost, StringComparison.OrdinalIgnoreCase) && File.Exists(dedicatedMittwaldKey))
                         {
-                            string defaultEd25519 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "id_ed25519");
-                            if (File.Exists(defaultEd25519)) keyPath = defaultEd25519;
+                            keyPath = dedicatedMittwaldKey;
+                        }
+                        else if (string.IsNullOrWhiteSpace(keyPath) || keyPath.EndsWith(".ppk", StringComparison.OrdinalIgnoreCase) || !File.Exists(keyPath))
+                        {
+                            if (File.Exists(dedicatedMittwaldKey) && host.Equals(StageAllowedHost, StringComparison.OrdinalIgnoreCase))
+                                keyPath = dedicatedMittwaldKey;
+                            else if (File.Exists(defaultEd25519))
+                                keyPath = defaultEd25519;
                         }
 
                         ValidateSshEndpointParameters(host, port, user, remDir);
@@ -3066,6 +3077,7 @@ unset($rawPayload);
         public static readonly IReadOnlyList<string> FixedAgChannels = new[]
         {
             "leitung",
+            "invest",
             "tickets",
             "shop",
             "android",
@@ -3073,31 +3085,90 @@ unset($rawPayload);
             "buchhaltung"
         };
 
+        private static readonly Regex SteinhauerInvestRoutingRegex = new(
+            @"(?:\bsteinh?auer[\s\-_]*invest(?:\.de)?\b|\bsteini(?:[\s\-_]*(?:app|chat|command|portal|android|apk|ota))?\b|android[\s\-_]*steini|\bjan\s+steinh?auer\b|\binvest[\s\-_]*(?:chat|portal|app|projekt|br(?:ü|ue)cke)\b)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex SeelenfunkeScopeRoutingRegex = new(
+            @"\b(seelenfunke|mein[\s\-_]*seelenfunke|funkenwerk|funkira|falcone|xtool|konfigurator|laser[\s\-]*manufaktur|funkenreich)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex MetaRoutingTaskRegex = new(
+            @"\b(routing|weiterleit\w*|pipeline|kanal\w*|channel\w*|sidecar|br(?:ü|ue)cke|antr(?:ä|ae)ge|auftr(?:ä|ae)ge)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex Shop3dConstructionRoutingRegex = new(
+            @"\b(3d[-\s]*(?:modell\w*|druck\w*|konstruktion\w*|entwurf\w*|vorlage\w*|halter\w*|regal\w*|adapter\w*)|konstruktion\w*|klicksystem\w*|bambu\w*|\.stl\b|\.3mf\b|\.glb\b|cad\b|openscad\w*|wandregal\w*|produktmodell\w*)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex ExplicitMiniPcOsIssueRegex = new(
+            @"\b(kiosk\w*|xrdp|rdp\b|192\.168\.188\.151|funkenwerk-os|linux[-\s]*passwort|bildschirm\s+schwarz|mini[-\s]*pc\s+(?:absturz|fehler|offline|verbind\w*))\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         public static string NormalizeAgChannel(string? rawChannel)
         {
-            string norm = (rawChannel ?? "").Trim().ToLowerInvariant();
+            string norm = Regex.Replace((rawChannel ?? "").Trim().ToLowerInvariant(), @"\s+", " ");
             return norm switch
             {
                 "leitung" => "leitung",
                 "tickets" or "ticket" => "tickets",
                 "shop" => "shop",
                 "android" => "android",
-                "minipc" or "mini-pc" => "minipc",
+                "minipc" or "mini-pc" or "mini_pc" => "minipc",
                 "buchhaltung" => "buchhaltung",
-                "new" => "new",
+                "invest" or "steinhauer" or "steinhauer-invest" or "steinhauer_invest" or "steinhauer invest" or "steinhauer-invest.de"
+                    or "steinauer" or "steinauer-invest" or "steinauer_invest" or "steinauer invest" or "steinauer-invest.de"
+                    or "steini" or "steini-app" or "steini_app" or "steini app" or "android-steini" or "steini-command"
+                    or "invest-chat" or "invest_chat" or "invest chat" => "invest",
+                "new" or "neu" => "new",
                 _ => "leitung"
             };
         }
 
+        public static string ResolveEffectiveAgChannel(string? rawChannel, string? title = null, string? body = null)
+        {
+            string channel = NormalizeAgChannel(rawChannel);
+            string combined = $"{title ?? ""} {body ?? ""}".Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(combined))
+                return channel;
+
+            bool isSteinhauerInvest = SteinhauerInvestRoutingRegex.IsMatch(combined);
+            bool isSeelenfunkeScope = SeelenfunkeScopeRoutingRegex.IsMatch(combined);
+            bool isMetaRoutingTask = isSeelenfunkeScope && isSteinhauerInvest && MetaRoutingTaskRegex.IsMatch(combined);
+
+            if (isMetaRoutingTask)
+                return channel == "invest" ? "leitung" : channel;
+
+            if (isSteinhauerInvest && channel is "leitung" or "invest" or "buchhaltung" or "shop" or "android" or "minipc")
+                return "invest";
+
+            if (channel == "invest" && isSeelenfunkeScope && !isSteinhauerInvest)
+                return "leitung";
+
+            if (Shop3dConstructionRoutingRegex.IsMatch(combined)
+                && !ExplicitMiniPcOsIssueRegex.IsMatch(combined)
+                && channel is "minipc" or "leitung")
+            {
+                return "shop";
+            }
+
+            return channel;
+        }
+
         public static string ValidateFixedAgDepartmentChannel(string? rawChannel)
         {
-            string clean = (rawChannel ?? "").Trim().ToLowerInvariant();
-            if (clean == "mini-pc") clean = "minipc";
-            if (clean == "ticket") clean = "tickets";
-            if (!FixedAgChannels.Contains(clean, StringComparer.Ordinal))
+            string rawClean = Regex.Replace((rawChannel ?? "").Trim().ToLowerInvariant(), @"\s+", " ");
+            if (string.IsNullOrWhiteSpace(rawClean))
             {
                 throw new ArgumentException(
-                    $"Ungültiger Abteilungs-Kanal '{ScrubSecrets(rawChannel)}'. Erlaubte feste Kanäle: leitung, tickets, shop, android, minipc, buchhaltung.");
+                    "Ungültiger leerer Abteilungs-Kanal. Erlaubte feste Kanäle: leitung, invest, tickets, shop, android, minipc, buchhaltung.");
+            }
+            string clean = NormalizeAgChannel(rawClean);
+            bool isExplicitLeitung = rawClean == "leitung";
+            if ((!isExplicitLeitung && clean == "leitung") || !FixedAgChannels.Contains(clean, StringComparer.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"Ungültiger Abteilungs-Kanal '{ScrubSecrets(rawChannel)}'. Erlaubte feste Kanäle: leitung, invest, tickets, shop, android, minipc, buchhaltung.");
             }
             return clean;
         }
@@ -3106,6 +3177,7 @@ unset($rawPayload);
         {
             return NormalizeAgChannel(channel) switch
             {
+                "invest" => "Invest-Chat",
                 "tickets" => "[SF] Ticket-Autopilot",
                 "shop" => "Shop & Konfigurator",
                 "android" => "Android & Funkenwerk",
@@ -3125,6 +3197,7 @@ unset($rawPayload);
                 "android" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): android-app/ + Mirror C:\\Users\\konta\\AndroidStudioProjects\\seelenfunke-android (sowie ggf. funkenwerk/).",
                 "minipc" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): funkenwerk-os-linux/ & Manufaktur Mini-PC (192.168.188.151).",
                 "buchhaltung" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): database/seeders/AccountingSeeder.php, storage/app/buchhaltung/ (receipts/ & contracts/), Marketing & Kalkulation.",
+                "invest" => "Projekt-Fokus (Strikt isoliert): \\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\steinhauer-invest (Portal steinhauer-invest.de & Steini Android-App).",
                 _ => null
             };
         }
@@ -3476,7 +3549,7 @@ unset($rawPayload);
                 ? "Direkt umsetzen via Orchester-Subagenten"
                 : "Erst Konzept (warte auf Go)";
 
-            string normChannel = NormalizeAgChannel(channel);
+            string normChannel = ResolveEffectiveAgChannel(channel, title, body);
             string channelTitle = GetAgChannelDisplayTitle(normChannel);
             string? scopeHint = GetAgChannelScopeHint(normChannel);
 
@@ -4254,15 +4327,20 @@ unset($rawPayload);
 
         internal static string ResolveMittwaldEd25519KeyPath()
         {
+            string sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            string dedicated = Path.Combine(sshDir, "id_ed25519_mittwald_seelenfunke");
+            if (File.Exists(dedicated))
+                return dedicated;
+
             using var creds = ResolveProfileInternal("Mittwald", StageWebRemoteDir, forceKeyOnlyNoPasswordDecrypt: true);
             if (creds != null && !string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath))
                 return creds.PrivateKeyPath;
 
-            string fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "id_ed25519");
+            string fallback = Path.Combine(sshDir, "id_ed25519");
             if (File.Exists(fallback))
                 return fallback;
 
-            throw new FileNotFoundException("Ed25519-SSH-Schlüssel (id_ed25519) für Mittwald wurde nicht gefunden.");
+            throw new FileNotFoundException("Ed25519-SSH-Schlüssel (id_ed25519_mittwald_seelenfunke / id_ed25519) für Mittwald wurde nicht gefunden.");
         }
 
         private static bool VerifyPinnedHostKeyBytes(

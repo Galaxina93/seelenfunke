@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +74,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -703,26 +705,25 @@ fun AgLiveTicketStatusBar(
                             .border(1.dp, Gold.copy(alpha = 0.55f), RoundedCornerShape(50))
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.HourglassEmpty,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(13.dp)
-                        )
                         Text(
-                            text = "⚡ ${inProgressItems.size} arbeitet aktiv",
+                            text = "${inProgressItems.size} in Arbeit",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = AppTheme.colors.textPrimary,
                             maxLines = 1,
                             softWrap = false
                         )
+                        CircularProgressIndicator(
+                            color = Gold,
+                            strokeWidth = 1.6.dp,
+                            modifier = Modifier.size(11.dp)
+                        )
                     }
                 }
 
-                // Pill 3: Kürzlich erledigt
+                // Pill 3: Kürzlich fertig
                 if (completedItems.isNotEmpty()) {
                     Row(
                         modifier = Modifier
@@ -733,19 +734,19 @@ fun AgLiveTicketStatusBar(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Emerald500,
-                            modifier = Modifier.size(13.dp)
-                        )
                         Text(
-                            text = "${completedItems.size} erledigt",
+                            text = "${completedItems.size} fertig",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Emerald500,
                             maxLines = 1,
                             softWrap = false
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.CheckCircle,
+                            contentDescription = "Fertig",
+                            tint = Emerald500,
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
@@ -965,7 +966,9 @@ fun AgLiveTicketStatusBar(
                                             color = AppTheme.colors.textPrimary
                                         )
                                     }
-                                    Box(
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(50))
                                             .background(Gold.copy(alpha = 0.14f))
@@ -978,6 +981,13 @@ fun AgLiveTicketStatusBar(
                                             fontWeight = FontWeight.Bold,
                                             color = Gold
                                         )
+                                        if (item.status == AgDirectStatus.DELIVERED) {
+                                            CircularProgressIndicator(
+                                                color = Gold,
+                                                strokeWidth = 1.6.dp,
+                                                modifier = Modifier.size(10.dp)
+                                            )
+                                        }
                                     }
                                 }
                                 Text(
@@ -1034,7 +1044,9 @@ fun AgLiveTicketStatusBar(
                                             color = AppTheme.colors.textPrimary
                                         )
                                     }
-                                    Box(
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(50))
                                             .background(Emerald500.copy(alpha = 0.14f))
@@ -1046,6 +1058,12 @@ fun AgLiveTicketStatusBar(
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Emerald500
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Rounded.CheckCircle,
+                                            contentDescription = "Fertig",
+                                            tint = Emerald500,
+                                            modifier = Modifier.size(12.dp)
                                         )
                                     }
                                 }

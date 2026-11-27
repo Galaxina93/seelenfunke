@@ -922,8 +922,8 @@ trait AiSystemFuncs
                         ],
                         'channel' => [
                             'type' => 'string',
-                            'description' => 'Ziel-Kanal im Antigravity-Orchester: leitung (Standard), shop (Webportal/Shop, Produkte, Konfigurator & ALLE 3D-Modelle/3D-Druck-Konstruktionen!), android (Android-App/Widgets), minipc (NUR reine Werkstatt-Mini-PC Linux/Kiosk-Technik, NIEMALS für 3D-Modelle/Konstruktionen!), buchhaltung (Buchhaltung/Belege/Marketing) oder new.',
-                            'enum' => ['leitung', 'shop', 'android', 'minipc', 'buchhaltung', 'new']
+                            'description' => 'Ziel-Kanal im Antigravity-Orchester: leitung (Seelenfunke Standard / Geschäftsführung), invest (Steinhauer Invest Portal, Steini App & Vermietung -> Invest-Chat), shop (Webportal/Shop, Produkte, Konfigurator & ALLE 3D-Modelle/3D-Druck-Konstruktionen!), android (Android-App/Widgets), minipc (NUR reine Werkstatt-Mini-PC Linux/Kiosk-Technik, NIEMALS für 3D-Modelle/Konstruktionen!), buchhaltung (Buchhaltung/Belege/Marketing) oder new.',
+                            'enum' => ['leitung', 'invest', 'shop', 'android', 'minipc', 'buchhaltung', 'new']
                         ],
                         'attachment_path' => [
                             'type' => 'string',
@@ -2521,7 +2521,7 @@ trait AiSystemFuncs
                 ]
             ]);
 
-            \App\Events\TaskUpdated::dispatch($task);
+            \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($task), 'AiSystemFuncs::manageLogs');
 
             $jobArgs = array_merge($args, ['__is_background_job' => true]);
             \App\Jobs\ExecuteAiBackgroundToolJob::dispatch(
@@ -2753,7 +2753,7 @@ trait AiSystemFuncs
             ]
         ]);
 
-        \App\Events\TaskUpdated::dispatch($task);
+        \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($task), 'AiSystemFuncs::dispatchBackgroundTask');
 
         if (!empty($toolToExecute)) {
             \App\Jobs\ExecuteAiBackgroundToolJob::dispatch(
@@ -4888,8 +4888,9 @@ trait AiSystemFuncs
                 ];
             }
 
-            $rawChannel = strtolower(trim((string) ($args['channel'] ?? 'leitung')));
+            $rawChannel = preg_replace('/\s+/', ' ', strtolower(trim((string) ($args['channel'] ?? 'leitung')))) ?: 'leitung';
             $mappedChannel = match ($rawChannel) {
+                'invest', 'steinhauer', 'steinhauer-invest', 'steinhauer_invest', 'steinhauer invest', 'steinhauer-invest.de', 'steinauer', 'steinauer-invest', 'steinauer_invest', 'steinauer invest', 'steinauer-invest.de', 'steini', 'steini-app', 'steini_app', 'steini app', 'android-steini', 'steini-command', 'invest-chat', 'invest_chat', 'invest chat' => 'invest',
                 'shop', 'laravel', 'konfigurator', 'produkte', 'portal', 'webportal', '3d', '3d-modell', '3d-druck', 'konstruktion', 'cad' => 'shop',
                 'android', 'app', 'mobile', 'widget', 'widgets' => 'android',
                 'minipc', 'mini-pc', 'mini_pc', 'funkenwerk', 'laser', 'werkstatt' => 'minipc',
@@ -4982,6 +4983,7 @@ trait AiSystemFuncs
             $limit = max(1, min(25, (int) ($args['limit'] ?? 5)));
             $snapshot = $inbox->listInbox($limit);
             $blockades = $inbox->getPendingBlockades();
+            $pipelineHealth = $inbox->getPipelineHealth();
 
             $compactItems = [];
             foreach ($snapshot['items'] ?? [] as $item) {
@@ -4996,13 +4998,16 @@ trait AiSystemFuncs
                     'pending_question' => $item['pending_question'] ?? null,
                     'ag_response_summary' => $item['ag_response_summary'] ?? null,
                     'created_at' => $item['created_at'] ?? null,
+                    'delivered_at' => $item['delivered_at'] ?? null,
                     'completed_at' => $item['completed_at'] ?? null,
+                    'requeue_count' => (int) ($item['requeue_count'] ?? 0),
                 ];
             }
 
             return [
                 'status' => 'success',
                 'counts' => $snapshot['counts'] ?? [],
+                'pipeline_health' => $pipelineHealth,
                 'pending_blockades_count' => count($blockades),
                 'pending_blockades' => $blockades,
                 'items' => $compactItems,

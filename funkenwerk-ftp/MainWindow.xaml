@@ -1,15 +1,60 @@
 <Window x:Class="FunkenwerkFtp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:FunkenwerkFtp"
         Title="Funkenwerk FTP"
         Icon="funkenwerk_ftp.ico"
         Width="1400" Height="840"
-        MinWidth="1040" MinHeight="620"
+        MinWidth="1060" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource FwBgRoot}"
         Foreground="{DynamicResource FwFgPrimary}"
         FontFamily="Segoe UI"
         Closing="Window_Closing">
+
+    <Window.Resources>
+        <DataTemplate x:Key="ProfileSelectedTemplate" DataType="{x:Type local:FtpConnectionProfile}">
+            <TextBlock Text="{Binding Name}"
+                       Foreground="{DynamicResource FwFgPrimary}"
+                       FontSize="12.5"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+        </DataTemplate>
+
+        <DataTemplate x:Key="ProfileDropDownTemplate" DataType="{x:Type local:FtpConnectionProfile}">
+            <StackPanel MinWidth="280">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Name}"
+                               Foreground="{DynamicResource FwFgPrimary}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ProtocolTag}"
+                               Foreground="#C5A059"
+                               FontSize="10.5"
+                               FontWeight="Bold"
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center"/>
+                </Grid>
+                <TextBlock Text="{Binding SubtitleLabel}"
+                           Foreground="{DynamicResource FwFgSecondary}"
+                           FontSize="11"
+                           Margin="0,2,0,0"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <local:ProfileComboItemTemplateSelector x:Key="ProfileComboTemplateSelector"
+                                                SelectedTemplate="{StaticResource ProfileSelectedTemplate}"
+                                                DropDownTemplate="{StaticResource ProfileDropDownTemplate}"/>
+    </Window.Resources>
 
     <Grid x:Name="RootGrid" Background="{DynamicResource FwBgRoot}" AllowDrop="True" PreviewDragOver="RootGrid_PreviewDragOver">
         <Grid.RowDefinitions>
@@ -25,13 +70,13 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="205"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="82"/>
+                    <ColumnDefinition Width="78"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="64"/>
+                    <ColumnDefinition Width="58"/>
                     <ColumnDefinition Width="140"/>
-                    <ColumnDefinition Width="155"/>
+                    <ColumnDefinition Width="150"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -44,21 +89,50 @@
                 </StackPanel>
 
                 <!-- Saved Profiles Dropdown -->
-                <ComboBox x:Name="ProfilesCombo" Grid.Column="1" Height="34" VerticalContentAlignment="Center"
-                          DisplayMemberPath="Name" SelectionChanged="ProfilesCombo_SelectionChanged"
-                          Margin="0,0,6,0" Padding="8,0" ToolTip="Gespeichertes Server-Profil"/>
+                <ComboBox x:Name="ProfilesCombo" Grid.Column="1" Height="34"
+                          Style="{StaticResource FwComboBox}"
+                          ItemTemplateSelector="{StaticResource ProfileComboTemplateSelector}"
+                          SelectionChanged="ProfilesCombo_SelectionChanged"
+                          ContextMenuOpening="ProfilesCombo_ContextMenuOpening"
+                          Margin="0,0,6,0" ToolTip="Gespeichertes Server-Profil">
+                    <ComboBox.ContextMenu>
+                        <ContextMenu x:Name="ProfileComboContextMenu">
+                            <MenuItem Header="+  Neues Profil anlegen..." Click="NewProfile_Click"/>
+                            <MenuItem Header="⚙  Profile verwalten..." Click="ManageProfiles_Click"/>
+                            <Separator/>
+                            <MenuItem x:Name="MenuProfileRename" Header="🏷  Profil umbenennen..." Click="RenameProfile_Click"/>
+                            <MenuItem x:Name="MenuProfileDuplicate" Header="⧉  Profil duplizieren" Click="DuplicateProfile_Click"/>
+                            <MenuItem x:Name="MenuProfileSave" Header="💾  Änderungen speichern" Click="SaveProfile_Click"/>
+                            <Separator/>
+                            <MenuItem x:Name="MenuProfileDelete" Header="🗑  Profil entfernen..." Foreground="#F87171" Click="DeleteProfile_Click"/>
+                        </ContextMenu>
+                    </ComboBox.ContextMenu>
+                </ComboBox>
 
-                <!-- Save / Delete Profile -->
+                <!-- New / Save / Manage / Delete Profile -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <Button x:Name="SaveProfileBtn" Content="💾" Width="32" Height="34" Click="SaveProfile_Click"
-                            Style="{StaticResource FwTileActionButton}" Foreground="#C5A059" Padding="0" Margin="0,0,4,0" ToolTip="Profil speichern"/>
-                    <Button x:Name="DeleteProfileBtn" Content="✕" Width="32" Height="34" Click="DeleteProfile_Click"
-                            Style="{StaticResource FwTileActionButton}" Foreground="{DynamicResource FwFgSecondary}" Padding="0" ToolTip="Profil entfernen"/>
+                    <Button x:Name="NewProfileBtn" Width="30" Height="34" Click="NewProfile_Click"
+                            Style="{StaticResource FwTileActionButton}" Padding="0" Margin="0,0,4,0" ToolTip="Neues Profil anlegen">
+                        <Path Data="M 6 1 L 6 11 M 1 6 L 11 6" Width="12" Height="12" Stroke="#C5A059" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Button>
+                    <Button x:Name="SaveProfileBtn" Width="30" Height="34" Click="SaveProfile_Click"
+                            Style="{StaticResource FwTileActionButton}" Padding="0" Margin="0,0,4,0" ToolTip="Profil speichern / aktualisieren">
+                        <Path Data="M 2 1 L 9 1 L 11 3 L 11 11 L 1 11 L 1 2 Z M 3.5 1 L 3.5 4.5 L 8 4.5 L 8 1 M 3.5 11 L 3.5 7 L 8.5 7 L 8.5 11" Width="12" Height="12" Stroke="#C5A059" StrokeThickness="1.35" StrokeLineJoin="Round" Fill="Transparent"/>
+                    </Button>
+                    <Button x:Name="ManageProfilesBtn" Width="30" Height="34" Click="ManageProfiles_Click"
+                            Style="{StaticResource FwTileActionButton}" Padding="0" Margin="0,0,4,0" ToolTip="Profile verwalten (Neu, Bearbeiten, Duplizieren, Sortieren, Löschen)">
+                        <Path Data="M 1 3 L 11 3 M 1 6.5 L 11 6.5 M 1 10 L 11 10 M 4 1.6 L 4 4.4 M 8 5.1 L 8 7.9 M 5 8.6 L 5 11.4" Width="12" Height="13" Stroke="{DynamicResource FwFgPrimary}" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Button>
+                    <Button x:Name="DeleteProfileBtn" Width="30" Height="34" Click="DeleteProfile_Click"
+                            Style="{StaticResource FwTileActionButton}" Padding="0" ToolTip="Ausgewähltes Profil entfernen">
+                        <Path Data="M 2 2 L 10 10 M 10 2 L 2 10" Width="12" Height="12" Stroke="{DynamicResource FwFgSecondary}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Button>
                 </StackPanel>
 
                 <!-- Protocol -->
-                <ComboBox x:Name="ProtocolCombo" Grid.Column="3" Height="34" VerticalContentAlignment="Center"
-                          SelectionChanged="ProtocolCombo_SelectionChanged" Margin="0,0,6,0" Padding="6,0" ToolTip="Übertragungsprotokoll">
+                <ComboBox x:Name="ProtocolCombo" Grid.Column="3" Height="34"
+                          Style="{StaticResource FwComboBox}"
+                          SelectionChanged="ProtocolCombo_SelectionChanged" Margin="0,0,6,0" ToolTip="Übertragungsprotokoll">
                     <ComboBoxItem Content="SFTP" IsSelected="True"/>
                     <ComboBoxItem Content="FTPS"/>
                     <ComboBoxItem Content="FTP"/>

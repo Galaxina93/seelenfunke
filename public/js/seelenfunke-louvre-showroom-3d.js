@@ -283,8 +283,72 @@ export { getLobbyAudioInstance, SeelenfunkeLobbyAudio };
 export const FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5;
 
 export const RIGGED_AVATAR_GLB_URLS = {
-    male: '/shop/customer/gamification/models/char_starter_male_rigged.glb?v=20261122v2',
-    female: '/shop/customer/gamification/models/char_starter_female_rigged.glb?v=20261122v2',
+    male: '/shop/customer/gamification/models/char_starter_male_rigged.glb?v=20261126v2',
+    female: '/shop/customer/gamification/models/char_starter_female_rigged.glb?v=20261126v2',
+};
+
+export const ATELIER_CHARACTER_PROFILES = {
+    male: {
+        gender: 'male',
+        id: 'funki',
+        name: 'Funki',
+        genderLabel: 'Männlich',
+        hudBadge: '✦ Funki · Männlich',
+        visorW: 0.486,
+        visorH: 0.302,
+        visorLocalY: 0.214,
+        visorLocalZ: 0.1635,
+        palmBind: { x: -0.286, y: 0.478, z: 0.014 },
+    },
+    female: {
+        gender: 'female',
+        id: 'funkira',
+        name: 'Funkira',
+        genderLabel: 'Weiblich',
+        hudBadge: '✦ Funkira · Weiblich',
+        visorW: 0.458,
+        visorH: 0.292,
+        visorLocalY: 0.208,
+        visorLocalZ: 0.1595,
+        palmBind: { x: -0.268, y: 0.478, z: 0.014 },
+    },
+};
+
+export const ARMORY_GENDER_FIT_PROFILES = {
+    male: {
+        headScale: [1.028, 1.014, 1.018],
+        headCenterY: 1.151,
+        headDy: 0.003,
+        chestWaistScaleX: 1.054,
+        chestUpperScaleX: 1.046,
+        chestScaleZ: 1.036,
+        shoulderShiftX: 0.011,
+        forearmAxisRefX: 0.271,
+        forearmShiftX: 0.009,
+        forearmRadialScale: 1.055,
+        legAxisRefX: 0.117,
+        legShiftX: 0.005,
+        bootRadialScale: 1.048,
+        weaponScale: 1.04,
+        standScaleX: 1.025,
+    },
+    female: {
+        headScale: [0.972, 0.986, 0.984],
+        headCenterY: 1.151,
+        headDy: -0.003,
+        chestWaistScaleX: 0.942,
+        chestUpperScaleX: 0.954,
+        chestScaleZ: 0.968,
+        shoulderShiftX: -0.011,
+        forearmAxisRefX: 0.271,
+        forearmShiftX: -0.010,
+        forearmRadialScale: 0.925,
+        legAxisRefX: 0.117,
+        legShiftX: -0.005,
+        bootRadialScale: 0.942,
+        weaponScale: 0.93,
+        standScaleX: 0.968,
+    },
 };
 
 export const ARMORY_SHOWCASE_ITEMS = {
@@ -292,37 +356,37 @@ export const ARMORY_SHOWCASE_ITEMS = {
         key: 'helm',
         slot: 'head',
         label: 'Kristall-Helm',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_helm.glb?v=20261122v2',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_helm.glb?v=20261126v1',
     },
     chest: {
         key: 'chest',
         slot: 'chest',
         label: 'Kristall-Brustpanzer',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_chest.glb?v=20261122v2',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_chest.glb?v=20261126v1',
     },
     gauntlets: {
         key: 'gauntlets',
         slot: 'hands',
         label: 'Kristall-Handschuhe',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_gauntlets.glb?v=20261122v2',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_gauntlets.glb?v=20261126v1',
     },
     boots: {
         key: 'boots',
         slot: 'feet',
         label: 'Kristall-Stiefel',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_boots.glb?v=20261122v2',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_boots.glb?v=20261126v1',
     },
     lance: {
         key: 'lance',
         slot: 'weapon',
         label: 'Kristall-Lanze',
-        url: '/shop/customer/gamification/models/armory/weapon_crystal_lance.glb?v=20261122v2',
+        url: '/shop/customer/gamification/models/armory/weapon_crystal_lance.glb?v=20261126v1',
     },
     spear: {
         key: 'spear',
         slot: 'weapon',
         label: 'Kristall-Speer',
-        url: '/shop/customer/gamification/models/armory/weapon_crystal_spear.glb?v=20261122v2',
+        url: '/shop/customer/gamification/models/armory/weapon_crystal_spear.glb?v=20261126v1',
     },
 };
 
@@ -358,6 +422,15 @@ export const SHOWROOM_TEXTURE_URLS = {
     neroMarquinaPedestal: '/shop/showroom/textures/nero_marquina_pedestal.jpg',
     museumGoldenHourEnv: '/shop/showroom/textures/museum_golden_hour_env.jpg',
     pantheonCofferedDome: '/shop/showroom/textures/pantheon_coffered_dome.jpg',
+};
+
+export const SHOWROOM_MODEL_URLS = {
+    corinthianColumn: '/shop/showroom/models/atelier_corinthian_column.glb',
+    grandChandelier: '/shop/showroom/models/atelier_grand_chandelier.glb',
+    luxuryPedestal: '/shop/showroom/models/atelier_luxury_pedestal.glb',
+    museumBench: '/shop/showroom/models/atelier_museum_bench.glb',
+    urnTopiary: '/shop/showroom/models/atelier_urn_topiary.glb',
+    wallSconce: '/shop/showroom/models/atelier_wall_sconce.glb',
 };
 
 function createBoiserieWallPlaneGeo(THREE, widthMeters, heightMeters, panelRepeatUnit = 7.8) {
@@ -3384,10 +3457,10 @@ function buildVolumetricCloudPuffTexture(THREE, seasonKey, dayPhase, disposables
 }
 
 /**
- * Funkelnder 4-Strahl-Stern-Sprite fuer das 3D-Sternenzelt (Sternenhimmel) ueber der Glaskuppel.
+ * Funkelnder 4-Strahl-Stern-Sprite (128px Diamant-Spitze) fuer das 3D-Sternenzelt ueber der Glaskuppel.
  */
 function buildTwinkleStarSpriteTexture(THREE, disposables) {
-    const S = 64;
+    const S = 128;
     const c = document.createElement('canvas');
     c.width = S;
     c.height = S;
@@ -3395,25 +3468,274 @@ function buildTwinkleStarSpriteTexture(THREE, disposables) {
     const cx = S * 0.5;
     const cy = S * 0.5;
 
-    const rg = ctx.createRadialGradient(cx, cy, 0.5, cx, cy, 28);
+    const rg = ctx.createRadialGradient(cx, cy, 0.5, cx, cy, 46);
     rg.addColorStop(0.0, 'rgba(255,255,255,1)');
-    rg.addColorStop(0.22, 'rgba(255,248,230,0.88)');
-    rg.addColorStop(0.55, 'rgba(205,224,255,0.28)');
+    rg.addColorStop(0.14, 'rgba(255,248,230,0.88)');
+    rg.addColorStop(0.38, 'rgba(205,224,255,0.22)');
     rg.addColorStop(1.0, 'rgba(205,224,255,0)');
     ctx.fillStyle = rg;
     ctx.fillRect(0, 0, S, S);
 
-    ctx.strokeStyle = 'rgba(255,252,240,0.85)';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(cx - 22, cy);
-    ctx.lineTo(cx + 22, cy);
-    ctx.moveTo(cx, cy - 22);
-    ctx.lineTo(cx, cy + 22);
-    ctx.stroke();
+    // Feine spitz zulaufende 4-Strahl-Beugungsspitzen statt blockiger Linien
+    const drawRay = (angle, len, width) => {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        const g = ctx.createLinearGradient(-len, 0, len, 0);
+        g.addColorStop(0.0, 'rgba(255,248,228,0)');
+        g.addColorStop(0.42, 'rgba(255,250,236,0.55)');
+        g.addColorStop(0.50, 'rgba(255,255,255,0.96)');
+        g.addColorStop(0.58, 'rgba(255,250,236,0.55)');
+        g.addColorStop(1.0, 'rgba(255,248,228,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(-len, 0);
+        ctx.quadraticCurveTo(0, -width, len, 0);
+        ctx.quadraticCurveTo(0, width, -len, 0);
+        ctx.fill();
+        ctx.restore();
+    };
+    drawRay(0, 52, 2.2);
+    drawRay(Math.PI * 0.5, 52, 2.2);
+    drawRay(Math.PI * 0.25, 24, 1.3);
+    drawRay(-Math.PI * 0.25, 24, 1.3);
 
     const tex = new THREE.CanvasTexture(c);
     applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Hochaufloesendes 1024x1024 Opus-Sectile Bodenmedaillon (Calacatta, Nero Marquina, Saphir #133B5C & 24K-Gold-Kompassrose)
+ * fuer die Galerie-Mitte und die Pantheon-Rotunde.
+ */
+function buildOpusSectileMedallionTexture(THREE, maxAniso, disposables) {
+    const S = 1024;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
+    const cx = S * 0.5;
+    const cy = S * 0.5;
+    ctx.clearRect(0, 0, S, S);
+
+    // 1. Aeusserer Nero-Marquina-Ring mit 24K-Gold-Doppelkante
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 496, 0, TWO_PI);
+    ctx.fillStyle = '#181614';
+    ctx.fill();
+
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = '#C5A059';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 488, 0, TWO_PI);
+    ctx.stroke();
+
+    // 2. Koenigsblauer Saphir-Zierfries (#133B5C) mit 36 feinen Gold-Rauten
+    ctx.beginPath();
+    ctx.arc(cx, cy, 462, 0, TWO_PI);
+    ctx.fillStyle = '#133B5C';
+    ctx.fill();
+
+    for (let i = 0; i < 36; i++) {
+        const ang = (i / 36) * TWO_PI;
+        ctx.save();
+        ctx.translate(cx + Math.cos(ang) * 432, cy + Math.sin(ang) * 432);
+        ctx.rotate(ang);
+        ctx.fillStyle = (i % 3 === 0) ? '#E6C687' : '#C5A059';
+        ctx.beginPath();
+        ctx.moveTo(14, 0);
+        ctx.lineTo(0, 7);
+        ctx.lineTo(-14, 0);
+        ctx.lineTo(0, -7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // 3. Innere Calacatta-Alabaster-Marmorscheibe mit warmem Glanzverlauf
+    const marbleGrad = ctx.createRadialGradient(cx - 80, cy - 80, 20, cx, cy, 404);
+    marbleGrad.addColorStop(0.0, '#FBF7EE');
+    marbleGrad.addColorStop(0.62, '#EFE7D8');
+    marbleGrad.addColorStop(1.0, '#DFD3BE');
+    ctx.beginPath();
+    ctx.arc(cx, cy, 404, 0, TWO_PI);
+    ctx.fillStyle = marbleGrad;
+    ctx.fill();
+
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#D4AF37';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 402, 0, TWO_PI);
+    ctx.stroke();
+
+    // 4. Filigrane 16-teilige geometrische Opus-Sectile Sonnenstrahlen
+    for (let i = 0; i < 16; i++) {
+        const ang = (i / 16) * TWO_PI;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(ang);
+        ctx.strokeStyle = 'rgba(197, 160, 89, 0.42)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(130, 0);
+        ctx.lineTo(392, 0);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // 5. Kontrastreicher 8-Strahl Nero-Marquina & 24K-Gold Seelenfunke-Kompassstern
+    const drawFacetedStar = (rays, outerR, innerR, angleOff, leftHex, rightHex) => {
+        for (let i = 0; i < rays; i++) {
+            const aMid = angleOff + (i / rays) * TWO_PI;
+            const aPrev = aMid - Math.PI / rays;
+            const aNext = aMid + Math.PI / rays;
+            const px = cx + Math.cos(aMid) * outerR;
+            const py = cy + Math.sin(aMid) * outerR;
+            const lx = cx + Math.cos(aPrev) * innerR;
+            const ly = cy + Math.sin(aPrev) * innerR;
+            const rx = cx + Math.cos(aNext) * innerR;
+            const ry = cy + Math.sin(aNext) * innerR;
+
+            ctx.fillStyle = leftHex;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(lx, ly);
+            ctx.lineTo(px, py);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = rightHex;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(px, py);
+            ctx.lineTo(rx, ry);
+            ctx.closePath();
+            ctx.fill();
+        }
+    };
+
+    // Sekundaere 8 Diagonale-Strahlen in Nero-Marquina & Bronze
+    drawFacetedStar(8, 316, 108, Math.PI / 8, '#1E1B18', '#332C24');
+    // Primaere 8 Hauptstrahlen in 24K Champagner-Gold & gebuerstetem Gold
+    drawFacetedStar(8, 382, 102, 0, '#E6C687', '#B28A3E');
+
+    // Zentrales Seelenfunke-Wappen-Medaillon
+    ctx.beginPath();
+    ctx.arc(cx, cy, 108, 0, TWO_PI);
+    ctx.fillStyle = '#181614';
+    ctx.fill();
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = '#E6C687';
+    ctx.stroke();
+
+    // Innerer 4-Strahl Seelenfunke-Funkenstern
+    drawFacetedStar(4, 78, 22, 0, '#FFF2CC', '#C5A059');
+    ctx.beginPath();
+    ctx.arc(cx, cy, 16, 0, TWO_PI);
+    ctx.fillStyle = '#FFF6DA';
+    ctx.fill();
+    ctx.restore();
+
+    const tex = new THREE.CanvasTexture(c);
+    applySrgbColorSpace(THREE, tex);
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = Math.min(maxAniso || 4, 8);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Weicher radialer Champagner-Gold Lichtpool (fuer Kronleuchter-Bodenreflexe & Wandleuchten-Halo ohne PointLights).
+ */
+function buildWarmLightPoolTexture(THREE, disposables) {
+    const S = 256;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
+    const cx = S * 0.5;
+    const g = ctx.createRadialGradient(cx, cx, 4, cx, cx, cx);
+    g.addColorStop(0.0, 'rgba(255, 244, 212, 0.95)');
+    g.addColorStop(0.28, 'rgba(244, 214, 150, 0.52)');
+    g.addColorStop(0.62, 'rgba(197, 160, 89, 0.16)');
+    g.addColorStop(1.0, 'rgba(197, 160, 89, 0.0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+
+    const tex = new THREE.CanvasTexture(c);
+    applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Weicher architektonischer Boden-Wand-Kontaktschatten (Baked AO Strip) fuer realistische Raumtiefe.
+ */
+function buildWallFloorAoGradientTexture(THREE, disposables) {
+    const W = 64;
+    const H = 128;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0.0, 'rgba(26, 20, 14, 0.36)');
+    g.addColorStop(0.28, 'rgba(26, 20, 14, 0.16)');
+    g.addColorStop(0.68, 'rgba(26, 20, 14, 0.04)');
+    g.addColorStop(1.0, 'rgba(26, 20, 14, 0.0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    const tex = new THREE.CanvasTexture(c);
+    applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Leitet eine physikalische Marmor-Rauheitskarte aus der Calacatta-Textur ab:
+ * Polierte weisse Platten glaenzen seidig (rough ~ 0.10), dunklere Gold-Adern bleiben matter (rough ~ 0.30).
+ */
+function buildCalacattaRoughnessMap(THREE, sourceImage, repX, repY, maxAniso, disposables) {
+    if (!sourceImage) return null;
+    const S = 512;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(sourceImage, 0, 0, S, S);
+    const imgData = ctx.getImageData(0, 0, S, S);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+        const lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255.0;
+        // Helle polierte Fliesen -> sehr glatt (~0.14 * 255), Adern/Fugen -> matter (~0.42 * 255)
+        const rough = clamp(0.13 + (1.0 - lum) * 0.95, 0.12, 0.56);
+        const val = Math.round(rough * 255);
+        d[i] = val;
+        d[i + 1] = val;
+        d[i + 2] = val;
+        d[i + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const tex = new THREE.CanvasTexture(c);
+    applyLinearColorSpace(THREE, tex);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repX, repY);
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = Math.min(maxAniso || 4, 8);
     tex.needsUpdate = true;
     if (disposables) disposables.push(tex);
     return tex;
@@ -4729,6 +5051,22 @@ class SeelenfunkeLouvreShowroom3D {
         this._projVec = null;
         this._collisionOut = { x: 0, z: 0, hitWall: false, wallNormalX: 0, wallNormalZ: 0 };
         this._hoverTickCounter = 0;
+        this.atelierDecorColliders = [];
+        this._legacyPierMeshes = [];
+        this._legacySteleMeshes = [];
+        this._atelierChandelierStars = [];
+        this._atelierDustUniforms = null;
+        this._atelierTrailPool = [];
+        this._atelierTrailCursor = 0;
+        this._atelierTrailSpawnAcc = 0;
+        this._atelierMedallionCenterZ = 0;
+        this._atelierMedallionPulse = null;
+        this._atelierMedallionPulseAge = 99;
+        this._atelierMedallionCooldown = 0;
+        this._atelierBaseFov = 46;
+        this._atelierCurrentFov = 46;
+        this._atelierSteleFocusLift = [];
+        this._atelierSteleSpotHalos = [];
 
         this._boundTick = (ts) => this._tick(ts);
         this._boundResize = () => this.resize();
@@ -4806,7 +5144,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.renderer.outputEncoding = THREE.sRGBEncoding;
         }
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.08;
+        this.renderer.toneMappingExposure = (this.environmentInfo && this.environmentInfo.is_night) ? 0.90 : 0.96;
         this.maxAniso = this.renderer.capabilities ? this.renderer.capabilities.getMaxAnisotropy() : 4;
 
         this.scene = new THREE.Scene();
@@ -4834,6 +5172,8 @@ class SeelenfunkeLouvreShowroom3D {
         const coreTexturesPromise = this._loadPhotorealisticTextures(24.0, totalGalleryLength, promWidth, promTotalLen);
         this._populateHeroesMonuments();
         this._buildExhibitSteles(baySpacing);
+        const blenderKitPromise = this._loadAndMountAtelierBlenderKit(isMobile);
+        this._buildAtelierMagicSystems(isMobile);
         const playerReadyPromise = this._buildPlayerCharacter();
         this._bindEvents();
 
@@ -4882,8 +5222,9 @@ class SeelenfunkeLouvreShowroom3D {
             Promise.all([
                 playerReadyPromise.catch(() => {}),
                 coreTexturesPromise.catch(() => {}),
+                blenderKitPromise.catch(() => {}),
             ]),
-            this._delayMs(2400),
+            this._delayMs(2600),
         ]);
         if (this.destroyed || !this.renderer || !this.scene || !this.camera) return;
 
@@ -4997,51 +5338,51 @@ class SeelenfunkeLouvreShowroom3D {
         const sKey = this.environmentInfo ? this.environmentInfo.season_key : 'autumn';
         const isNight = Boolean(this.environmentInfo && this.environmentInfo.is_night);
 
-        let hemiSky = 0xfffdf8;
-        let hemiGround = 0xd8cbb4;
-        let sunHex = 0xffecc8;
+        let hemiSky = 0xfff8ec;
+        let hemiGround = 0xa8957a;
+        let sunHex = 0xffe4b5;
         if (isNight) {
-            hemiSky = 0xe8effc;
-            hemiGround = 0xd3c7b2;
-            sunHex = 0xf4ecdc;
+            hemiSky = 0xcbdaf5;
+            hemiGround = 0x8e7c62;
+            sunHex = 0xffdfb0;
         } else if (sKey === 'winter') {
-            hemiSky = 0xf4f8ff;
-            hemiGround = 0xd6d2c8;
-            sunHex = 0xfff3dd;
+            hemiSky = 0xedf4ff;
+            hemiGround = 0xa7a095;
+            sunHex = 0xffebd0;
         } else if (sKey === 'spring') {
-            hemiSky = 0xfffbf7;
-            hemiGround = 0xdfd3c0;
-            sunHex = 0xffefd2;
+            hemiSky = 0xfff8f0;
+            hemiGround = 0xb2a089;
+            sunHex = 0xffe6bd;
         } else if (sKey === 'summer') {
-            hemiSky = 0xfafcff;
-            hemiGround = 0xdccfb8;
-            sunHex = 0xfff0c4;
+            hemiSky = 0xf8fbff;
+            hemiGround = 0xaf9d82;
+            sunHex = 0xffe8b4;
         }
 
-        const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, isNight ? 1.18 : 1.26);
+        const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, isNight ? 0.58 : 0.76);
         hemi.position.set(0, 26, this.hallNorthZ);
         this.scene.add(hemi);
         this.hemiLight = hemi;
 
-        const dirMain = new THREE.DirectionalLight(sunHex, isNight ? 1.22 : 1.38);
-        dirMain.position.set(11, 28, 14);
+        const dirMain = new THREE.DirectionalLight(sunHex, isNight ? 0.86 : 1.06);
+        dirMain.position.set(13, 24, 15);
         dirMain.castShadow = false;
         this.scene.add(dirMain);
         this.dirMainLight = dirMain;
 
-        const dirPantheon = new THREE.DirectionalLight(0xfff8ea, 0.68);
-        dirPantheon.position.set(-10, 25, this.pantheonCenterZ + 18);
+        const dirPantheon = new THREE.DirectionalLight(0xfff1d8, isNight ? 0.44 : 0.52);
+        dirPantheon.position.set(-12, 22, this.pantheonCenterZ + 18);
         dirPantheon.target.position.set(0, 2, this.pantheonCenterZ - 5);
         dirPantheon.castShadow = false;
         this.scene.add(dirPantheon);
         this.scene.add(dirPantheon.target);
 
-        // Schattenfreies 3-Punkt-Character-Follow-Light (Warmes Key/Fill von schraeg vorn-oben + #C5A059 Rim-Light von hinten)
-        const keyLight = new THREE.DirectionalLight(0xfff6e5, 0.72);
+        // Schattenfreies 3-Punkt-Character-Follow-Light (fein ausbalanciert ohne Boden-Ueberbelichtung + #C5A059 Rim-Light)
+        const keyLight = new THREE.DirectionalLight(0xfff2dc, 0.34);
         keyLight.castShadow = false;
-        const fillLight = new THREE.DirectionalLight(0xeef3ff, 0.34);
+        const fillLight = new THREE.DirectionalLight(0xdde8ff, 0.16);
         fillLight.castShadow = false;
-        const rimLight = new THREE.DirectionalLight(0xc5a059, 0.58);
+        const rimLight = new THREE.DirectionalLight(0xc5a059, 0.44);
         rimLight.castShadow = false;
 
         this.scene.add(keyLight, keyLight.target, fillLight, fillLight.target, rimLight, rimLight.target);
@@ -5138,31 +5479,39 @@ class SeelenfunkeLouvreShowroom3D {
             }
             configureStoneTex(tex, THREE.RepeatWrapping, THREE.RepeatWrapping, galleryWidth / 5.4, galleryLength / 5.4);
             if (this.mats.galleryFloor) {
-                this.mats.galleryFloor.color.setHex(0xffffff);
+                this.mats.galleryFloor.color.setHex(0xeee7da);
                 this.mats.galleryFloor.map = tex;
                 this.mats.galleryFloor.bumpMap = tex;
-                this.mats.galleryFloor.bumpScale = 0.006;
-                this.mats.galleryFloor.roughnessMap = null;
+                this.mats.galleryFloor.bumpScale = 0.008;
+                this.mats.galleryFloor.metalness = 0.08;
+                this.mats.galleryFloor.roughness = 0.92;
+                this.mats.galleryFloor.envMapIntensity = 1.18;
+                const galRoughMap = buildCalacattaRoughnessMap(THREE, tex.image, galleryWidth / 5.4, galleryLength / 5.4, aniso, this.disposables);
+                this.mats.galleryFloor.roughnessMap = galRoughMap;
                 this.mats.galleryFloor.needsUpdate = true;
             }
 
             if (this.mats.promenadeFloor && tex.image) {
                 const promTex = new THREE.Texture(tex.image);
                 configureStoneTex(promTex, THREE.RepeatWrapping, THREE.RepeatWrapping, promWidth / 5.4, promLength / 5.4);
-                this.mats.promenadeFloor.color.setHex(0xffffff);
+                this.mats.promenadeFloor.color.setHex(0xeee7da);
                 this.mats.promenadeFloor.map = promTex;
                 this.mats.promenadeFloor.bumpMap = promTex;
-                this.mats.promenadeFloor.bumpScale = 0.006;
+                this.mats.promenadeFloor.bumpScale = 0.008;
+                this.mats.promenadeFloor.metalness = 0.08;
+                this.mats.promenadeFloor.roughness = 0.92;
+                this.mats.promenadeFloor.envMapIntensity = 1.16;
+                this.mats.promenadeFloor.roughnessMap = buildCalacattaRoughnessMap(THREE, tex.image, promWidth / 5.4, promLength / 5.4, aniso, this.disposables);
                 this.mats.promenadeFloor.needsUpdate = true;
             }
 
             if (this.mats.pantheonFloor && tex.image) {
                 const hallSlabTex = new THREE.Texture(tex.image);
                 configureStoneTex(hallSlabTex, THREE.RepeatWrapping, THREE.RepeatWrapping, 46.8 / 3.8, 48.8 / 3.8);
-                this.mats.pantheonFloor.color.setHex(0xffffff);
+                this.mats.pantheonFloor.color.setHex(0xf0e9dc);
                 this.mats.pantheonFloor.map = hallSlabTex;
                 this.mats.pantheonFloor.bumpMap = hallSlabTex;
-                this.mats.pantheonFloor.bumpScale = 0.006;
+                this.mats.pantheonFloor.bumpScale = 0.008;
                 this.mats.pantheonFloor.roughness = 0.16;
                 this.mats.pantheonFloor.envMapIntensity = 0.88;
                 this.mats.pantheonFloor.roughnessMap = null;
@@ -5180,10 +5529,12 @@ class SeelenfunkeLouvreShowroom3D {
             }
             configureStoneTex(tex, THREE.RepeatWrapping, THREE.ClampToEdgeWrapping, 1.0, 1.0);
             if (this.mats.boiserieWall) {
-                this.mats.boiserieWall.color.setHex(0xffffff);
+                this.mats.boiserieWall.color.setHex(0xede4d4);
                 this.mats.boiserieWall.map = tex;
                 this.mats.boiserieWall.bumpMap = tex;
-                this.mats.boiserieWall.bumpScale = 0.014;
+                this.mats.boiserieWall.bumpScale = 0.022;
+                this.mats.boiserieWall.roughness = 0.60;
+                this.mats.boiserieWall.envMapIntensity = 0.72;
                 this.mats.boiserieWall.needsUpdate = true;
             }
             markPrimaryStep();
@@ -5468,7 +5819,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.galleryGroup.add(inlayInst);
 
         const medOuter = new THREE.Mesh(
-            this._trackDisposable(new THREE.RingGeometry(1.18, 1.30, 48)),
+            this._trackDisposable(new THREE.RingGeometry(2.30, 2.42, 64)),
             this.mats.goldMatcapBright
         );
         medOuter.rotation.x = -Math.PI * 0.5;
@@ -5482,6 +5833,71 @@ class SeelenfunkeLouvreShowroom3D {
         medInner.rotation.x = -Math.PI * 0.5;
         medInner.position.set(0, 0.006, centerZ);
         this.galleryGroup.add(medInner);
+
+        // Monumentales 4.6 m Opus-Sectile Bodenmedaillon (Calacatta, Nero Marquina, Saphir & 24K-Gold Seelenfunke-Kompassrose)
+        this._atelierMedallionCenterZ = centerZ;
+        this._opusMedallionTex = buildOpusSectileMedallionTexture(THREE, this.maxAniso, this.disposables);
+        this._warmLightPoolTex = buildWarmLightPoolTexture(THREE, this.disposables);
+        const wallAoTex = buildWallFloorAoGradientTexture(THREE, this.disposables);
+
+        const galleryMedallionMat = this._trackDisposable(new THREE.MeshStandardMaterial({
+            map: this._opusMedallionTex,
+            roughness: 0.16,
+            metalness: 0.24,
+            envMapIntensity: 1.12,
+            transparent: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -3,
+        }));
+        const galleryMedallionDisc = new THREE.Mesh(
+            this._trackDisposable(new THREE.CircleGeometry(2.32, 64)),
+            galleryMedallionMat
+        );
+        galleryMedallionDisc.rotation.x = -Math.PI * 0.5;
+        galleryMedallionDisc.position.set(0, 0.007, centerZ);
+        this.galleryGroup.add(galleryMedallionDisc);
+
+        // Weiche architektonische Boden-Wand-Kontaktschatten (Baked AO Strips entlang aller Galeriewaende -> 1 Draw Call!)
+        const wallAoMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+            map: wallAoTex,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -2,
+        }));
+        const aoStripW = 1.15;
+        const aoSideGeo = this._trackDisposable(new THREE.PlaneGeometry(totalLength, aoStripW));
+        const aoEast = new THREE.Mesh(aoSideGeo, wallAoMat);
+        aoEast.rotation.set(-Math.PI * 0.5, 0, Math.PI * 0.5);
+        aoEast.position.set(hallW * 0.5 - aoStripW * 0.5, 0.004, centerZ);
+        const aoWest = new THREE.Mesh(aoSideGeo, wallAoMat);
+        aoWest.rotation.set(-Math.PI * 0.5, 0, -Math.PI * 0.5);
+        aoWest.position.set(-hallW * 0.5 + aoStripW * 0.5, 0.004, centerZ);
+        const aoEndGeo = this._trackDisposable(new THREE.PlaneGeometry(hallW, aoStripW));
+        const aoSouth = new THREE.Mesh(aoEndGeo, wallAoMat);
+        aoSouth.rotation.set(-Math.PI * 0.5, 0, Math.PI);
+        aoSouth.position.set(0, 0.004, this.hallSouthZ - aoStripW * 0.5);
+        this.galleryGroup.add(aoEast, aoWest, aoSouth);
+
+        // Warme Champagner-Gold Kronleuchter-Lichtpools auf dem polierten Marmorboden (0 PointLights -> 60 FPS!)
+        const floorPoolMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+            map: this._warmLightPoolTex,
+            transparent: true,
+            opacity: 0.24,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        }));
+        const floorPoolGeo = this._trackDisposable(new THREE.PlaneGeometry(6.8, 6.8));
+        const chandelierPoolZs = [this.hallSouthZ - 6.0, centerZ, this.hallNorthZ + 6.5];
+        for (let cpi = 0; cpi < chandelierPoolZs.length; cpi++) {
+            const pMesh = new THREE.Mesh(floorPoolGeo, floorPoolMat);
+            pMesh.rotation.x = -Math.PI * 0.5;
+            pMesh.position.set(0, 0.009, chandelierPoolZs[cpi]);
+            this.galleryGroup.add(pMesh);
+        }
 
         // Click-to-Walk / Tap-to-Walk 24K-Gold-Zielring auf dem Boden
         const targetRingGeo = this._trackDisposable(new THREE.RingGeometry(0.28, 0.39, 32));
@@ -5667,6 +6083,7 @@ class SeelenfunkeLouvreShowroom3D {
         vaultRibInst.instanceMatrix.needsUpdate = true;
         vaultGoldInst.instanceMatrix.needsUpdate = true;
         this.galleryGroup.add(pierInst, capInst, plinthInst, vaultRibInst, vaultGoldInst);
+        this._legacyPierMeshes = [pierInst, capInst, plinthInst];
 
         // Sued-Stirnwand (Eingang) & Nord-Stirnwand in echter Louvre-Boiserie (geoeffnet fuer das 24K-Gold-Ehrenportal!)
         const southWallBacking = new THREE.Mesh(
@@ -5915,10 +6332,11 @@ class SeelenfunkeLouvreShowroom3D {
             starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
             const starSprite = buildTwinkleStarSpriteTexture(THREE, this.disposables);
             this.starfieldMat = this._trackDisposable(new THREE.PointsMaterial({
-                size: 2.35,
+                size: 1.35,
                 map: starSprite,
                 transparent: true,
-                opacity: 0.92,
+                opacity: 0.90,
+                blending: THREE.AdditiveBlending,
                 depthWrite: false,
             }));
             this.starfieldPoints = new THREE.Points(starGeo, this.starfieldMat);
@@ -6013,17 +6431,19 @@ class SeelenfunkeLouvreShowroom3D {
 
         if (this.hemiLight && this.dirMainLight) {
             if (isNight) {
-                this.hemiLight.color.setHex(0xe8effc);
-                this.hemiLight.groundColor.setHex(0xd3c7b2);
-                this.hemiLight.intensity = 1.18;
-                this.dirMainLight.color.setHex(0xf4ecdc);
-                this.dirMainLight.intensity = 1.22;
+                this.hemiLight.color.setHex(0xcbdaf5);
+                this.hemiLight.groundColor.setHex(0x8e7c62);
+                this.hemiLight.intensity = 0.58;
+                this.dirMainLight.color.setHex(0xffdfb0);
+                this.dirMainLight.intensity = 0.86;
+                if (this.renderer) this.renderer.toneMappingExposure = 0.90;
             } else {
-                this.hemiLight.color.setHex(sKey === 'winter' ? 0xf4f8ff : 0xfffdf8);
-                this.hemiLight.groundColor.setHex(0xd8cbb4);
-                this.hemiLight.intensity = 1.26;
-                this.dirMainLight.color.setHex(sKey === 'winter' ? 0xfff3dd : 0xffecc8);
-                this.dirMainLight.intensity = 1.38;
+                this.hemiLight.color.setHex(sKey === 'winter' ? 0xedf4ff : 0xfff8ec);
+                this.hemiLight.groundColor.setHex(0xa8957a);
+                this.hemiLight.intensity = 0.76;
+                this.dirMainLight.color.setHex(sKey === 'winter' ? 0xffebd0 : 0xffe4b5);
+                this.dirMainLight.intensity = 1.06;
+                if (this.renderer) this.renderer.toneMappingExposure = 0.96;
             }
         }
 
@@ -6174,7 +6594,7 @@ class SeelenfunkeLouvreShowroom3D {
             const [px, pz] = this._galleryPierPlacements[wi];
             const inwardSign = px < 0 ? 1 : -1;
             const wGroup = new THREE.Group();
-            wGroup.position.set(px + inwardSign * 0.34, 4.55, pz);
+            wGroup.position.set(px + inwardSign * 0.41, 4.55, pz);
             wGroup.rotation.y = inwardSign * Math.PI * 0.5;
 
             wGroup.add(new THREE.Mesh(wreathTorusGeo, wreathFoliageMat));
@@ -6518,45 +6938,44 @@ class SeelenfunkeLouvreShowroom3D {
         standPost.position.y = 0.72;
         standGroup.add(standPost);
 
-        // Dunkle matte Ritter-Mannequin-Bueste & Kopfform (damit der Helm niemals frei auf einer Stange schwebt!)
+        // Dunkle matte Ritter-Mannequin-Bueste & breite Chibi-Visor-Kopfform (passend fuer Funkira & Funki!)
         const mannequinTorso = new THREE.Mesh(
-            this._trackDisposable(new THREE.CylinderGeometry(0.125, 0.095, 0.34, 18)),
+            this._trackDisposable(new THREE.CylinderGeometry(0.162, 0.136, 0.36, 20)),
             this.mats.wroughtIronMatte
         );
-        mannequinTorso.scale.set(1.12, 1.0, 0.76);
+        mannequinTorso.scale.set(1.06, 1.0, 0.84);
         mannequinTorso.position.y = 0.88;
         standGroup.add(mannequinTorso);
 
         const mannequinHeadForm = new THREE.Mesh(
-            this._trackDisposable(new THREE.SphereGeometry(0.108, 18, 14)),
+            this._trackDisposable(new THREE.BoxGeometry(0.46, 0.30, 0.22)),
             this.mats.wroughtIronMatte
         );
-        mannequinHeadForm.scale.set(0.95, 1.16, 1.02);
-        mannequinHeadForm.position.set(0, 1.21, 0.015);
+        mannequinHeadForm.position.set(0, 1.29, 0.0);
         standGroup.add(mannequinHeadForm);
 
         const postFinial = new THREE.Mesh(
-            this._trackDisposable(new THREE.OctahedronGeometry(0.048, 0)),
+            this._trackDisposable(new THREE.OctahedronGeometry(0.044, 0)),
             this.mats.goldMatcapBright
         );
-        postFinial.position.y = 1.37;
+        postFinial.position.y = 1.54;
         standGroup.add(postFinial);
 
         const shoulderBar = new THREE.Mesh(
-            this._trackDisposable(new THREE.CylinderGeometry(0.024, 0.024, 0.46, 12)),
+            this._trackDisposable(new THREE.CylinderGeometry(0.024, 0.024, 0.52, 12)),
             this.mats.goldBrushed
         );
         shoulderBar.rotation.z = Math.PI * 0.5;
         shoulderBar.position.y = 0.98;
         standGroup.add(shoulderBar);
 
-        [-0.23, 0.23].forEach((ax) => {
+        [-0.265, 0.265].forEach((ax) => {
             const armPeg = new THREE.Mesh(
                 this._trackDisposable(new THREE.CylinderGeometry(0.022, 0.018, 0.30, 12)),
                 this.mats.wroughtIronMatte
             );
-            armPeg.position.set(ax, 0.82, 0.01);
-            armPeg.rotation.z = ax < 0 ? 0.14 : -0.14;
+            armPeg.position.set(ax, 0.80, 0.005);
+            armPeg.rotation.z = ax < 0 ? 0.10 : -0.10;
             standGroup.add(armPeg);
         });
 
@@ -6579,13 +6998,19 @@ class SeelenfunkeLouvreShowroom3D {
         const standArmorRoot = new THREE.Group();
         standArmorRoot.position.set(0, 0.14, 0);
         standGroup.add(standArmorRoot);
+        this.armoryStandRefs = {
+            standArmorRoot,
+            mannequinTorso,
+            mannequinHeadForm,
+            shoulderBar,
+        };
 
         const invisHitMat = this._trackDisposable(new THREE.MeshBasicMaterial({ visible: false }));
         const standSlots = [
-            { key: 'helm', localY: 1.34, boxW: 0.52, boxH: 0.42, boxD: 0.46 },
-            { key: 'chest', localY: 0.95, boxW: 0.56, boxH: 0.36, boxD: 0.42 },
-            { key: 'gauntlets', localY: 0.72, boxW: 0.74, boxH: 0.30, boxD: 0.40 },
-            { key: 'boots', localY: 0.34, boxW: 0.52, boxH: 0.38, boxD: 0.44 },
+            { key: 'helm', localY: 1.34, boxW: 0.78, boxH: 0.54, boxD: 0.48 },
+            { key: 'chest', localY: 0.94, boxW: 0.72, boxH: 0.44, boxD: 0.48 },
+            { key: 'gauntlets', localY: 0.72, boxW: 0.80, boxH: 0.32, boxD: 0.42 },
+            { key: 'boots', localY: 0.34, boxW: 0.56, boxH: 0.40, boxD: 0.46 },
         ];
 
         standSlots.forEach((sl) => {
@@ -6702,9 +7127,102 @@ class SeelenfunkeLouvreShowroom3D {
                         holder.add(dispMesh);
                     }
                     this._syncArmoryStandVisibility();
+                    this._syncArmoryStandToGender(this.characterGender);
                 })
                 .catch(() => null);
         });
+        this._syncArmoryStandToGender(this.characterGender);
+    }
+
+    _syncArmoryStandToGender(rawGender = null) {
+        const cleanGender = (rawGender || this.characterGender) === 'female' ? 'female' : 'male';
+        const fit = ARMORY_GENDER_FIT_PROFILES[cleanGender] || ARMORY_GENDER_FIT_PROFILES.male;
+        const refs = this.armoryStandRefs;
+        if (!refs) return;
+        const sx = fit.standScaleX || 1.0;
+        if (refs.standArmorRoot) {
+            refs.standArmorRoot.scale.set(sx, 1.0, cleanGender === 'female' ? 0.975 : 1.02);
+        }
+        if (refs.mannequinTorso) {
+            refs.mannequinTorso.scale.set(1.06 * sx, 1.0, 0.84);
+        }
+        if (refs.mannequinHeadForm) {
+            refs.mannequinHeadForm.scale.set(sx, 1.0, 1.0);
+        }
+        if (refs.shoulderBar) {
+            refs.shoulderBar.scale.set(1.0, sx, 1.0);
+        }
+    }
+
+    _buildGenderAdaptedArmorGeometry(baseGeo, slot, rawGender = 'male') {
+        if (!baseGeo || !baseGeo.attributes || !baseGeo.attributes.position) return baseGeo;
+        const cleanGender = rawGender === 'female' ? 'female' : 'male';
+        const fit = ARMORY_GENDER_FIT_PROFILES[cleanGender] || ARMORY_GENDER_FIT_PROFILES.male;
+        if (!this._genderAdaptedArmorGeoCache) {
+            this._genderAdaptedArmorGeoCache = new Map();
+        }
+        const cacheKey = `${baseGeo.uuid || 'geo'}:${slot}:${cleanGender}`;
+        if (this._genderAdaptedArmorGeoCache.has(cacheKey)) {
+            return this._genderAdaptedArmorGeoCache.get(cacheKey);
+        }
+
+        const adapted = baseGeo.clone();
+        this._trackDisposable(adapted);
+        const pos = adapted.attributes.position;
+
+        for (let i = 0; i < pos.count; i++) {
+            let x = pos.getX(i);
+            let y = pos.getY(i);
+            let z = pos.getZ(i);
+            const signX = x < 0 ? -1 : 1;
+            const absX = Math.abs(x);
+
+            if (slot === 'head') {
+                const dy = y - fit.headCenterY;
+                x *= fit.headScale[0];
+                y = fit.headCenterY + dy * fit.headScale[1] + fit.headDy;
+                z *= fit.headScale[2];
+            } else if (slot === 'chest') {
+                const upperBlend = clamp((y - 0.56) / 0.28, 0, 1);
+                const sx = lerp(fit.chestWaistScaleX, fit.chestUpperScaleX, upperBlend);
+                const shMask = clamp((absX - 0.185) / 0.085, 0, 1);
+                x = x * sx + signX * fit.shoulderShiftX * shMask;
+                z *= fit.chestScaleZ;
+            } else if (slot === 'hands') {
+                const axisX = signX * fit.forearmAxisRefX;
+                const relX = x - axisX;
+                x = axisX + signX * fit.forearmShiftX + relX * fit.forearmRadialScale;
+                z *= fit.forearmRadialScale;
+            } else if (slot === 'feet') {
+                const axisX = signX * fit.legAxisRefX;
+                const relX = x - axisX;
+                x = axisX + signX * fit.legShiftX + relX * fit.bootRadialScale;
+                z = 0.015 + (z - 0.015) * fit.bootRadialScale;
+                if (y < 0.002) y = 0.0;
+            }
+
+            pos.setXYZ(i, x, y, z);
+        }
+        pos.needsUpdate = true;
+        adapted.computeBoundingBox();
+        adapted.computeBoundingSphere();
+        this._genderAdaptedArmorGeoCache.set(cacheKey, adapted);
+        return adapted;
+    }
+
+    _resolveWeaponGripCalibration(weaponKey, rawGender = 'male') {
+        const isFemale = rawGender === 'female';
+        const fit = ARMORY_GENDER_FIT_PROFILES[isFemale ? 'female' : 'male'];
+        const isSpear = weaponKey === 'spear';
+        return {
+            scale: fit.weaponScale,
+            posX: isFemale ? -0.004 : -0.006,
+            posY: isSpear ? -0.024 : 0.012,
+            posZ: isFemale ? 0.014 : 0.016,
+            rotX: isSpear ? 0.56 : 0.62,
+            rotY: 0.0,
+            rotZ: isSpear ? 0.16 : 0.18,
+        };
     }
 
     _loadArmoryItemTemplate(itemKey) {
@@ -6789,9 +7307,16 @@ class SeelenfunkeLouvreShowroom3D {
         if (rig.starterHairMesh) {
             rig.starterHairMesh.visible = !eq.head;
         }
+        if (rig.headAccessoryMesh) {
+            rig.headAccessoryMesh.visible = !eq.head;
+        }
+        if (this.player && this.player.builtRecord && this.player.builtRecord.skinnedRig === rig && this.player.joints && this.player.joints.sparkCrest) {
+            const lvl = clamp(parseInt(this.playerProfile && this.playerProfile.level, 10) || 2, 1, 10);
+            this.player.joints.sparkCrest.visible = !eq.head && lvl >= 4;
+        }
         const sub = rig.bodySubMeshes;
         if (sub && typeof sub === 'object') {
-            // Der komplette Funki-Koerper (inkl. Kopf & Hals) bleibt zu 100 % sichtbar (kein unsichtbarer Kopf beim Helmtragen, 0 Loecher bei Einzelruestung!).
+            // Der komplette Funki-/Funkira-Koerper (inkl. Visor-Kopf & Hals) bleibt zu 100 % sichtbar (0 Loecher, freier Blick aufs animierte Retina-Visier!).
             if (sub.Body_Head) sub.Body_Head.visible = true;
             if (sub.Body_Torso_UpperArms) sub.Body_Torso_UpperArms.visible = true;
             if (sub.Body_Pelvis_Underwear) sub.Body_Pelvis_Underwear.visible = true;
@@ -6806,11 +7331,12 @@ class SeelenfunkeLouvreShowroom3D {
         const rig = targetRig || (this.player && this.player.builtRecord ? this.player.builtRecord.skinnedRig : null);
         if (!THREE || !rig || !rig.skinnedMesh || !rig.skeleton) return;
 
+        const rigGender = rig.gender === 'female' ? 'female' : 'male';
         if (!rig.equippedArmorNodes) {
             rig.equippedArmorNodes = {};
         }
 
-        // Sub-Mesh Body Masking: Verdeckte Koerperzonen unter Ruestungsteilen sauber ausblenden (0.00% Clipping!)
+        // Sub-Mesh Body Masking: Verdeckte Koerperzonen (Sirene/Kappe unter Helm, Schal/Brosche unter Brustpanzer) sauber ausblenden (0.00% Clipping!)
         this._syncRigBodySubMeshMasking(rig);
 
         const slotMap = [
@@ -6837,9 +7363,17 @@ class SeelenfunkeLouvreShowroom3D {
                 this._syncRigBodySubMeshMasking(rig);
                 return;
             }
-            if (Array.isArray(existing) && existing.length > 0) {
+            if (Array.isArray(existing) && existing.length > 0 && rig.equippedArmorGender === rigGender) {
                 this._syncRigBodySubMeshMasking(rig);
                 return;
+            }
+            if (Array.isArray(existing) && existing.length > 0) {
+                for (let i = 0; i < existing.length; i++) {
+                    if (existing[i] && existing[i].parent) {
+                        existing[i].parent.remove(existing[i]);
+                    }
+                }
+                rig.equippedArmorNodes[slot] = null;
             }
 
             this._loadArmoryItemTemplate(key)
@@ -6852,6 +7386,7 @@ class SeelenfunkeLouvreShowroom3D {
                     const createdNodes = [];
                     for (let p = 0; p < tpl.parts.length; p++) {
                         const part = tpl.parts[p];
+                        const fittedGeo = this._buildGenderAdaptedArmorGeometry(part.geometry, slot, rigGender);
                         const matClone = (part.material && typeof part.material.clone === 'function')
                             ? this._trackDisposable(part.material.clone())
                             : part.material;
@@ -6862,12 +7397,12 @@ class SeelenfunkeLouvreShowroom3D {
                                 matClone.transparent = false;
                                 matClone.depthWrite = true;
                                 if ('envMapIntensity' in matClone) {
-                                    matClone.envMapIntensity = 0.72;
+                                    matClone.envMapIntensity = 0.92;
                                 }
                                 matClone.needsUpdate = true;
                             }
-                            const sm = new THREE.SkinnedMesh(part.geometry, matClone);
-                            sm.name = `Equipped_${key}_${p}`;
+                            const sm = new THREE.SkinnedMesh(fittedGeo, matClone);
+                            sm.name = `Equipped_${key}_${rigGender}_${p}`;
                             sm.frustumCulled = false;
                             hostGroup.add(sm);
                             sm.bind(rig.skeleton, rig.skinnedMesh.bindMatrix);
@@ -6877,8 +7412,8 @@ class SeelenfunkeLouvreShowroom3D {
                                 matClone.skinning = false;
                                 matClone.needsUpdate = true;
                             }
-                            const headExtra = new THREE.Mesh(part.geometry, matClone);
-                            headExtra.name = `Equipped_${key}_diadem_${p}`;
+                            const headExtra = new THREE.Mesh(fittedGeo, matClone);
+                            headExtra.name = `Equipped_${key}_diadem_${rigGender}_${p}`;
                             headExtra.position.set(0, -0.94, 0);
                             rig.bones[4].add(headExtra);
                             createdNodes.push(headExtra);
@@ -6887,22 +7422,25 @@ class SeelenfunkeLouvreShowroom3D {
                     hostGroup.updateMatrixWorld(true);
                     rig.skeleton.update();
                     rig.equippedArmorNodes[slot] = createdNodes;
+                    rig.equippedArmorGender = rigGender;
                     this._syncRigBodySubMeshMasking(rig);
                 })
                 .catch(() => null);
         });
 
-        // Rechte Waffen-Hand (rightHandWeaponSocket): Waffe seitlich-vorn an der rechten Koerperseite fuehren (0% Brust-/Gesichts-Clipping!)
+        // Rechte Waffen-Hand (rightHandWeaponSocket): Dynamisch auf Funkira (weiblich) bzw. Funki (maennlich) & Waffentyp kalibriert!
         const desiredWeapon = this.equippedArmory.weapon;
-        if (rig.equippedWeaponKey !== desiredWeapon) {
+        if (rig.equippedWeaponKey !== desiredWeapon || rig.equippedWeaponGender !== rigGender) {
             if (rig.equippedWeaponGroup && rig.equippedWeaponGroup.parent) {
                 rig.equippedWeaponGroup.parent.remove(rig.equippedWeaponGroup);
             }
             rig.equippedWeaponGroup = null;
             rig.equippedWeaponKey = null;
+            rig.equippedWeaponGender = null;
 
             if (desiredWeapon && (desiredWeapon === 'lance' || desiredWeapon === 'spear') && rig.rightHandWeaponSocket) {
                 rig.equippedWeaponKey = desiredWeapon;
+                rig.equippedWeaponGender = rigGender;
                 this._loadArmoryItemTemplate(desiredWeapon)
                     .then((tpl) => {
                         if (this.destroyed || this.equippedArmory.weapon !== desiredWeapon) return;
@@ -6912,10 +7450,12 @@ class SeelenfunkeLouvreShowroom3D {
                             rig.equippedWeaponGroup.parent.remove(rig.equippedWeaponGroup);
                         }
 
+                        const gripCal = this._resolveWeaponGripCalibration(desiredWeapon, rigGender);
                         const gripGroup = new THREE.Group();
-                        gripGroup.name = `EquippedWeapon_${desiredWeapon}`;
-                        gripGroup.rotation.set(0.66, 0, 0.36);
-                        gripGroup.position.set(-0.026, 0.0, 0.018);
+                        gripGroup.name = `EquippedWeapon_${desiredWeapon}_${rigGender}`;
+                        gripGroup.scale.setScalar(gripCal.scale);
+                        gripGroup.rotation.set(gripCal.rotX, gripCal.rotY, gripCal.rotZ);
+                        gripGroup.position.set(gripCal.posX, gripCal.posY, gripCal.posZ);
 
                         for (let p = 0; p < tpl.parts.length; p++) {
                             const part = tpl.parts[p];
@@ -6925,7 +7465,7 @@ class SeelenfunkeLouvreShowroom3D {
                             if (wMat) {
                                 wMat.skinning = false;
                                 if ('envMapIntensity' in wMat) {
-                                    wMat.envMapIntensity = 0.72;
+                                    wMat.envMapIntensity = 0.92;
                                 }
                                 wMat.needsUpdate = true;
                             }
@@ -7856,6 +8396,43 @@ class SeelenfunkeLouvreShowroom3D {
             gRing.position.set(0, inlayGoldY, 0);
             this.pantheonGroup.add(gRing);
         });
+
+        // Monumentales 8.4 m Opus-Sectile Pantheon-Kompassmedaillon im Zentrum der Halle der Helden
+        if (this._opusMedallionTex) {
+            const panMedMat = this._trackDisposable(new THREE.MeshStandardMaterial({
+                map: this._opusMedallionTex,
+                roughness: 0.16,
+                metalness: 0.24,
+                envMapIntensity: 1.12,
+                transparent: true,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -3,
+            }));
+            const panMedDisc = new THREE.Mesh(
+                this._trackDisposable(new THREE.CircleGeometry(4.22, 72)),
+                panMedMat
+            );
+            panMedDisc.rotation.x = -Math.PI * 0.5;
+            panMedDisc.position.set(0, inlayGoldY + 0.002, 0);
+            this.pantheonGroup.add(panMedDisc);
+        }
+        if (this._warmLightPoolTex) {
+            const panPoolMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                map: this._warmLightPoolTex,
+                transparent: true,
+                opacity: 0.22,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            }));
+            const panPool = new THREE.Mesh(
+                this._trackDisposable(new THREE.PlaneGeometry(14.5, 14.5)),
+                panPoolMat
+            );
+            panPool.rotation.x = -Math.PI * 0.5;
+            panPool.position.set(0, inlayGoldY + 0.004, 0);
+            this.pantheonGroup.add(panPool);
+        }
 
         const colHeight = 12.6;
         const rotundaWallH = colHeight + 0.55;
@@ -9434,6 +10011,58 @@ class SeelenfunkeLouvreShowroom3D {
             cornerPostInst,
             plaqueBackingInst
         );
+        this._legacySteleMeshes = [
+            plinthBaseInst,
+            monolithInst,
+            goldCollarInst,
+            velvetPadInst,
+            vitrineCapInst,
+            cornerPostInst,
+        ];
+
+        // Sanfter Champagner-Gold Vitrinen-Bodenpool (InstancedMesh, 1 Draw Call) + individuelle Juwelier-Fokus-Halos
+        if (this._warmLightPoolTex) {
+            const stelePoolGeo = this._trackDisposable(new THREE.PlaneGeometry(2.65, 2.65));
+            const stelePoolMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                map: this._warmLightPoolTex,
+                transparent: true,
+                opacity: 0.18,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            }));
+            const stelePoolInst = new THREE.InstancedMesh(stelePoolGeo, stelePoolMat, count);
+            for (let si = 0; si < count; si++) {
+                const st = this.steles[si];
+                childDummy.position.set(st.x, 0.008, st.z);
+                childDummy.rotation.set(-Math.PI * 0.5, 0, 0);
+                childDummy.scale.set(1, 1, 1);
+                childDummy.updateMatrix();
+                stelePoolInst.setMatrixAt(si, childDummy.matrix);
+            }
+            stelePoolInst.instanceMatrix.needsUpdate = true;
+            (this.galleryGroup || this.scene).add(stelePoolInst);
+        }
+
+        const spotHaloGeo = this._trackDisposable(new THREE.RingGeometry(0.24, 0.34, 36));
+        this._atelierSteleSpotHalos = [];
+        this._atelierSteleFocusLift = [];
+        for (let si = 0; si < count; si++) {
+            const st = this.steles[si];
+            const shMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xffe7ad,
+                transparent: true,
+                opacity: 0.12,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            }));
+            const shMesh = new THREE.Mesh(spotHaloGeo, shMat);
+            shMesh.rotation.x = -Math.PI * 0.5;
+            shMesh.position.set(st.x, 1.224, st.z);
+            (this.galleryGroup || this.scene).add(shMesh);
+            this._atelierSteleSpotHalos.push(shMesh);
+            this._atelierSteleFocusLift.push(0);
+        }
 
         this.focusHaloMesh = new THREE.Mesh(
             this._trackDisposable(new THREE.RingGeometry(0.49, 0.54, 32)),
@@ -9442,6 +10071,585 @@ class SeelenfunkeLouvreShowroom3D {
         this.focusHaloMesh.rotation.x = -Math.PI * 0.5;
         this.focusHaloMesh.visible = false;
         (this.galleryGroup || this.scene).add(this.focusHaloMesh);
+    }
+
+    /**
+     * Laedt alle 6 in Blender 5.3 skulptierten Architektur-GLBs asynchron und instanziiert sie
+     * extrem performant ueber THREE.InstancedMesh (Korinthische Kannelur-Saeulen, Grand-Palais Kristall-Kronleuchter,
+     * Place-Vendome Juwelier-Vitrinenpodeste, Louvre Samt-Baenke, Medici Oliven-Urnen & Pariser Wandleuchten).
+     */
+    async _loadAndMountAtelierBlenderKit(isMobile) {
+        const THREE = this.THREE;
+        if (!THREE || this.destroyed || !this.galleryGroup) return;
+
+        const mountInstancedGlb = (parentGroup, parsedGlb, transformMatrices, opts = {}) => {
+            if (!parsedGlb || !parsedGlb.scene || !Array.isArray(transformMatrices) || transformMatrices.length === 0) {
+                return [];
+            }
+            parsedGlb.scene.updateMatrixWorld(true);
+            const subMeshes = [];
+            parsedGlb.scene.traverse((child) => {
+                if (child && child.isMesh && child.geometry && child.material) {
+                    subMeshes.push(child);
+                }
+            });
+            const created = [];
+            const instMat4 = new THREE.Matrix4();
+            for (let mi = 0; mi < subMeshes.length; mi++) {
+                const src = subMeshes[mi];
+                const geo = src.geometry.clone();
+                geo.applyMatrix4(src.matrixWorld);
+                this._trackDisposable(geo);
+                const mat = src.material.clone();
+                if (typeof opts.envMapIntensity === 'number' && 'envMapIntensity' in mat) {
+                    mat.envMapIntensity = opts.envMapIntensity;
+                }
+                if (mat.name && mat.name.indexOf('Crystal') >= 0) {
+                    mat.transparent = true;
+                    mat.opacity = 0.44;
+                    mat.roughness = 0.04;
+                    mat.metalness = 0.14;
+                    mat.envMapIntensity = 1.65;
+                    mat.depthWrite = false;
+                } else if (mat.name && mat.name.indexOf('Gold') >= 0) {
+                    mat.envMapIntensity = 1.48;
+                } else if (mat.name && mat.name.indexOf('Nero') >= 0 && this.mats && this.mats.neroPedestal && this.mats.neroPedestal.map) {
+                    mat.map = this.mats.neroPedestal.map;
+                    mat.bumpMap = this.mats.neroPedestal.bumpMap;
+                    mat.bumpScale = 0.01;
+                }
+                this._trackDisposable(mat);
+
+                const inst = new THREE.InstancedMesh(geo, mat, transformMatrices.length);
+                for (let ti = 0; ti < transformMatrices.length; ti++) {
+                    instMat4.copy(transformMatrices[ti]);
+                    inst.setMatrixAt(ti, instMat4);
+                }
+                inst.instanceMatrix.needsUpdate = true;
+                if (mat.transparent) inst.renderOrder = 3;
+                parentGroup.add(inst);
+                created.push(inst);
+            }
+            return created;
+        };
+
+        const makeMat4 = (x, y, z, ry = 0, sx = 1, sy = 1, sz = 1) => {
+            const obj = new THREE.Object3D();
+            obj.position.set(x, y, z);
+            obj.rotation.set(0, ry, 0);
+            obj.scale.set(sx, sy, sz);
+            obj.updateMatrix();
+            return obj.matrix.clone();
+        };
+
+        const urls = SHOWROOM_MODEL_URLS;
+        const [colGlb, chandGlb, pedGlb, benchGlb, urnGlb, sconceGlb] = await Promise.all([
+            this._loadGlbCached(urls.corinthianColumn).catch(() => null),
+            this._loadGlbCached(urls.grandChandelier).catch(() => null),
+            this._loadGlbCached(urls.luxuryPedestal).catch(() => null),
+            this._loadGlbCached(urls.museumBench).catch(() => null),
+            this._loadGlbCached(urls.urnTopiary).catch(() => null),
+            this._loadGlbCached(urls.wallSconce).catch(() => null),
+        ]);
+
+        if (this.destroyed || !this.galleryGroup) return;
+
+        // 1. Korinthische 16-Kannelur-Saeulen mit Akanthus-Kapitellen an allen Galeriewand-Pfeilern
+        if (colGlb && this._galleryPierPlacements && this._galleryPierPlacements.length > 0) {
+            const colMats = [];
+            for (let i = 0; i < this._galleryPierPlacements.length; i++) {
+                const [px, pz] = this._galleryPierPlacements[i];
+                const yaw = px < 0 ? 0 : Math.PI;
+                colMats.push(makeMat4(px, 0, pz, yaw, 0.96, 1.0, 0.96));
+            }
+            const mountedCols = mountInstancedGlb(this.galleryGroup, colGlb, colMats, { envMapIntensity: 1.12 });
+            if (mountedCols.length > 0 && Array.isArray(this._legacyPierMeshes)) {
+                for (let li = 0; li < this._legacyPierMeshes.length; li++) {
+                    if (this._legacyPierMeshes[li]) this._legacyPierMeshes[li].visible = false;
+                }
+            }
+        }
+
+        // 2. Place-Vendome Juwelier-Vitrinenpodeste fuer jede Produkt-Stele
+        if (pedGlb && this.steles && this.steles.length > 0) {
+            const pedMats = [];
+            for (let i = 0; i < this.steles.length; i++) {
+                const st = this.steles[i];
+                pedMats.push(makeMat4(st.x, 0, st.z, st.facingYaw, 1.0, 1.0, 1.0));
+            }
+            const mountedPeds = mountInstancedGlb(this.galleryGroup, pedGlb, pedMats, { envMapIntensity: 1.24 });
+            if (mountedPeds.length > 0 && Array.isArray(this._legacySteleMeshes)) {
+                for (let li = 0; li < this._legacySteleMeshes.length; li++) {
+                    if (this._legacySteleMeshes[li]) this._legacySteleMeshes[li].visible = false;
+                }
+            }
+        }
+
+        // 3. Drei majestätische Grand-Palais Kristall- & 24K-Gold-Kronleuchter im Tonnengewoelbe + 1 Pantheon-Kronleuchter
+        if (chandGlb && chandGlb.scene) {
+            const centerZ = (this.hallSouthZ + this.hallNorthZ) * 0.5;
+            const roofAnchorY = (this._galleryRoofApexY || 13.8) - 0.10;
+            const chandelierZs = [this.hallSouthZ - 6.0, centerZ, this.hallNorthZ + 6.5];
+            this._atelierChandelierStars = [];
+
+            const mountChandelierAt = (parentGrp, x, y, z, scaleFactor) => {
+                const clone = chandGlb.scene.clone(true);
+                clone.position.set(x, y, z);
+                clone.scale.setScalar(scaleFactor);
+                clone.traverse((child) => {
+                    if (child && child.isMesh && child.material) {
+                        const m = child.material.clone();
+                        if (m.name && m.name.indexOf('Crystal') >= 0) {
+                            m.transparent = true;
+                            m.opacity = 0.46;
+                            m.roughness = 0.04;
+                            m.metalness = 0.16;
+                            m.envMapIntensity = 1.75;
+                            m.depthWrite = false;
+                            child.renderOrder = 3;
+                        } else if (m.name && m.name.indexOf('Gold') >= 0) {
+                            m.envMapIntensity = 1.55;
+                        } else if (m.name && m.name.indexOf('Warm') >= 0) {
+                            m.emissiveIntensity = 1.45;
+                        }
+                        this._trackDisposable(m);
+                        child.material = m;
+                        if (child.name && child.name.indexOf('SeelenfunkeStar') >= 0) {
+                            this._atelierChandelierStars.push(child);
+                        }
+                    }
+                });
+                parentGrp.add(clone);
+            };
+
+            for (let ci = 0; ci < chandelierZs.length; ci++) {
+                const sc = (ci === 1) ? 1.12 : 0.94;
+                mountChandelierAt(this.galleryGroup, 0, roofAnchorY, chandelierZs[ci], sc);
+            }
+            if (this.pantheonGroup) {
+                mountChandelierAt(this.pantheonGroup, 0, 29.2, 0, 1.55);
+            }
+        }
+
+        // 4. Louvre Samt-Galeriebaenke (entlang der freien Ostwand-Buchten & im Pantheon-Kolonnadenring)
+        this.atelierDecorColliders = [];
+        if (benchGlb) {
+            const centerZ = (this.hallSouthZ + this.hallNorthZ) * 0.5;
+            const galleryBenchSpecs = [
+                { x: 9.85, z: centerZ + 4.8, ry: Math.PI * 0.5 },
+                { x: 9.85, z: centerZ - 4.8, ry: Math.PI * 0.5 },
+                { x: -9.85, z: this.hallSouthZ - 4.4, ry: -Math.PI * 0.5 },
+            ];
+            const galBenchMats = [];
+            for (let bi = 0; bi < galleryBenchSpecs.length; bi++) {
+                const b = galleryBenchSpecs[bi];
+                galBenchMats.push(makeMat4(b.x, 0, b.z, b.ry, 1.0, 1.0, 1.0));
+                this.atelierDecorColliders.push({ x: b.x, z: b.z - 0.55, r: 0.68 });
+                this.atelierDecorColliders.push({ x: b.x, z: b.z + 0.55, r: 0.68 });
+            }
+            mountInstancedGlb(this.galleryGroup, benchGlb, galBenchMats, { envMapIntensity: 1.15 });
+
+            // Weiche Kontaktschatten unter den Galerie-Baenken
+            if (this.mats && this.mats.contactShadow) {
+                const bAoGeo = this._trackDisposable(new THREE.PlaneGeometry(1.45, 2.75));
+                const bAoInst = new THREE.InstancedMesh(bAoGeo, this.mats.contactShadow, galleryBenchSpecs.length);
+                const dObj = new THREE.Object3D();
+                for (let bi = 0; bi < galleryBenchSpecs.length; bi++) {
+                    const b = galleryBenchSpecs[bi];
+                    dObj.position.set(b.x, 0.005, b.z);
+                    dObj.rotation.set(-Math.PI * 0.5, 0, 0);
+                    dObj.updateMatrix();
+                    bAoInst.setMatrixAt(bi, dObj.matrix);
+                }
+                bAoInst.instanceMatrix.needsUpdate = true;
+                this.galleryGroup.add(bAoInst);
+            }
+
+            if (this.pantheonGroup) {
+                const panBenchMats = [
+                    makeMat4(-16.6, 0.02, -7.8, Math.PI * 0.5),
+                    makeMat4(16.6, 0.02, -7.8, -Math.PI * 0.5),
+                    makeMat4(-16.6, 0.02, 7.8, Math.PI * 0.5),
+                    makeMat4(16.6, 0.02, 7.8, -Math.PI * 0.5),
+                ];
+                mountInstancedGlb(this.pantheonGroup, benchGlb, panBenchMats, { envMapIntensity: 1.15 });
+            }
+        }
+
+        // 5. Klassische Medici-Urnen mit skulptierten Mittelmeer-Olivenbaeumen an Portal, Westtor & Eingang
+        if (urnGlb) {
+            const galleryUrns = [
+                { x: -9.6, z: this.hallSouthZ - 1.65, ry: 0.4, s: 1.06 },
+                { x: 9.6, z: this.hallSouthZ - 1.65, ry: -0.4, s: 1.06 },
+                { x: -5.45, z: this.hallNorthZ + 1.45, ry: 0.7, s: 1.10 },
+                { x: 5.45, z: this.hallNorthZ + 1.45, ry: -0.7, s: 1.10 },
+                { x: -10.85, z: 3.35, ry: -1.1, s: 0.96 },
+            ];
+            const galUrnMats = [];
+            for (let ui = 0; ui < galleryUrns.length; ui++) {
+                const u = galleryUrns[ui];
+                galUrnMats.push(makeMat4(u.x, 0, u.z, u.ry, u.s, u.s, u.s));
+                this.atelierDecorColliders.push({ x: u.x, z: u.z, r: 0.72 });
+            }
+            mountInstancedGlb(this.galleryGroup, urnGlb, galUrnMats, { envMapIntensity: 1.05 });
+
+            if (this.mats && this.mats.contactShadow) {
+                const uAoGeo = this._trackDisposable(new THREE.PlaneGeometry(1.55, 1.55));
+                const uAoInst = new THREE.InstancedMesh(uAoGeo, this.mats.contactShadow, galleryUrns.length);
+                const dObj = new THREE.Object3D();
+                for (let ui = 0; ui < galleryUrns.length; ui++) {
+                    const u = galleryUrns[ui];
+                    dObj.position.set(u.x, 0.005, u.z);
+                    dObj.rotation.set(-Math.PI * 0.5, 0, 0);
+                    dObj.updateMatrix();
+                    uAoInst.setMatrixAt(ui, dObj.matrix);
+                }
+                uAoInst.instanceMatrix.needsUpdate = true;
+                this.galleryGroup.add(uAoInst);
+            }
+
+            if (this.pantheonGroup) {
+                const panUrnMats = [
+                    makeMat4(-11.4, 0.02, 18.2, 0.5, 1.22, 1.22, 1.22),
+                    makeMat4(11.4, 0.02, 18.2, -0.5, 1.22, 1.22, 1.22),
+                    makeMat4(-11.4, 0.02, -18.2, 2.2, 1.22, 1.22, 1.22),
+                    makeMat4(11.4, 0.02, -18.2, -2.2, 1.22, 1.22, 1.22),
+                ];
+                mountInstancedGlb(this.pantheonGroup, urnGlb, panUrnMats, { envMapIntensity: 1.08 });
+            }
+        }
+
+        // 6. Pariser Doppelarm-Messing- & Kristall-Wandleuchten zwischen den Korinthischen Saeulen + warmer Wand-Halo
+        if (sconceGlb && !isMobile) {
+            const totalLength = (this.hallSouthZ - this.hallNorthZ) + 4.0;
+            const bayCount = Math.max(3, Math.floor(totalLength / 6.2));
+            const sconceMats = [];
+            const glowSpots = [];
+            for (let bi = 0; bi < bayCount - 1; bi++) {
+                const z0 = this.hallNorthZ + 2.5 + bi * ((totalLength - 5.0) / Math.max(1, bayCount - 1));
+                const z1 = this.hallNorthZ + 2.5 + (bi + 1) * ((totalLength - 5.0) / Math.max(1, bayCount - 1));
+                const midZ = (z0 + z1) * 0.5;
+                // Ostwand (x = +11.96, Blender +Y -> glTF -Z muss nach -X in den Raum zeigen => ry = +PI/2)
+                sconceMats.push(makeMat4(11.95, 3.85, midZ, Math.PI * 0.5, 1.08, 1.08, 1.08));
+                glowSpots.push({ x: 11.90, y: 4.10, z: midZ, ry: -Math.PI * 0.5 });
+                // Westwand (ausser im Bereich des Westtors |z| < 3.4, -Z muss nach +X in den Raum zeigen => ry = -PI/2)
+                if (Math.abs(midZ) > 3.45) {
+                    sconceMats.push(makeMat4(-11.95, 3.85, midZ, -Math.PI * 0.5, 1.08, 1.08, 1.08));
+                    glowSpots.push({ x: -11.90, y: 4.10, z: midZ, ry: Math.PI * 0.5 });
+                }
+            }
+            mountInstancedGlb(this.galleryGroup, sconceGlb, sconceMats, { envMapIntensity: 1.38 });
+
+            if (this._warmLightPoolTex && glowSpots.length > 0) {
+                const wGlowGeo = this._trackDisposable(new THREE.PlaneGeometry(2.65, 2.85));
+                const wGlowMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                    map: this._warmLightPoolTex,
+                    transparent: true,
+                    opacity: 0.24,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                }));
+                const wGlowInst = new THREE.InstancedMesh(wGlowGeo, wGlowMat, glowSpots.length);
+                const dObj = new THREE.Object3D();
+                for (let gi = 0; gi < glowSpots.length; gi++) {
+                    const g = glowSpots[gi];
+                    dObj.position.set(g.x, g.y, g.z);
+                    dObj.rotation.set(0, g.ry, 0);
+                    dObj.scale.set(1, 1, 1);
+                    dObj.updateMatrix();
+                    wGlowInst.setMatrixAt(gi, dObj.matrix);
+                }
+                wGlowInst.instanceMatrix.needsUpdate = true;
+                this.galleryGroup.add(wGlowInst);
+            }
+        }
+    }
+
+    /**
+     * Spielerische & lebendige 60-FPS Atelier-Atmosphäre:
+     * 1. GPU-animierte schwebende goldene Seelenfunken-Lichtstaeubchen mit interaktivem Spieler-Wirbel (1 Draw Call!)
+     * 2. Pre-alloziierter Sprint-Fussglanz & Akrobatik-Sternenstaub-Pool (0 Runtime-Allokationen!)
+     * 3. Interaktive harmonische Resonanzwelle auf dem zentralen Opus-Sectile Kompass-Medaillon.
+     */
+    _buildAtelierMagicSystems(isMobile) {
+        const THREE = this.THREE;
+        if (!THREE || !this.scene) return;
+
+        // 1. Interaktive GPU Seelenfunken-Luftstaeubchen (reagieren sanft im Vertex-Shader auf Spielerbewegung!)
+        const isBalanced = (this.userSettings && this.userSettings.graphicsQuality === 'balanced') || isMobile;
+        const moteCount = isBalanced ? 130 : 250;
+        const posArr = new Float32Array(moteCount * 3);
+        const phaseArr = new Float32Array(moteCount);
+        const sizeArr = new Float32Array(moteCount);
+        const rng = mulberry32(20261127);
+
+        for (let i = 0; i < moteCount; i++) {
+            const inPantheon = (i % 3 === 0);
+            if (inPantheon) {
+                const ang = rng() * TWO_PI;
+                const rad = 1.5 + rng() * 17.0;
+                posArr[i * 3] = Math.cos(ang) * rad;
+                posArr[i * 3 + 1] = 0.8 + rng() * 11.5;
+                posArr[i * 3 + 2] = this.pantheonCenterZ + Math.sin(ang) * rad;
+            } else {
+                posArr[i * 3] = -10.5 + rng() * 21.0;
+                posArr[i * 3 + 1] = 0.75 + rng() * 8.8;
+                posArr[i * 3 + 2] = this.hallNorthZ + 1.0 + rng() * ((this.hallSouthZ - this.hallNorthZ) - 2.0);
+            }
+            phaseArr[i] = rng() * TWO_PI;
+            sizeArr[i] = 10.0 + rng() * 18.0;
+        }
+
+        const moteGeo = this._trackDisposable(new THREE.BufferGeometry());
+        moteGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+        moteGeo.setAttribute('aPhase', new THREE.BufferAttribute(phaseArr, 1));
+        moteGeo.setAttribute('aSize', new THREE.BufferAttribute(sizeArr, 1));
+
+        this._atelierDustUniforms = {
+            uTime: { value: 0 },
+            uPlayerPos: { value: new THREE.Vector3(0, 1.0, 0) },
+            uPlayerSpeed: { value: 0 },
+            uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 1.5) },
+        };
+
+        const moteMat = this._trackDisposable(new THREE.ShaderMaterial({
+            uniforms: this._atelierDustUniforms,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            vertexShader: `
+                attribute float aPhase;
+                attribute float aSize;
+                uniform float uTime;
+                uniform vec3 uPlayerPos;
+                uniform float uPlayerSpeed;
+                uniform float uPixelRatio;
+                varying float vAlpha;
+                void main() {
+                    vec3 p = position;
+                    p.x += sin(uTime * 0.42 + aPhase) * 0.48;
+                    p.y += sin(uTime * 0.65 + aPhase * 1.7) * 0.34;
+                    p.z += cos(uTime * 0.38 + aPhase * 0.85) * 0.48;
+
+                    vec3 toMote = p - uPlayerPos;
+                    float dist = length(toMote);
+                    if (dist < 3.6 && dist > 0.05) {
+                        float influence = (1.0 - dist / 3.6);
+                        float swirl = influence * influence * (0.45 + min(uPlayerSpeed, 9.0) * 0.14);
+                        vec3 pushDir = normalize(toMote + vec3(0.0, 0.35, 0.0));
+                        vec3 tangent = vec3(-pushDir.z, 0.32, pushDir.x);
+                        p += (pushDir * 0.55 + tangent * 0.65) * swirl;
+                    }
+
+                    vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+                    float twinkle = 0.52 + 0.48 * sin(uTime * 2.1 + aPhase * 3.0);
+                    vAlpha = twinkle * smoothstep(42.0, 6.0, -mvPosition.z) * 0.72;
+                    gl_PointSize = clamp((aSize * uPixelRatio) * (14.0 / max(2.2, -mvPosition.z)), 2.0, 18.0);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                varying float vAlpha;
+                void main() {
+                    float d = length(gl_PointCoord - vec2(0.5));
+                    if (d > 0.5) discard;
+                    float glow = pow(1.0 - d * 2.0, 2.2);
+                    vec3 col = mix(vec3(0.84, 0.67, 0.34), vec3(1.0, 0.96, 0.82), glow);
+                    gl_FragColor = vec4(col, glow * vAlpha);
+                }
+            `,
+        }));
+        const motePoints = new THREE.Points(moteGeo, moteMat);
+        motePoints.frustumCulled = false;
+        this.scene.add(motePoints);
+
+        // 2. Pooled Sprint-Fussglanz & Luftakrobatik-Sternenstaub (28 wiederverwendete Partikel -> 0 GC!)
+        const trailRingGeo = this._trackDisposable(new THREE.RingGeometry(0.10, 0.16, 20));
+        const trailSparkGeo = this._trackDisposable(new THREE.OctahedronGeometry(0.048, 0));
+        this._atelierTrailPool = [];
+        for (let ti = 0; ti < 28; ti++) {
+            const isRing = (ti % 3 === 0);
+            const tMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: isRing ? 0xe6c687 : 0xfff2c2,
+                transparent: true,
+                opacity: 0.0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            }));
+            const tMesh = new THREE.Mesh(isRing ? trailRingGeo : trailSparkGeo, tMat);
+            if (isRing) tMesh.rotation.x = -Math.PI * 0.5;
+            tMesh.visible = false;
+            this.scene.add(tMesh);
+            this._atelierTrailPool.push({
+                mesh: tMesh,
+                mat: tMat,
+                isRing,
+                age: 99,
+                maxAge: 0.65,
+                vx: 0,
+                vy: 0,
+                vz: 0,
+            });
+        }
+
+        // 3. Interaktive harmonische Resonanzwelle fuer das zentrale Opus-Sectile Kompass-Medaillon
+        const medWaveGeo = this._trackDisposable(new THREE.RingGeometry(0.88, 1.0, 64));
+        const medWaveMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+            color: 0xffe9ad,
+            transparent: true,
+            opacity: 0.0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+        }));
+        this._atelierMedallionPulse = new THREE.Mesh(medWaveGeo, medWaveMat);
+        this._atelierMedallionPulse.rotation.x = -Math.PI * 0.5;
+        this._atelierMedallionPulse.position.set(0, 0.014, this._atelierMedallionCenterZ || 0);
+        this._atelierMedallionPulse.visible = false;
+        this.galleryGroup.add(this._atelierMedallionPulse);
+    }
+
+    _spawnAtelierTrailParticle(x, y, z, preferRing = false, vx = 0, vy = 0.5, vz = 0) {
+        if (!this._atelierTrailPool || this._atelierTrailPool.length === 0) return;
+        const len = this._atelierTrailPool.length;
+        for (let k = 0; k < len; k++) {
+            const idx = (this._atelierTrailCursor + k) % len;
+            const slot = this._atelierTrailPool[idx];
+            if (slot.isRing === preferRing) {
+                this._atelierTrailCursor = (idx + 1) % len;
+                slot.age = 0;
+                slot.maxAge = preferRing ? 0.58 : 0.72;
+                slot.vx = vx;
+                slot.vy = vy;
+                slot.vz = vz;
+                slot.mesh.position.set(x, y, z);
+                slot.mesh.scale.setScalar(preferRing ? 0.65 : 1.0);
+                slot.mat.opacity = preferRing ? 0.62 : 0.85;
+                slot.mesh.visible = true;
+                return;
+            }
+        }
+    }
+
+    _updateAtelierMagicSystems(dt, stepDist) {
+        const px = this.player.x || 0;
+        const py = (this.player.y || 0) + this._computeFloorBaseY(px, this.player.z || 0);
+        const pz = this.player.z || 0;
+
+        // 1. GPU-Uniforms fuer schwebende Seelenfunken-Lichtstaeubchen
+        if (this._atelierDustUniforms) {
+            this._atelierDustUniforms.uTime.value = this.elapsedTime;
+            this._atelierDustUniforms.uPlayerPos.value.set(px, py + 1.0, pz);
+            this._atelierDustUniforms.uPlayerSpeed.value = this.player.currentSpeed || 0;
+        }
+
+        // 2. Sanfte Rotation der zentralen Seelenfunke-Kronleuchter-Sterne
+        if (this._atelierChandelierStars && this._atelierChandelierStars.length > 0) {
+            for (let si = 0; si < this._atelierChandelierStars.length; si++) {
+                this._atelierChandelierStars[si].rotation.y = this.elapsedTime * 0.48 + si * 1.1;
+            }
+        }
+
+        // 3. Sprint-Fussglanz & Luftakrobatik-Sternenstaub emittieren
+        if (this.player.isSprinting && !this.player.isJumping && stepDist > 0.01) {
+            this._atelierTrailSpawnAcc += stepDist;
+            if (this._atelierTrailSpawnAcc >= 0.72) {
+                this._atelierTrailSpawnAcc = 0;
+                const jx = (Math.random() - 0.5) * 0.24;
+                const jz = (Math.random() - 0.5) * 0.24;
+                this._spawnAtelierTrailParticle(px + jx, py + 0.018, pz + jz, true, 0, 0, 0);
+                this._spawnAtelierTrailParticle(px - jx * 0.6, py + 0.14, pz - jz * 0.6, false, jx * 0.8, 0.75, jz * 0.8);
+            }
+        } else if (this.player.isSomersault) {
+            this._atelierTrailSpawnAcc += dt * 16.0;
+            if (this._atelierTrailSpawnAcc >= 1.0) {
+                this._atelierTrailSpawnAcc = 0;
+                const ang = this.elapsedTime * 11.0;
+                this._spawnAtelierTrailParticle(
+                    px + Math.cos(ang) * 0.28,
+                    py + 0.85,
+                    pz + Math.sin(ang) * 0.28,
+                    false,
+                    Math.cos(ang) * 0.6,
+                    0.45,
+                    Math.sin(ang) * 0.6
+                );
+            }
+        }
+
+        // Update pooled trail particles
+        if (this._atelierTrailPool && this._atelierTrailPool.length > 0) {
+            for (let i = 0; i < this._atelierTrailPool.length; i++) {
+                const s = this._atelierTrailPool[i];
+                if (!s.mesh.visible) continue;
+                s.age += dt;
+                const u = s.age / Math.max(0.05, s.maxAge);
+                if (u >= 1.0) {
+                    s.mesh.visible = false;
+                    s.mat.opacity = 0;
+                    continue;
+                }
+                if (s.isRing) {
+                    const sc = 0.65 + u * 2.4;
+                    s.mesh.scale.set(sc, sc, 1);
+                    s.mat.opacity = (1.0 - u) * (1.0 - u) * 0.58;
+                } else {
+                    s.mesh.position.x += s.vx * dt;
+                    s.mesh.position.y += s.vy * dt;
+                    s.mesh.position.z += s.vz * dt;
+                    s.vy -= 0.75 * dt;
+                    s.mesh.rotation.y += 4.5 * dt;
+                    const sc = Math.max(0.15, (1.0 - u) * 1.15);
+                    s.mesh.scale.setScalar(sc);
+                    s.mat.opacity = (1.0 - u) * 0.85;
+                }
+            }
+        }
+
+        // 4. Interaktive Kompass-Medaillon Resonanzwelle (bei Betreten/Sprung im Zentrum der Galerie!)
+        if (this._atelierMedallionCooldown > 0) {
+            this._atelierMedallionCooldown = Math.max(0, this._atelierMedallionCooldown - dt);
+        }
+        if (this.currentZone === 'gallery' && this._atelierMedallionPulse) {
+            const distMed = Math.hypot(px, pz - (this._atelierMedallionCenterZ || 0));
+            if (distMed < 1.65 && this._atelierMedallionCooldown <= 0 && (stepDist > 0.02 || this.player.isJumping)) {
+                this._atelierMedallionCooldown = 4.2;
+                this._atelierMedallionPulseAge = 0;
+                this._atelierMedallionPulse.visible = true;
+                this._atelierMedallionPulse.scale.set(0.3, 0.3, 1);
+                this._atelierMedallionPulse.material.opacity = 0.78;
+                // Sanfter goldener Funkenregen vom zentralen Kronleuchter ueber dem Medaillon
+                for (let k = 0; k < 8; k++) {
+                    const a = (k / 8) * TWO_PI + this.elapsedTime;
+                    this._spawnAtelierTrailParticle(
+                        Math.cos(a) * 1.15,
+                        py + 2.6 + (k % 3) * 0.45,
+                        (this._atelierMedallionCenterZ || 0) + Math.sin(a) * 1.15,
+                        false,
+                        Math.cos(a) * 0.55,
+                        0.45,
+                        Math.sin(a) * 0.55
+                    );
+                }
+                if (this.audio && typeof this.audio.playExhibitFocus === 'function') {
+                    try { this.audio.playExhibitFocus(); } catch (e) {}
+                }
+            }
+            if (this._atelierMedallionPulse.visible) {
+                this._atelierMedallionPulseAge += dt;
+                const u = this._atelierMedallionPulseAge / 1.35;
+                if (u >= 1.0) {
+                    this._atelierMedallionPulse.visible = false;
+                    this._atelierMedallionPulse.material.opacity = 0;
+                } else {
+                    const ease = 1.0 - Math.pow(1.0 - u, 3.0);
+                    const sc = 0.35 + ease * 3.15;
+                    this._atelierMedallionPulse.scale.set(sc, sc, 1);
+                    this._atelierMedallionPulse.material.opacity = (1.0 - u) * 0.72;
+                }
+            }
+        }
     }
 
     _scheduleNextExhibitLoad(delayMs = 55) {
@@ -10718,12 +11926,17 @@ class SeelenfunkeLouvreShowroom3D {
                     }
                 }
                 const hasValidBox = !combinedBox.isEmpty();
-                const H = hasValidBox ? Math.max(0.5, combinedBox.max.y - combinedBox.min.y) : 1.24;
-                const palmX = hasValidBox ? Math.max(-0.345, combinedBox.min.x + 0.025) : -0.282;
+                const H = hasValidBox ? Math.max(0.5, combinedBox.max.y - combinedBox.min.y) : 1.35;
+                const charProf = ATELIER_CHARACTER_PROFILES[cleanGender] || ATELIER_CHARACTER_PROFILES.male;
+                const calibratedPalmBind = charProf && charProf.palmBind
+                    ? { x: charProf.palmBind.x, y: charProf.palmBind.y, z: charProf.palmBind.z }
+                    : { x: hasValidBox ? Math.max(-0.345, combinedBox.min.x + 0.025) : -0.282, y: 0.482, z: 0.014 };
 
                 const tpl = {
                     level: 1,
                     gender: cleanGender,
+                    characterId: charProf.id,
+                    characterName: charProf.name,
                     isStarterCharacter: skinnedParts.length > 1,
                     skinnedParts,
                     height: H,
@@ -10733,7 +11946,7 @@ class SeelenfunkeLouvreShowroom3D {
                     starterHairMat: starterHairMesh ? starterHairMesh.material : null,
                     headAccessoryGeo: diademMesh ? diademMesh.geometry : null,
                     headAccessoryMat: diademMesh ? diademMesh.material : null,
-                    rightHandPalmBind: { x: palmX, y: 0.505, z: 0.014 },
+                    rightHandPalmBind: calibratedPalmBind,
                     rightHandSkinWeights: new Float32Array([0.04, 0.20, 0.54, 0.22]),
                 };
                 this.skinnedFunkiCache.set(cacheKey, tpl);
@@ -10818,6 +12031,7 @@ class SeelenfunkeLouvreShowroom3D {
             bHead.add(starterHairInstance);
         }
 
+        let headAccessoryInstance = null;
         if (tpl.headAccessoryGeo && tpl.headAccessoryMat) {
             const accMat = typeof tpl.headAccessoryMat.clone === 'function'
                 ? tpl.headAccessoryMat.clone()
@@ -10826,9 +12040,9 @@ class SeelenfunkeLouvreShowroom3D {
                 if (Array.isArray(customDisposableBucket)) customDisposableBucket.push(accMat);
                 else this._trackDisposable(accMat);
             }
-            const diadem = new THREE.Mesh(tpl.headAccessoryGeo, accMat);
-            diadem.name = 'FunkiraStarDiadem';
-            bHead.add(diadem);
+            headAccessoryInstance = new THREE.Mesh(tpl.headAccessoryGeo, accMat);
+            headAccessoryInstance.name = 'FunkiraStarDiadem';
+            bHead.add(headAccessoryInstance);
         }
 
         const bones = [
@@ -10849,7 +12063,7 @@ class SeelenfunkeLouvreShowroom3D {
             }
             matInstance.skinning = true;
             if ('envMapIntensity' in matInstance) {
-                matInstance.envMapIntensity = tpl.isStarterCharacter ? 0.86 : (tpl.level === 1 ? 0.96 : 1.24);
+                matInstance.envMapIntensity = tpl.isStarterCharacter ? 1.08 : (tpl.level === 1 ? 0.96 : 1.24);
             }
             if (tpl.level === 1 && !matInstance.map && matInstance.color) {
                 matInstance.color.set('#A8947B');
@@ -10917,9 +12131,13 @@ class SeelenfunkeLouvreShowroom3D {
             skeleton,
             bones,
             starterHairMesh: starterHairInstance,
+            headAccessoryMesh: headAccessoryInstance,
+            liveVisorPlane: null,
             equippedArmorNodes: {},
+            equippedArmorGender: null,
             equippedWeaponGroup: null,
             equippedWeaponKey: null,
+            equippedWeaponGender: null,
             rightHandWeaponSocket,
             rightHandPalmBind: palmBind,
             rightHandSkinWeights: palmWeights,
@@ -11196,6 +12414,9 @@ class SeelenfunkeLouvreShowroom3D {
         const mat = new THREE.MeshBasicMaterial({
             map: tex,
             fog: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
         });
         if (Array.isArray(customDisposableBucket)) {
             customDisposableBucket.push(mat);
@@ -11210,185 +12431,275 @@ class SeelenfunkeLouvreShowroom3D {
             lastSig: '',
         };
 
+        // Vorab-gebackene 28-Facetten-Kristall-Iris (Funkira: Rubin-Rose | Funki: Honig-Bernstein-Gold nach funki_selfie.png & funki.png!)
+        const irisCanvas = document.createElement('canvas');
+        irisCanvas.width = 128;
+        irisCanvas.height = 128;
+        const ictx = irisCanvas.getContext('2d');
+        if (ictx) {
+            ictx.fillStyle = '#0B060D';
+            ictx.beginPath();
+            ictx.ellipse(64, 64, 56, 58, 0, 0, TWO_PI);
+            ictx.fill();
+
+            const ig = ictx.createRadialGradient(64, 78, 6, 64, 64, 56);
+            if (isFemale) {
+                ig.addColorStop(0.0, '#FFA4C0');
+                ig.addColorStop(0.30, '#DF4B78');
+                ig.addColorStop(0.64, '#8C1D3E');
+                ig.addColorStop(1.0, '#22050E');
+            } else {
+                ig.addColorStop(0.0, '#FFE48F');
+                ig.addColorStop(0.30, '#F09D26');
+                ig.addColorStop(0.64, '#9E530B');
+                ig.addColorStop(1.0, '#291303');
+            }
+            ictx.fillStyle = ig;
+            ictx.beginPath();
+            ictx.ellipse(64, 64, 53, 55, 0, 0, TWO_PI);
+            ictx.fill();
+
+            for (let f = 0; f < 24; f++) {
+                const ang = (f / 24) * TWO_PI;
+                const rIn = 26 + (f % 2) * 3;
+                const rOut = 49 - (f % 3) * 2.5;
+                ictx.strokeStyle = isFemale
+                    ? (f % 4 === 0 ? 'rgba(255,224,172,0.34)' : 'rgba(255,164,196,0.28)')
+                    : (f % 4 === 0 ? 'rgba(255,248,205,0.40)' : 'rgba(247,184,72,0.32)');
+                ictx.lineWidth = f % 2 === 0 ? 1.8 : 1.1;
+                ictx.beginPath();
+                ictx.moveTo(64 + Math.cos(ang) * rIn, 63 + Math.sin(ang) * rIn);
+                ictx.lineTo(64 + Math.cos(ang) * rOut, 64 + Math.sin(ang) * rOut);
+                ictx.stroke();
+            }
+
+            ictx.fillStyle = '#14050A';
+            ictx.strokeStyle = isFemale ? 'rgba(255,198,214,0.45)' : 'rgba(255,224,150,0.48)';
+            ictx.lineWidth = 2.0;
+            ictx.beginPath();
+            ictx.ellipse(64, 61, 26, 29, 0, 0, TWO_PI);
+            ictx.fill();
+            ictx.stroke();
+
+            ictx.strokeStyle = isFemale ? 'rgba(255,222,190,0.88)' : 'rgba(255,236,170,0.90)';
+            ictx.lineWidth = 4.2;
+            ictx.lineCap = 'round';
+            ictx.beginPath();
+            ictx.arc(64, 67, 35, 0.20 * Math.PI, 0.80 * Math.PI);
+            ictx.stroke();
+
+            ictx.fillStyle = '#FFFFFF';
+            ictx.beginPath();
+            ictx.ellipse(47, 45, 14, 16, -0.22, 0, TWO_PI);
+            ictx.fill();
+
+            ictx.fillStyle = 'rgba(255,248,250,0.95)';
+            ictx.beginPath();
+            ictx.arc(82, 79, 6.5, 0, TWO_PI);
+            ictx.fill();
+        }
+
         const renderFace = (blinkAmt, gazeX, gazeY, mood) => {
             ctx.clearRect(0, 0, W, H);
 
-            // 1. Edles tiefschwarzes Obsidian-Visor-Display mit feinem goldenem Tiefenschimmer
-            const bg = ctx.createRadialGradient(W * 0.5, H * 0.48, 18, W * 0.5, H * 0.50, W * 0.56);
-            bg.addColorStop(0.0, '#121724');
-            bg.addColorStop(0.62, '#090C14');
-            bg.addColorStop(1.0, '#04060B');
+            // 1. 1:1 Funkira / Funki Retina-Visor-Display mit oberer Lichtleiste & Diagonal-Glasreflex
+            const bg = ctx.createRadialGradient(W * 0.5, H * 0.46, 16, W * 0.5, H * 0.50, W * 0.58);
+            bg.addColorStop(0.0, isFemale ? '#1B1521' : '#181A22');
+            bg.addColorStop(0.68, '#120E16');
+            bg.addColorStop(1.0, '#09070C');
             ctx.fillStyle = bg;
             ctx.fillRect(0, 0, W, H);
 
-            // Dezente 24K-Gold HUD-Eckwinkel im Visor
-            ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
-            ctx.lineWidth = 2.2;
-            const padX = 42;
-            const padY = 36;
-            const tick = 18;
-            const corners = [
-                [padX, padY, 1, 1],
-                [W - padX, padY, -1, 1],
-                [padX, H - padY, 1, -1],
-                [W - padX, H - padY, -1, -1],
-            ];
-            for (let ci = 0; ci < corners.length; ci++) {
-                const [cx, cy, sx, sy] = corners[ci];
+            ctx.fillStyle = isFemale ? '#F5B3C5' : '#F4CF78';
+            ctx.fillRect(14, 11, W - 28, 9);
+            ctx.fillStyle = 'rgba(218, 178, 102, 0.58)';
+            ctx.fillRect(18, 23, W - 36, 2);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 24);
+            ctx.lineTo(W * 0.50, 24);
+            ctx.lineTo(W * 0.30, H);
+            ctx.lineTo(0, H);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 238, 244, 0.055)';
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(216, 174, 94, 0.38)';
+            ctx.lineWidth = 2.4;
+            ctx.strokeRect(8, 8, W - 16, H - 16);
+
+            // Dezentes goldenes Uhrwerk-Zahnrad-Detail unten rechts bei Funki (1:1 Hommage an funki.png!)
+            if (!isFemale) {
+                ctx.save();
+                ctx.translate(W - 58, H - 48);
+                ctx.globalAlpha = 0.84;
+                ctx.fillStyle = '#875D1C';
+                ctx.strokeStyle = '#F5D078';
+                ctx.lineWidth = 3.2;
                 ctx.beginPath();
-                ctx.moveTo(cx, cy + sy * tick);
-                ctx.lineTo(cx, cy);
-                ctx.lineTo(cx + sx * tick, cy);
+                ctx.arc(0, 0, 21, 0, TWO_PI);
+                ctx.fill();
                 ctx.stroke();
+                ctx.strokeStyle = '#382509';
+                ctx.lineWidth = 3.6;
+                ctx.setLineDash([5, 4]);
+                ctx.beginPath();
+                ctx.arc(0, 0, 15, 0, TWO_PI);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#17120A';
+                ctx.strokeStyle = '#F5D078';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.arc(0, 0, 6.5, 0, TWO_PI);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#754F16';
+                ctx.beginPath();
+                ctx.arc(-29, 15, 13.5, 0, TWO_PI);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
             }
 
-            const shiftX = clamp(gazeX, -1, 1) * 16;
-            const shiftY = clamp(gazeY, -1, 1) * 10;
+            const shiftX = clamp(gazeX, -1, 1) * 18;
+            const shiftY = clamp(gazeY, -1, 1) * 11;
             const eyeBaseY = (isFemale ? 148 : 146) + shiftY;
-            const eyeSpacing = isFemale ? 92 : 96;
-            const eyeW = isFemale ? 54 : 58;
-            const openFrac = clamp(1.0 - blinkAmt, 0.04, 1.0);
-            const baseEyeH = isFemale ? 42 : 34;
-            const eyeH = Math.max(3.2, baseEyeH * (mood === 'sprint' ? 0.82 : 1.0) * openFrac);
+            const eyeSpacing = isFemale ? 106 : 108;
+            const rx = isFemale ? 54 : 55;
+            const ry = isFemale ? 56 : 55;
+            const lidTop = clamp(blinkAmt * 0.98 + (mood === 'sprint' ? 0.14 : 0.02), 0, 0.98);
             const isJoy = (mood === 'joy' || mood === 'salto');
 
-            // Sanfter warmer Wangen-Lichtpunkt bei Funkira
-            if (isFemale) {
-                [-1, 1].forEach((sSign) => {
-                    const bx = W * 0.5 + sSign * (eyeSpacing + 30) + shiftX * 0.5;
-                    const by = eyeBaseY + 42;
-                    const cg = ctx.createRadialGradient(bx, by, 2, bx, by, 30);
-                    cg.addColorStop(0.0, 'rgba(236, 184, 148, 0.24)');
-                    cg.addColorStop(1.0, 'rgba(236, 184, 148, 0)');
-                    ctx.fillStyle = cg;
-                    ctx.beginPath();
-                    ctx.arc(bx, by, 30, 0, TWO_PI);
-                    ctx.fill();
-                });
-            }
-
-            // 2. Ausdrucksstarke leuchtende Augen (Funki: selbstbewusst heroisch | Funkira: warm strahlend mit feinem Wimpernschwung)
             [-1, 1].forEach((side) => {
                 const ex = W * 0.5 + side * eyeSpacing + shiftX;
                 const ey = eyeBaseY;
 
-                // Sanfter goldener Iris-Schein
-                const aura = ctx.createRadialGradient(ex, ey, 4, ex, ey, eyeW * 1.45);
-                aura.addColorStop(0.0, 'rgba(245, 210, 132, 0.30)');
-                aura.addColorStop(0.55, 'rgba(197, 160, 89, 0.10)');
-                aura.addColorStop(1.0, 'rgba(197, 160, 89, 0)');
-                ctx.fillStyle = aura;
+                // Wangen-Akzent (Funkira: gestreifter Rosé-Blush | Funki: warmer Goldschimmer)
+                const bx = ex + side * 14;
+                const by = ey + 60;
+                const cg = ctx.createRadialGradient(bx, by, 2, bx, by, 34);
+                cg.addColorStop(0.0, isFemale ? 'rgba(242, 92, 130, 0.42)' : 'rgba(245, 185, 66, 0.22)');
+                cg.addColorStop(1.0, isFemale ? 'rgba(242, 92, 130, 0)' : 'rgba(245, 185, 66, 0)');
+                ctx.fillStyle = cg;
                 ctx.beginPath();
-                ctx.arc(ex, ey, eyeW * 1.45, 0, TWO_PI);
+                ctx.ellipse(bx, by, 34, 20, 0, 0, TWO_PI);
                 ctx.fill();
+                if (isFemale) {
+                    ctx.strokeStyle = 'rgba(245, 110, 144, 0.72)';
+                    ctx.lineWidth = 2.2;
+                    ctx.lineCap = 'round';
+                    for (let s = -1; s <= 1; s++) {
+                        ctx.beginPath();
+                        ctx.moveTo(bx + s * 9 - 3.5, by + 6);
+                        ctx.lineTo(bx + s * 9 + 3.5, by - 5);
+                        ctx.stroke();
+                    }
+                }
 
-                if (isJoy && openFrac > 0.35) {
-                    // Fröhlich strahlende Freuden-Augenboegen (^ ^) bei Salto, Tanz & Jubel
+                if (isJoy && lidTop < 0.65) {
                     ctx.save();
-                    ctx.strokeStyle = '#FFF7DF';
-                    ctx.shadowColor = '#E6C687';
-                    ctx.shadowBlur = 12;
-                    ctx.lineWidth = isFemale ? 8.5 : 9.0;
+                    ctx.strokeStyle = isFemale ? '#FFDCE8' : '#FFF4CC';
+                    ctx.lineWidth = 8.5;
                     ctx.lineCap = 'round';
                     ctx.beginPath();
-                    ctx.moveTo(ex - eyeW * 0.72, ey + 8);
-                    ctx.quadraticCurveTo(ex, ey - 26, ex + eyeW * 0.72, ey + 8);
+                    ctx.moveTo(ex - rx * 0.74, ey + 8);
+                    ctx.quadraticCurveTo(ex, ey - 32, ex + rx * 0.74, ey + 8);
                     ctx.stroke();
                     ctx.restore();
                 } else {
                     ctx.save();
-                    ctx.translate(ex, ey);
-                    const tilt = mood === 'sprint' ? (side * -0.09) : (isFemale ? (side * 0.035) : (side * -0.025));
-                    ctx.rotate(tilt);
-
-                    const eyeGrad = ctx.createLinearGradient(0, -eyeH, 0, eyeH);
-                    eyeGrad.addColorStop(0.0, '#FFFDF5');
-                    eyeGrad.addColorStop(0.52, '#F7DC9C');
-                    eyeGrad.addColorStop(1.0, '#C5A059');
-                    ctx.fillStyle = eyeGrad;
-
                     ctx.beginPath();
-                    if (isFemale) {
-                        ctx.ellipse(0, 0, eyeW * 0.78, eyeH, 0, 0, TWO_PI);
-                    } else {
-                        const rw = eyeW * 0.80;
-                        const rh = eyeH;
-                        const cr = Math.min(rh * 0.82, 18);
-                        ctx.moveTo(-rw + cr, -rh);
-                        ctx.lineTo(rw - cr, -rh);
-                        ctx.quadraticCurveTo(rw, -rh, rw, -rh + cr);
-                        ctx.lineTo(rw, rh - cr);
-                        ctx.quadraticCurveTo(rw, rh, rw - cr, rh);
-                        ctx.lineTo(-rw + cr, rh);
-                        ctx.quadraticCurveTo(-rw, rh, -rw, rh - cr);
-                        ctx.lineTo(-rw, -rh + cr);
-                        ctx.quadraticCurveTo(-rw, -rh, -rw + cr, -rh);
+                    ctx.ellipse(ex, ey, rx, ry, 0, 0, TWO_PI);
+                    ctx.clip();
+
+                    ctx.fillStyle = '#160910';
+                    ctx.fillRect(ex - rx - 4, ey - ry - 4, rx * 2 + 8, ry * 2 + 8);
+                    ctx.drawImage(irisCanvas, ex + shiftX * 0.25 - 60, ey + shiftY * 0.25 - 60, 120, 120);
+
+                    if (lidTop > 0.01) {
+                        ctx.fillStyle = '#130F17';
+                        ctx.fillRect(ex - rx - 8, ey - ry - 8, rx * 2 + 16, ry * 2 * lidTop + 6);
                     }
-                    ctx.closePath();
-                    ctx.fill();
+                    ctx.restore();
 
-                    // Lebendige Glanzlichter (Catchlights) bei geoeffnetem Auge
-                    if (openFrac > 0.28) {
-                        ctx.fillStyle = '#FFFFFF';
-                        ctx.beginPath();
-                        ctx.arc(-side * 10 + shiftX * 0.18, -eyeH * 0.34, isFemale ? 8.2 : 7.0, 0, TWO_PI);
-                        ctx.fill();
+                    ctx.strokeStyle = '#130F17';
+                    ctx.lineWidth = 7.0;
+                    ctx.beginPath();
+                    ctx.ellipse(ex, ey, rx + 3, ry + 3, 0, 0, TWO_PI);
+                    ctx.stroke();
 
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
-                        ctx.beginPath();
-                        ctx.arc(side * 12 + shiftX * 0.12, eyeH * 0.28, isFemale ? 4.4 : 3.8, 0, TWO_PI);
-                        ctx.fill();
-                    }
+                    // Oberer Lidbogen + Wimpern (Funkira) bzw. markante Brauen (Funki)
+                    ctx.strokeStyle = isFemale ? '#E88DA3' : '#E5B75C';
+                    ctx.lineWidth = 5.2;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.ellipse(ex, ey, rx + 1, ry * Math.max(0.08, 1 - lidTop * 1.08), 0, Math.PI * 1.08, Math.PI * 1.92);
+                    ctx.stroke();
 
-                    // Feiner oberer Wimpern-Schwung bei Funkira bzw. markante Brauenlinie bei Funki
-                    if (isFemale && openFrac > 0.22) {
-                        ctx.strokeStyle = '#F7E2B4';
-                        ctx.lineWidth = 4.2;
-                        ctx.lineCap = 'round';
-                        ctx.beginPath();
-                        ctx.moveTo(-eyeW * 0.70, -eyeH * 0.62);
-                        ctx.quadraticCurveTo(0, -eyeH * 1.14, eyeW * 0.86 * side + (side < 0 ? -4 : 4), -eyeH * 0.78);
-                        ctx.stroke();
-
-                        // Aeusserer feiner Wimpernakzent
-                        const outerX = side * eyeW * 0.78;
-                        ctx.lineWidth = 3.4;
-                        ctx.beginPath();
-                        ctx.moveTo(outerX * 0.92, -eyeH * 0.42);
-                        ctx.lineTo(outerX + side * 13, -eyeH * 0.76);
-                        ctx.moveTo(outerX * 0.96, -eyeH * 0.12);
-                        ctx.lineTo(outerX + side * 11, -eyeH * 0.32);
-                        ctx.stroke();
-                    } else if (!isFemale) {
-                        ctx.strokeStyle = 'rgba(230, 198, 135, 0.82)';
-                        ctx.lineWidth = 4.5;
-                        ctx.lineCap = 'round';
-                        const browLift = mood === 'sprint' ? -8 : -13;
-                        ctx.beginPath();
-                        ctx.moveTo(-eyeW * 0.76, -eyeH + browLift - side * 2);
-                        ctx.lineTo(eyeW * 0.76, -eyeH + browLift + (mood === 'sprint' ? (-side * -4) : 0));
-                        ctx.stroke();
+                    if (isFemale && lidTop < 0.82) {
+                        const archY = ey - ry * (1 - lidTop * 1.38);
+                        ctx.strokeStyle = '#DF8299';
+                        ctx.lineWidth = 4.6;
+                        for (let l = 0; l < 3; l++) {
+                            const lx0 = ex + side * (rx - 5 - l * 6);
+                            const ly0 = archY + 12 + l * 5.5;
+                            ctx.beginPath();
+                            ctx.moveTo(lx0, ly0);
+                            ctx.quadraticCurveTo(lx0 + side * 11, ly0 - 5.5, lx0 + side * (17 - l * 2), ly0 - (13 - l * 2.5));
+                            ctx.stroke();
+                        }
                     }
 
+                    const byBrow = ey - ry - (mood === 'sprint' ? 12 : 18);
+                    const browTilt = mood === 'sprint' ? (side * -0.14) : (isFemale ? (side * -0.04) : (side * -0.06));
+                    ctx.save();
+                    ctx.translate(ex, byBrow);
+                    ctx.rotate(browTilt);
+                    ctx.strokeStyle = isFemale ? '#E78CA2' : '#F3CA74';
+                    ctx.lineWidth = isFemale ? 5.4 : 6.8;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(-30, 5);
+                    ctx.quadraticCurveTo(0, -8, 30, 5);
+                    ctx.stroke();
                     ctx.restore();
                 }
             });
 
-            // 3. Freundlicher, positiv nach OBEN geschwungener Mundbogen (niemals maulend nach unten!)
-            const mouthX = W * 0.5 + shiftX * 0.42;
-            const mouthY = (isFemale ? 216 : 218) + shiftY * 0.35;
-            const mouthHalfW = isJoy ? 30 : (mood === 'sprint' ? 22 : 24);
-            const smileDip = isJoy ? 16 : (mood === 'sprint' ? 7 : 11);
+            // 3. Lebendiger Chibi-Lachmund (1:1 funkira-avatar-standalone.js & funki_selfie.png!)
+            const mx = W * 0.5 + shiftX * 0.50;
+            const my = 228 + shiftY * 0.45;
+            if (isJoy || mood === 'idle') {
+                const mw = isJoy ? 44 : 36;
+                const mh = isJoy ? 38 : 28;
+                ctx.beginPath();
+                ctx.moveTo(mx - mw, my - 4);
+                ctx.quadraticCurveTo(mx, my + 4, mx + mw, my - 4);
+                ctx.quadraticCurveTo(mx + mw * 0.82, my + mh, mx, my + mh);
+                ctx.quadraticCurveTo(mx - mw * 0.82, my + mh, mx - mw, my - 4);
+                ctx.closePath();
+                ctx.fillStyle = isFemale ? '#471020' : '#471A14';
+                ctx.fill();
 
-            ctx.save();
-            ctx.strokeStyle = '#F5DCA4';
-            ctx.lineWidth = isFemale ? 4.4 : 4.8;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(mouthX - mouthHalfW, mouthY - smileDip * 0.38);
-            ctx.quadraticCurveTo(mouthX, mouthY + smileDip, mouthX + mouthHalfW, mouthY - smileDip * 0.38);
-            ctx.stroke();
-            ctx.restore();
+                ctx.fillStyle = isFemale ? '#E56080' : '#E35B48';
+                ctx.beginPath();
+                ctx.ellipse(mx, my + mh * 0.62, mw * 0.52, mh * 0.32, 0, 0, TWO_PI);
+                ctx.fill();
+
+                ctx.strokeStyle = '#20060D';
+                ctx.lineWidth = 3.0;
+                ctx.stroke();
+            } else {
+                ctx.strokeStyle = isFemale ? '#E88DA3' : '#F2CA74';
+                ctx.lineWidth = 5.0;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(mx - 28, my + 2);
+                ctx.quadraticCurveTo(mx, my + 16, mx + 28, my + 2);
+                ctx.stroke();
+            }
 
             tex.needsUpdate = true;
         };
@@ -12343,6 +13654,17 @@ class SeelenfunkeLouvreShowroom3D {
                 if (this.destroyed || !this.THREE) return null;
                 if (Array.isArray(customDisposableBucket) && genAtCreate !== this._monumentGeneration) return null;
                 const rig = this._createSkinnedFunkiFromTemplate(tpl, customDisposableBucket);
+                if (rig && rig.bones && rig.bones[4] && visorCtrl && visorCtrl.material && tpl.isStarterCharacter) {
+                    const cProf = ATELIER_CHARACTER_PROFILES[gender] || ATELIER_CHARACTER_PROFILES.male;
+                    const vGeo = new THREE.PlaneGeometry(cProf.visorW, cProf.visorH);
+                    if (Array.isArray(customDisposableBucket)) customDisposableBucket.push(vGeo);
+                    else this._trackDisposable(vGeo);
+                    const liveVisor = new THREE.Mesh(vGeo, visorCtrl.material);
+                    liveVisor.name = `LiveRetinaVisor_${cProf.id}`;
+                    liveVisor.position.set(0, cProf.visorLocalY, cProf.visorLocalZ);
+                    rig.bones[4].add(liveVisor);
+                    rig.liveVisorPlane = liveVisor;
+                }
                 if (builtRecord.weaponMesh && rig.rightHandWeaponSocket) {
                     rig.rightHandWeaponSocket.add(builtRecord.weaponMesh);
                 }
@@ -12902,6 +14224,11 @@ class SeelenfunkeLouvreShowroom3D {
         this.player.builtRecord = nextBuilt;
         this.player.root = nextBuilt.root;
         this.player.joints = nextBuilt.joints;
+        this._syncArmoryStandToGender(cleanGender);
+        if (!this.player.emote && (this.player.speed || 0) < 0.2) {
+            this.player.emote = 'wave';
+            this.player.emoteTimer = 1.45;
+        }
         this._updatePlayerKinematics(0.016, 0, 0, null, 0);
         this._spawnDoubleJumpBurst(this.player.x, (this.player.y || 0) + 0.14, this.player.z);
         this._emitPlayerHudUpdate();
@@ -13369,6 +14696,16 @@ class SeelenfunkeLouvreShowroom3D {
             j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, -0.26, 0.62);
             j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.34, 0.62);
             j.wristPivotL.rotation.z = lerp(j.wristPivotL.rotation.z, 0.12, 0.62);
+        }
+
+        // 5-Finger Waffen-Griffschluss an der rechten Hand (-X Seite: fingerCurlL / thumbPivotL), sobald eine Waffe getragen wird!
+        if (this.equippedArmory && this.equippedArmory.weapon) {
+            if (j.fingerCurlL) {
+                j.fingerCurlL.rotation.z = lerp(j.fingerCurlL.rotation.z, -0.78, 0.72);
+            }
+            if (j.thumbPivotL) {
+                j.thumbPivotL.rotation.z = lerp(j.thumbPivotL.rotation.z, 0.44, 0.72);
+            }
         }
 
         if (j.thrusterFlameL && j.thrusterFlameR) {
@@ -16438,6 +17775,21 @@ class SeelenfunkeLouvreShowroom3D {
             }
         }
 
+        // Kreiskollisionen um skulptierte Galerie-Baenke & Medici-Olivenurnen
+        if (this.atelierDecorColliders && this.atelierDecorColliders.length > 0 && z >= this.hallNorthZ - 1.0) {
+            for (let di = 0; di < this.atelierDecorColliders.length; di++) {
+                const dec = this.atelierDecorColliders[di];
+                const dx = x - dec.x;
+                const dz = z - dec.z;
+                const dist = Math.hypot(dx, dz);
+                if (dist < dec.r && dist > 0.0001) {
+                    const push = dec.r - dist;
+                    x += (dx / dist) * push;
+                    z += (dz / dist) * push;
+                }
+            }
+        }
+
         // Kreiskollisionen um Pantheon-Saeulen & Top-5-Ehrenpodeste
         if (z < this.hallNorthZ - 4.0) {
             for (let c = 0; c < this.pantheonColumnColliders.length; c++) {
@@ -16996,12 +18348,41 @@ class SeelenfunkeLouvreShowroom3D {
         this._updateHeroPedestalAnimations(this.elapsedTime);
         this._updateAtelierStarRatingStation(dt);
         this._updateWeaponBursts(dt);
+        this._updateAtelierMagicSystems(dt, stepDist);
 
+        // Exponat-Juwelier-Choreografie: fokussiertes Exponat schwebt sanft +7.5 cm hoeher mit warmem Samt-Lichthalo
+        const liftAlpha = 1.0 - Math.exp(-dt * 6.5);
         for (let i = 0; i < this.steles.length; i++) {
             const st = this.steles[i];
+            const isFocusedStele = (i === this.focusedSteleIndex && activeZoneNow === 'gallery');
+            const curLift = this._atelierSteleFocusLift[i] || 0;
+            const nextLift = lerp(curLift, isFocusedStele ? 1.0 : 0.0, liftAlpha);
+            this._atelierSteleFocusLift[i] = nextLift;
+
             if (st.turntable) {
-                st.turntable.rotation.y = this.elapsedTime * 0.34 + i * 0.6;
-                st.turntable.position.y = 1.56 + Math.sin(this.elapsedTime * 1.5 + i) * 0.012;
+                const spinRate = 0.34 + nextLift * 0.42;
+                st.turntable.rotation.y += dt * spinRate;
+                st.turntable.position.y = 1.56 + nextLift * 0.075 + Math.sin(this.elapsedTime * 1.5 + i) * 0.014;
+            }
+            const spotHalo = this._atelierSteleSpotHalos[i];
+            if (spotHalo && spotHalo.material) {
+                const pulse = 0.85 + 0.15 * Math.sin(this.elapsedTime * 3.2 + i);
+                spotHalo.material.opacity = (0.10 + nextLift * 0.48) * pulse;
+                const sc = 0.96 + nextLift * 0.24;
+                spotHalo.scale.set(sc, sc, 1);
+            }
+        }
+
+        // Dynamisches Kamera-FOV-Atmen (sanfter +3.5 Grad Sprint-Sog, -2.0 Grad Juwelier-Fokus)
+        if (this.camera && !this._teleportFovGlide && !this._exhibitTransition) {
+            const baseFov = this._atelierBaseFov || 46;
+            const targetFov = baseFov
+                + (this.player.sprintBoost || 0) * 3.5
+                - ((this.focusedSteleIndex >= 0 && activeZoneNow === 'gallery') ? 2.0 : 0.0);
+            this._atelierCurrentFov = lerp(this._atelierCurrentFov || baseFov, targetFov, 1.0 - Math.exp(-dt * 5.2));
+            if (Math.abs((this.camera.fov || baseFov) - this._atelierCurrentFov) > 0.04) {
+                this.camera.fov = this._atelierCurrentFov;
+                this.camera.updateProjectionMatrix();
             }
         }
 
@@ -17365,6 +18746,10 @@ class SeelenfunkeLouvreShowroom3D {
         this.glbLoadingPromises.clear();
         this.skinnedFunkiCache.clear();
         this.skinnedFunkiPromises.clear();
+        if (this._genderAdaptedArmorGeoCache) {
+            this._genderAdaptedArmorGeoCache.clear();
+        }
+        this.armoryStandRefs = null;
         this.exhibitLoadQueue = [];
         this.steles = [];
         this.heroPedestals = [];

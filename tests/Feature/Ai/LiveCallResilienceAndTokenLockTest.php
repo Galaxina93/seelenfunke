@@ -133,4 +133,80 @@ class LiveCallResilienceAndTokenLockTest extends TestCase
         $res->assertOk()
             ->assertJson(['status' => 'ignored_benign_transition']);
     }
+
+    public function test_live_credentials_preserves_recent_conversation_context_for_new_android_live_session_and_isolates_users(): void
+    {
+        $admin = Admin::create([
+            'first_name' => 'Alina',
+            'last_name' => 'Steinhauer',
+            'email' => 'alina-context@mein-seelenfunke.de',
+            'password' => bcrypt('SecretPass123!'),
+        ]);
+
+        $funkira = AiAgent::create([
+            'name' => 'Funkira',
+            'wake_word' => 'funkira',
+            'role_description' => 'Stabschefin',
+            'system_prompt' => 'Du bist Funkira.',
+            'model' => 'gemini-2.5-flash',
+            'temperature' => 0.4,
+            'is_active' => true,
+            'is_in_chat' => true,
+            'color' => 'amber-500',
+            'icon' => 'sparkles',
+        ]);
+
+        config([
+            'services.gemini.key' => 'AIzaSyDummyContextContinuityKey12345',
+            'services.gemini.bridge_secret' => 'test-bridge-secret-xyz',
+            'services.ai.proxy_secret' => 'test-bridge-secret-xyz',
+        ]);
+
+        // 1. Previous Live-Call saved transcripts under UUID / android_live session via Sanctum Admin
+        $previousSessionUuid = (string) \Illuminate\Support\Str::uuid();
+        $saveUser = $this->actingAs($admin, 'sanctum')->postJson('/api/ai/save-live-transcript', [
+            'session_id' => $previousSessionUuid,
+            'role' => 'user',
+            'content' => 'Merke dir bitte den Laser-Fokus 42 Millimeter fuer die neue Serie.',
+            'agent_id' => $funkira->id,
+            'agent_name' => 'Funkira',
+            'channel' => 'android_live_call',
+        ]);
+        $saveUser->assertOk()->assertJsonPath('status', 'created');
+
+        $saveAi = $this->actingAs($admin, 'sanctum')->postJson('/api/ai/save-live-transcript', [
+            'session_id' => $previousSessionUuid,
+            'role' => 'assistant',
+            'content' => 'Verstanden, Fokus 42 Millimeter fuer die neue Serie ist gemerkt.',
+            'agent_id' => $funkira->id,
+            'agent_name' => 'Funkira',
+            'channel' => 'android_live_call',
+        ]);
+        $saveAi->assertOk()->assertJsonPath('status', 'created');
+
+        $this->assertDatabaseHas('ai_chat_sessions', [
+            'id' => $previousSessionUuid,
+            'user_id' => $admin->id,
+        ]);
+
+        // 2. Next Live-Call starts with a brand-new android_live_<uuid> session ID -> MUST receive recent context!
+        $freshLiveSessionId = 'android_live_' . \Illuminate\Support\Str::uuid();
+        $credResp = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/ai/live-credentials?client=android_native&agent_id=' . $funkira->id . '&chat_session_id=' . urlencode($freshLiveSessionId));
+        $credResp->assertOk();
+
+        $sysPrompt = (string) $credResp->json('system_instruction');
+        $this->assertStringContainsString('Laser-Fokus 42 Millimeter', $sysPrompt);
+        $this->assertStringContainsString('Fokus 42 Millimeter fuer die neue Serie ist gemerkt', $sysPrompt);
+
+        // 3. Whitespace/malformed token on verify-token must fail cleanly with 400
+        $badTokenResp = $this->withHeaders([
+            'X-Bridge-Secret' => 'test-bridge-secret-xyz',
+            'X-AI-Proxy-Secret' => 'test-bridge-secret-xyz',
+            'REMOTE_ADDR' => '127.0.0.1',
+        ])->postJson('/api/ai/verify-token', [
+            'token' => '   bad token with spaces   ',
+        ]);
+        $badTokenResp->assertStatus(400);
+    }
 }

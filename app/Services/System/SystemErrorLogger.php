@@ -191,6 +191,16 @@ class SystemErrorLogger
             ];
         }
 
+        if (str_contains($classLower, 'broadcastexception')
+            || str_contains($msgLower, 'pusher error:')
+            || (str_contains($msgLower, 'curl error 7') && str_contains($msgLower, '6001'))) {
+            return [
+                'category' => 'broadcast_server_unreachable',
+                'probable_cause' => 'Der WebSocket-/Reverb-Broadcaster (z. B. Port 6001) war beim Event-Versand nicht erreichbar oder gestoppt.',
+                'recommended_action' => 'ResilientPusherBroadcaster und RealtimeBroadcastService fangen diesen Zustand ab; lokal bei Bedarf ./funki websocket bzw. ./funki start all starten.',
+            ];
+        }
+
         if (str_contains($msgLower, 'infrastruktur-ausfall: backup')) {
             return [
                 'category' => 'backup_overdue_warning',

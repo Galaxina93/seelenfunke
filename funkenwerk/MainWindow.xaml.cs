@@ -1464,9 +1464,69 @@ namespace Funkenwerk
 
         private bool _isBackgroundSyncRunning = false;
         private bool _isAutoImapSyncRunning = false;
+        private bool _isMailFingerprintProbeRunning = false;
+        private bool _pendingMailRefreshAfterCompose = false;
         private DateTime _lastAutoImapSyncUtc = DateTime.MinValue;
         private DateTime _lastMailCountProbeUtc = DateTime.MinValue;
         private string _lastMailAccountsFingerprint = "";
+        private int _lastKnownLatestMailId = 0;
+
+        private static (string Fingerprint, int LatestMailId) BuildMailAccountsFingerprint(JsonElement root)
+        {
+            var fpBuilder = new StringBuilder(256);
+            int latestMailId = 0;
+
+            if (root.TryGetProperty("sync_state", out var syncState) && syncState.ValueKind == JsonValueKind.Object)
+            {
+                latestMailId = syncState.TryGetProperty("latest_message_id", out var lid) && lid.ValueKind == JsonValueKind.Number ? lid.GetInt32() : 0;
+                int totalMsgs = syncState.TryGetProperty("total_messages", out var tm) && tm.ValueKind == JsonValueKind.Number ? tm.GetInt32() : 0;
+                int unreadTotal = syncState.TryGetProperty("unread_total", out var ut) && ut.ValueKind == JsonValueKind.Number ? ut.GetInt32() : 0;
+                string latestRecv = syncState.TryGetProperty("latest_received_at", out var lr) && lr.ValueKind == JsonValueKind.String ? lr.GetString() ?? "" : "";
+                string latestUpd = syncState.TryGetProperty("latest_updated_at", out var lu) && lu.ValueKind == JsonValueKind.String ? lu.GetString() ?? "" : "";
+                fpBuilder.Append("S:").Append(latestMailId).Append(':').Append(totalMsgs).Append(':').Append(unreadTotal)
+                         .Append(':').Append(latestRecv).Append(':').Append(latestUpd).Append('|');
+            }
+
+            if (root.TryGetProperty("processed_summary", out var procSum) && procSum.ValueKind == JsonValueKind.Object)
+            {
+                fpBuilder.Append("P:")
+                         .Append(procSum.TryGetProperty("total_count", out var tc) && tc.ValueKind == JsonValueKind.Number ? tc.GetInt32() : 0).Append(':')
+                         .Append(procSum.TryGetProperty("unread_count", out var uc) && uc.ValueKind == JsonValueKind.Number ? uc.GetInt32() : 0).Append(':')
+                         .Append(procSum.TryGetProperty("archived_count", out var ac) && ac.ValueKind == JsonValueKind.Number ? ac.GetInt32() : 0).Append(':')
+                         .Append(procSum.TryGetProperty("files_total_count", out var ftc) && ftc.ValueKind == JsonValueKind.Number ? ftc.GetInt32() : 0).Append('|');
+            }
+
+            if (root.TryGetProperty("data", out var dataArr) && dataArr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in dataArr.EnumerateArray())
+                {
+                    int id = item.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.Number ? idEl.GetInt32() : 0;
+                    int unread = item.TryGetProperty("total_unread", out var uEl) && uEl.ValueKind == JsonValueKind.Number ? uEl.GetInt32() : 0;
+                    fpBuilder.Append(id).Append('=').Append(unread).Append('[');
+
+                    if (item.TryGetProperty("counts", out var cntObj) && cntObj.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in cntObj.EnumerateObject())
+                        {
+                            int val = prop.Value.ValueKind == JsonValueKind.Number ? prop.Value.GetInt32() : 0;
+                            if (val > 0) fpBuilder.Append(prop.Name).Append(':').Append(val).Append(',');
+                        }
+                    }
+                    fpBuilder.Append('|');
+                    if (item.TryGetProperty("total_counts", out var totObj) && totObj.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in totObj.EnumerateObject())
+                        {
+                            int val = prop.Value.ValueKind == JsonValueKind.Number ? prop.Value.GetInt32() : 0;
+                            if (val > 0) fpBuilder.Append(prop.Name).Append(':').Append(val).Append(',');
+                        }
+                    }
+                    fpBuilder.Append("];");
+                }
+            }
+
+            return (fpBuilder.ToString(), latestMailId);
+        }
 
         private async Task SyncActiveModulesInBackgroundAsync()
         {
@@ -1488,7 +1548,7 @@ namespace Funkenwerk
                 bool isComposingMail = (ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible) ||
                                        (MailAccountSettingsModalOverlay != null && MailAccountSettingsModalOverlay.Visibility == Visibility.Visible);
 
-                // 1. Thunderbird-Style Background IMAP Listener (Admin only, alle 60s stumm im Hintergrund!)
+                // 1. Thunderbird-Style Background IMAP Listener + schneller 12s Delta-Check (Admin only)
                 var sessionSnap = FunkenwerkSharedSession.Load();
                 bool isAdminUser = FunkenwerkSharedSession.IsAdminSession(sessionSnap);
                 var nowUtc = DateTime.UtcNow;
@@ -1496,14 +1556,23 @@ namespace Funkenwerk
                 {
                     _ = CheckForWindowsSuiteOtaUpdateInBackgroundAsync();
                 }
-                if (isAdminUser && !_isMailSyncRunning && !_isAutoImapSyncRunning && (nowUtc - _lastAutoImapSyncUtc).TotalSeconds >= 60.0)
+
+                if (isAdminUser && _pendingMailRefreshAfterCompose && !isComposingMail && !_isMailSyncRunning)
+                {
+                    _pendingMailRefreshAfterCompose = false;
+                    _lastMailCountProbeUtc = nowUtc;
+                    await LoadMailAccountsAsync();
+                }
+
+                if (isAdminUser && !_isMailSyncRunning && !_isAutoImapSyncRunning && (nowUtc - _lastAutoImapSyncUtc).TotalSeconds >= 45.0)
                 {
                     _lastAutoImapSyncUtc = nowUtc;
                     _ = TriggerSilentAutoImapSyncAsync();
                 }
-                else if (isAdminUser && !_isMailSyncRunning && !isComposingMail && (nowUtc - _lastMailCountProbeUtc).TotalSeconds >= 24.0)
+
+                if (isAdminUser && !_isMailSyncRunning && !isComposingMail && (nowUtc - _lastMailCountProbeUtc).TotalSeconds >= 12.0)
                 {
-                    // 2. Leichtgewichtiger Delta-Check (falls Mails im Webportal/Handy gelesen oder sortiert wurden)
+                    // 2. Leichtgewichtiger Delta-Check (erkennt sofort Cronjob-Mails, Ordner-Regeln & Statusänderungen)
                     _lastMailCountProbeUtc = nowUtc;
                     await RefreshMailIfFingerprintChangedAsync();
                 }
@@ -1550,41 +1619,53 @@ namespace Funkenwerk
         {
             if (_isAutoImapSyncRunning || _isMailSyncRunning) return;
             _isAutoImapSyncRunning = true;
+            bool refreshedUi = false;
             try
             {
-                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(38));
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(75));
                 using var res = await _http.PostAsync(
                     $"{_apiBaseUrl}/funki/emails/sync",
-                    new StringContent("{\"wait\":true}", Encoding.UTF8, "application/json"),
+                    new StringContent("{\"wait\":true,\"force\":false}", Encoding.UTF8, "application/json"),
                     cts.Token);
 
-                if (!res.IsSuccessStatusCode) return;
-                string rawJson = await res.Content.ReadAsStringAsync(cts.Token);
                 int newMailsCount = 0;
-                if (!string.IsNullOrWhiteSpace(rawJson))
+                int latestMessageId = 0;
+                if (res.IsSuccessStatusCode)
                 {
-                    try
+                    string rawJson = await res.Content.ReadAsStringAsync(cts.Token);
+                    if (!string.IsNullOrWhiteSpace(rawJson))
                     {
-                        using var doc = JsonDocument.Parse(rawJson);
-                        if (doc.RootElement.TryGetProperty("new_mails_count", out var nm) && nm.ValueKind == JsonValueKind.Number)
-                            newMailsCount = nm.GetInt32();
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(rawJson);
+                            if (doc.RootElement.TryGetProperty("new_mails_count", out var nm) && nm.ValueKind == JsonValueKind.Number)
+                                newMailsCount = nm.GetInt32();
+                            if (doc.RootElement.TryGetProperty("latest_message_id", out var lid) && lid.ValueKind == JsonValueKind.Number)
+                                latestMessageId = lid.GetInt32();
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
 
-                _lastMailCountProbeUtc = DateTime.UtcNow;
+                bool hasHigherId = latestMessageId > 0 && _lastKnownLatestMailId > 0 && latestMessageId > _lastKnownLatestMailId;
                 bool isComposingMail = (ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible) ||
                                        (MailAccountSettingsModalOverlay != null && MailAccountSettingsModalOverlay.Visibility == Visibility.Visible);
 
-                if (newMailsCount > 0)
+                if (newMailsCount > 0 || hasHigherId)
                 {
+                    if (latestMessageId > _lastKnownLatestMailId)
+                        _lastKnownLatestMailId = latestMessageId;
                     PlaySoundMailChime();
                     if (!isComposingMail)
+                    {
+                        _lastMailCountProbeUtc = DateTime.UtcNow;
                         await LoadMailAccountsAsync();
-                }
-                else if (!isComposingMail)
-                {
-                    await RefreshMailIfFingerprintChangedAsync();
+                        refreshedUi = true;
+                    }
+                    else
+                    {
+                        _pendingMailRefreshAfterCompose = true;
+                    }
                 }
             }
             catch { }
@@ -1592,10 +1673,23 @@ namespace Funkenwerk
             {
                 _isAutoImapSyncRunning = false;
             }
+
+            if (!refreshedUi)
+            {
+                bool isComposingNow = (ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible) ||
+                                      (MailAccountSettingsModalOverlay != null && MailAccountSettingsModalOverlay.Visibility == Visibility.Visible);
+                if (!isComposingNow && !_isMailSyncRunning)
+                {
+                    _lastMailCountProbeUtc = DateTime.UtcNow;
+                    await RefreshMailIfFingerprintChangedAsync();
+                }
+            }
         }
 
         private async Task RefreshMailIfFingerprintChangedAsync()
         {
+            if (_isMailFingerprintProbeRunning || _isMailSyncRunning) return;
+            _isMailFingerprintProbeRunning = true;
             try
             {
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -1606,37 +1700,42 @@ namespace Funkenwerk
                 if (!doc.RootElement.TryGetProperty("data", out var dataArr) || dataArr.ValueKind != JsonValueKind.Array)
                     return;
 
-                var fpBuilder = new StringBuilder();
-                if (doc.RootElement.TryGetProperty("processed_summary", out var procSum) && procSum.ValueKind == JsonValueKind.Object)
-                {
-                    fpBuilder.Append(procSum.TryGetProperty("total_count", out var tc) ? tc.GetInt32() : 0).Append(':')
-                             .Append(procSum.TryGetProperty("unread_count", out var uc) ? uc.GetInt32() : 0).Append('|');
-                }
-                foreach (var item in dataArr.EnumerateArray())
-                {
-                    int id = item.TryGetProperty("id", out var idEl) ? idEl.GetInt32() : 0;
-                    int unread = item.TryGetProperty("total_unread", out var uEl) ? uEl.GetInt32() : 0;
-                    int totalInbox = 0;
-                    if (item.TryGetProperty("total_counts", out var totObj) && totObj.ValueKind == JsonValueKind.Object &&
-                        totObj.TryGetProperty("INBOX", out var inbEl) && inbEl.ValueKind == JsonValueKind.Number)
-                    {
-                        totalInbox = inbEl.GetInt32();
-                    }
-                    fpBuilder.Append(id).Append('=').Append(unread).Append('/').Append(totalInbox).Append(';');
-                }
+                var (newFp, latestMailId) = BuildMailAccountsFingerprint(doc.RootElement);
+                bool hasNewIncomingMail = _lastKnownLatestMailId > 0 && latestMailId > _lastKnownLatestMailId;
+                bool fpChanged = !string.IsNullOrEmpty(_lastMailAccountsFingerprint) && newFp != _lastMailAccountsFingerprint;
 
-                string newFp = fpBuilder.ToString();
-                if (!string.IsNullOrEmpty(_lastMailAccountsFingerprint) && newFp != _lastMailAccountsFingerprint)
+                if (hasNewIncomingMail || fpChanged)
                 {
                     _lastMailAccountsFingerprint = newFp;
-                    await LoadMailAccountsAsync();
+                    if (latestMailId > _lastKnownLatestMailId)
+                        _lastKnownLatestMailId = latestMailId;
+
+                    if (hasNewIncomingMail)
+                        PlaySoundMailChime();
+
+                    bool isComposingNow = (ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible) ||
+                                          (MailAccountSettingsModalOverlay != null && MailAccountSettingsModalOverlay.Visibility == Visibility.Visible);
+                    if (!isComposingNow)
+                    {
+                        await LoadMailAccountsAsync();
+                    }
+                    else
+                    {
+                        _pendingMailRefreshAfterCompose = true;
+                    }
                 }
                 else
                 {
                     _lastMailAccountsFingerprint = newFp;
+                    if (latestMailId > _lastKnownLatestMailId)
+                        _lastKnownLatestMailId = latestMailId;
                 }
             }
             catch { }
+            finally
+            {
+                _isMailFingerprintProbeRunning = false;
+            }
         }
 
         private async void ApiConnectionDot_Click(object sender, MouseButtonEventArgs e)
@@ -3073,6 +3172,10 @@ namespace Funkenwerk
             if (space == "mail" && _isLoaded && IsVisible)
             {
                 _ = EnsureMailReaderWebViewInitializedAsync();
+                if (FunkenwerkSharedSession.IsAdminSession() && _apiConnectionState == "connected" && !_isMailSyncRunning)
+                {
+                    _ = RefreshMailIfFingerprintChangedAsync();
+                }
             }
             if (SpaceSettingsBtn != null)
             {
@@ -3207,6 +3310,14 @@ namespace Funkenwerk
                 var json = await res.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(json);
                 if (!doc.RootElement.TryGetProperty("data", out var dataArr)) return;
+
+                var (loadedFp, loadedLatestId) = BuildMailAccountsFingerprint(doc.RootElement);
+                _lastMailAccountsFingerprint = loadedFp;
+                if (loadedLatestId > _lastKnownLatestMailId)
+                {
+                    _lastKnownLatestMailId = loadedLatestId;
+                }
+                _lastMailCountProbeUtc = DateTime.UtcNow;
 
                 if (doc.RootElement.TryGetProperty("processed_summary", out var procSum) && procSum.ValueKind == JsonValueKind.Object)
                 {
@@ -4339,7 +4450,7 @@ namespace Funkenwerk
             {
                 string url;
                 if (isGlobalAllInboxes)
-                    url = $"{_apiBaseUrl}/funki/emails/messages?folder=INBOX&global=1";
+                    url = $"{_apiBaseUrl}/funki/emails/messages?folder=AllInboxes&global=1";
                 else if (isGlobalProcessed)
                     url = $"{_apiBaseUrl}/funki/emails/messages?folder=Processed&global=1";
                 else if (isGlobalArchive)
@@ -4380,10 +4491,10 @@ namespace Funkenwerk
                     }
                 }
 
-                if (isGlobalAllInboxes && string.IsNullOrEmpty(search))
+                if (!isGlobalProcessed && string.IsNullOrEmpty(search))
                 {
                     var sortedChrono = _mailMessages
-                        .OrderByDescending(x => DateTimeOffset.TryParse(x.ReceivedAtRaw, out var dto) ? dto : DateTimeOffset.MinValue)
+                        .OrderByDescending(x => ParseMailTimestampUtc(x.ReceivedAtRaw))
                         .ThenByDescending(x => x.Id)
                         .ToList();
                     _mailMessages.Clear();
@@ -6611,10 +6722,10 @@ namespace Funkenwerk
                 elapsedTimer.Start();
 
                 // 3. Execute Synchronous IMAP Sync + Minimum Visual Feedback Window (900ms)
-                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(45));
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(85));
                 var syncTask = _http.PostAsync(
                     $"{_apiBaseUrl}/funki/emails/sync",
-                    new StringContent("{\"wait\":true}", Encoding.UTF8, "application/json"),
+                    new StringContent("{\"wait\":true,\"force\":true}", Encoding.UTF8, "application/json"),
                     cts.Token);
                 await Task.WhenAll(syncTask, Task.Delay(900));
 
@@ -6633,9 +6744,18 @@ namespace Funkenwerk
                             newMailsCount = nm.GetInt32();
                         if (root.TryGetProperty("synced_accounts", out var sa) && sa.ValueKind == JsonValueKind.Number)
                             syncedAccounts = sa.GetInt32();
+                        if (root.TryGetProperty("latest_message_id", out var lid) && lid.ValueKind == JsonValueKind.Number)
+                        {
+                            int latestId = lid.GetInt32();
+                            if (latestId > _lastKnownLatestMailId)
+                                _lastKnownLatestMailId = latestId;
+                        }
                     }
                     catch { }
                 }
+
+                _lastAutoImapSyncUtc = DateTime.UtcNow;
+                _lastMailCountProbeUtc = DateTime.UtcNow;
 
                 if (MailSyncStatusTxt != null)
                 {
@@ -16315,13 +16435,40 @@ namespace Funkenwerk
             return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
         }
 
+        private static DateTimeOffset ParseMailTimestampUtc(string? dtStr)
+        {
+            if (string.IsNullOrWhiteSpace(dtStr)) return DateTimeOffset.MinValue;
+            if (DateTimeOffset.TryParse(dtStr, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dto))
+                return dto;
+            if (DateTimeOffset.TryParse(dtStr, out var dtoLocal))
+                return dtoLocal.ToUniversalTime();
+            return DateTimeOffset.MinValue;
+        }
+
+        private static bool TryParseMailTimestampLocal(string? dtStr, out DateTime localDt)
+        {
+            localDt = DateTime.MinValue;
+            if (string.IsNullOrWhiteSpace(dtStr)) return false;
+            if (DateTimeOffset.TryParse(dtStr, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto))
+            {
+                localDt = dto.ToLocalTime().DateTime;
+                return true;
+            }
+            if (DateTime.TryParse(dtStr, out var fallbackDt))
+            {
+                localDt = fallbackDt;
+                return true;
+            }
+            return false;
+        }
+
         private static bool IsToday(string? dtStr) =>
-            !string.IsNullOrWhiteSpace(dtStr) && DateTime.TryParse(dtStr, out var dt) && dt.Date == DateTime.Today;
+            TryParseMailTimestampLocal(dtStr, out var dt) && dt.Date == DateTime.Today;
 
         private static string FormatShortDate(string? dtStr)
         {
             if (string.IsNullOrWhiteSpace(dtStr)) return "";
-            if (DateTime.TryParse(dtStr, out var dt))
+            if (TryParseMailTimestampLocal(dtStr, out var dt))
             {
                 return dt.Date == DateTime.Today ? dt.ToString("HH:mm") : dt.ToString("dd.MM.yy");
             }
@@ -16331,7 +16478,7 @@ namespace Funkenwerk
         private static string FormatFullDate(string? dtStr)
         {
             if (string.IsNullOrWhiteSpace(dtStr)) return "";
-            return DateTime.TryParse(dtStr, out var dt) ? dt.ToString("dd.MM.yyyy HH:mm") : dtStr;
+            return TryParseMailTimestampLocal(dtStr, out var dt) ? dt.ToString("dd.MM.yyyy HH:mm") : dtStr;
         }
 
         private const char EmailLinkTokenStart = '\uFFF9';

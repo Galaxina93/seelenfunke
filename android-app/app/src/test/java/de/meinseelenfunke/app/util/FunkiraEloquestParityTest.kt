@@ -105,11 +105,14 @@ class FunkiraEloquestParityTest {
         assertTrue(hydrated.rollingDigest.isNotBlank())
         assertTrue(hydrated.lastTopicSummary.contains("Nummer 34"))
 
-        val prompt = FunkiraLocalMemoryStore.buildMemoryContextPromptDirective(context)
+        val prompt = FunkiraLocalMemoryStore.buildMemoryContextPromptDirective(context, 14)
         assertTrue(prompt.length <= FunkiraLocalMemoryStore.MAX_MEMORY_PROMPT_CHARS)
         assertTrue(prompt.contains("LOKALES KURZZEITGEDAECHTNIS"))
         assertTrue(prompt.contains("GEMERKTE KERNFAKTEN"))
         assertTrue(prompt.contains("LETZTES THEMA"))
+        // Regression: newest conversation turns must NEVER be truncated by older turns or digest!
+        assertTrue("Newest turn (Nummer 34) must be retained in prompt", prompt.contains("Nummer 34"))
+        assertTrue("Second-newest turn (Nummer 33) must be retained in prompt", prompt.contains("Nummer 33"))
 
         FunkiraLocalMemoryStore.clearMemory(context)
         assertEquals(0, FunkiraLocalMemoryStore.hydrate(context).turns.size)
@@ -609,6 +612,61 @@ class FunkiraEloquestParityTest {
         assertEquals(2, acceptedRequests.size)
         assertEquals("legacy-stuck-422-uuid", acceptedRequests[1].client_uuid)
         assertTrue(AgDirectInboxManager.readOutboxFromFile(outboxFile).isEmpty())
+    }
+
+    @Test
+    fun prioritizedSammelpaketBundling_sortsUrgentAboveNormalPrependsUrgentItemsAndSupportsPhotoWithoutItem() = runBlocking {
+        val normalPkg = FunkiraPackageStore.stageRequirement(
+            context = context,
+            item = "Normaler UI-Feinschliff",
+            packageTitle = "Normales Paket",
+            channel = "shop",
+            priority = "normal"
+        )!!
+        val urgentPkg = FunkiraPackageStore.stageRequirement(
+            context = context,
+            item = "Kritischer Checkout-Fix",
+            packageTitle = "Dringendes Paket",
+            channel = "shop",
+            priority = "urgent"
+        )!!
+
+        // Urgent package sorts before normal package in packagesFlow & prompt directive
+        val ordered = FunkiraPackageStore.packagesFlow.value
+        assertEquals(urgentPkg.uuid, ordered.first().uuid)
+        assertEquals("urgent", ordered.first().priority)
+        assertEquals(normalPkg.uuid, ordered[1].uuid)
+
+        // Photo-only staging via FalconClientTools (without 'item') attaches photo & respects priority
+        val photo = buildPreparedTestPhoto("prio_bug.jpg", android.graphics.Color.RED)
+        AgDirectInboxManager.setStagedAttachment(photo)
+        val args = com.google.gson.JsonObject().apply {
+            addProperty("package_uuid", normalPkg.uuid)
+            addProperty("priority", "urgent")
+            addProperty("attach_captured_photo", true)
+            add("items", com.google.gson.JsonArray().apply { add("Sofort-Hotfix oben einreihen") })
+        }
+        val toolRes = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_stage_to_package",
+            argsElement = args,
+            chatSessionId = "test_prio_session",
+            onEmotionChanged = {},
+            onNavigate = {}
+        )
+        assertEquals("success", toolRes.get("status").asString)
+        assertEquals("urgent", toolRes.get("priority").asString)
+        assertTrue(toolRes.get("photo_attached").asBoolean)
+
+        val upgraded = FunkiraPackageStore.hydrate(context).first { it.uuid == normalPkg.uuid }
+        assertEquals("urgent", upgraded.priority)
+        assertEquals("Sofort-Hotfix oben einreihen", upgraded.checklist.first())
+        assertEquals(1, upgraded.attachmentCount)
+
+        val directive = FunkiraPackageStore.buildPackagesPromptDirective(context)
+        assertTrue(directive.contains("prio=urgent"))
+        val compiled = FunkiraPackageStore.compilePackageBody(upgraded)
+        assertTrue(compiled.contains("Prio: DRINGEND"))
     }
 
     private fun buildPreparedTestPhoto(fileName: String, color: Int): PreparedAgAttachment {

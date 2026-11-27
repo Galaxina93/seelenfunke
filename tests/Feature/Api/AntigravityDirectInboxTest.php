@@ -597,4 +597,186 @@ class AntigravityDirectInboxTest extends TestCase
         $this->assertSame('Zweiter strukturierter Punkt', $data['checklist'][1]);
         $this->assertLessThanOrEqual(AntigravityDirectInboxService::MAX_CHECKLIST_ITEM_LENGTH, mb_strlen((string) $data['checklist'][2]));
     }
+
+    public function test_automatic_project_routing_separates_seelenfunke_leitung_and_steinhauer_invest_chat(): void
+    {
+        $admin = $this->createAdmin();
+        Sanctum::actingAs($admin, ['*']);
+
+        // 1. Steinhauer Invest / Diktiervariante "Steinauer Invest" / Steini -> automatisch Kanal 'invest'
+        $investFromDictation = $this->postJson('/api/system/ag-direct-inbox', [
+            'channel' => 'leitung',
+            'title' => 'Steinauer Invest: Neue Immobilien-Seite prüfen',
+            'body' => 'Bitte das Vermietungs-Dashboard und die Steini App prüfen.',
+            'execution_mode' => 'direct',
+        ])->assertStatus(201);
+        $investFromDictation->assertJsonPath('data.channel', 'invest');
+
+        // 2. Expliziter Kanal-Alias 'steinhauer-invest' -> normalisiert auf 'invest'
+        $investAlias = $this->postJson('/api/system/ag-direct-inbox', [
+            'channel' => 'steinhauer-invest',
+            'title' => 'Neuer Auftrag im Invest-Portal',
+            'execution_mode' => 'direct',
+        ])->assertStatus(201);
+        $investAlias->assertJsonPath('data.channel', 'invest');
+
+        // 3. Reiner Seelenfunke-Auftrag bleibt strikt in 'leitung' (auch wenn fälschlich 'invest' übergeben wurde)
+        $seelenfunkeGuard = $this->postJson('/api/system/ag-direct-inbox', [
+            'channel' => 'invest',
+            'title' => 'Seelenfunke Laser-Manufaktur Bestellstatus prüfen',
+            'body' => 'Funkira meldet Rückfrage zum Seelenfunke Shop.',
+            'execution_mode' => 'direct',
+        ])->assertStatus(201);
+        $seelenfunkeGuard->assertJsonPath('data.channel', 'leitung');
+
+        // 4. Meta-Routing-Auftrag, der beide Projektnamen als Regel nennt, bleibt in 'leitung' (auch bei fälschlichem 'invest'-Kanal)
+        $metaRouting = $this->postJson('/api/system/ag-direct-inbox', [
+            'channel' => 'leitung',
+            'title' => 'Automatisches Routing für Anträge (Seelenfunke -> Leitung, Steinauer Invest -> Invest-Chat) sicherstellen.',
+            'execution_mode' => 'direct',
+        ])->assertStatus(201);
+        $metaRouting->assertJsonPath('data.channel', 'leitung');
+
+        $metaRoutingFromInvest = $this->postJson('/api/system/ag-direct-inbox', [
+            'channel' => 'invest',
+            'title' => 'Automatisches Routing für Anträge (Seelenfunke -> Leitung, Steinauer Invest -> Invest-Chat) sicherstellen.',
+            'execution_mode' => 'direct',
+        ])->assertStatus(201);
+        $metaRoutingFromInvest->assertJsonPath('data.channel', 'leitung');
+
+        // 5. Erweiterte Kanal-Aliase ('Steinauer Invest', 'steini-app', 'steinauer-invest.de') & Mini-PC-Fehlkanal -> 'invest'
+        $this->assertSame('invest', $this->inboxService->normalizeChannel('Steinauer Invest'));
+        $this->assertSame('invest', $this->inboxService->normalizeChannel('steini-app'));
+        $this->assertSame('invest', $this->inboxService->normalizeChannel('steinauer-invest.de'));
+        $this->assertSame('invest', $this->inboxService->resolveEffectiveChannel('leitung', 'Update auf steinauer-invest.de ausrollen'));
+        $this->assertSame('invest', $this->inboxService->resolveEffectiveChannel('minipc', 'Steinauer Invest Nebenkosten-PDF prüfen'));
+
+        // 6. Funkira-Tool executeSendToAntigravity respektiert 'invest' und leitet Seelenfunke -> 'leitung'
+        $this->actingAs($admin, 'admin');
+        $resInvest = \App\Services\AI\Functions\AiSystemFuncs::executeSendToAntigravity([
+            'title' => 'Nebenkosten-Export prüfen',
+            'channel' => 'invest',
+            'execution_mode' => 'direct',
+        ]);
+        $this->assertSame('success', $resInvest['status'] ?? null);
+        $this->assertSame('invest', $resInvest['channel'] ?? null);
+
+        $resSf = \App\Services\AI\Functions\AiSystemFuncs::executeSendToAntigravity([
+            'title' => 'Seelenfunke Dashboard KPI aktualisieren',
+            'channel' => 'invest',
+            'execution_mode' => 'direct',
+        ]);
+        $this->assertSame('success', $resSf['status'] ?? null);
+        $this->assertSame('leitung', $resSf['channel'] ?? null);
+
+        // 7. Import aus Stage-Payload wendet Smart-Routing ebenfalls an
+        $imported = $this->inboxService->importItems([
+            [
+                'id' => 'ag_20261127_140000_11223344',
+                'channel' => 'leitung',
+                'title' => 'Steini-App Push-Meldung prüfen',
+                'body' => 'Betrifft Steinauer Invest',
+                'status' => 'pending',
+                'execution_mode' => 'direct',
+            ],
+        ]);
+        $this->assertSame(1, $imported);
+        $listed = collect($this->inboxService->listInbox()['items'])->firstWhere('id', 'ag_20261127_140000_11223344');
+        $this->assertSame('invest', $listed['channel'] ?? null);
+
+        // 8. Blockade-Auflösung auf Invest-Konzept behält Kanal 'invest' für den Folgeauftrag bei
+        $investConcept = $this->inboxService->enqueueMessage([
+            'channel' => 'leitung',
+            'title' => 'Konzept für Steinhauer-Invest Mieterportal',
+            'execution_mode' => 'concept',
+        ])['item'];
+        $this->assertSame('invest', $investConcept['channel']);
+        $this->inboxService->completeMessage($investConcept['id'], 'Konzept bereit.');
+        $resolvedInvest = $this->inboxService->resolveBlockadeItem($investConcept['id'], 'approved', 'Go!');
+        $this->assertNotNull($resolvedInvest);
+        $this->assertSame('invest', $resolvedInvest['followup_item']['channel'] ?? null);
+    }
+
+    public function test_offline_and_stale_delivered_auto_recovery_requeues_stuck_direct_items_with_safety_cap(): void
+    {
+        $oldIso = now('Europe/Berlin')->subMinutes(75)->toIso8601String();
+        $freshIso = now('Europe/Berlin')->subMinutes(5)->toIso8601String();
+
+        $this->inboxService->importItems([
+            [
+                'id' => 'ag_20261127_100001_aaaa1111',
+                'channel' => 'leitung',
+                'title' => 'Stuck Direct Task nach Notebook-Neustart',
+                'execution_mode' => 'direct',
+                'status' => 'delivered',
+                'created_at' => $oldIso,
+                'delivered_at' => $oldIso,
+                'requeue_count' => 0,
+            ],
+            [
+                'id' => 'ag_20261127_100002_bbbb2222',
+                'channel' => 'leitung',
+                'title' => 'Frisch zugestellter Direct Task (noch in Arbeit)',
+                'execution_mode' => 'direct',
+                'status' => 'delivered',
+                'created_at' => $freshIso,
+                'delivered_at' => $freshIso,
+                'requeue_count' => 0,
+            ],
+            [
+                'id' => 'ag_20261127_100003_cccc3333',
+                'channel' => 'leitung',
+                'title' => 'Konzept wartet auf Go (niemals auto-requeue)',
+                'execution_mode' => 'concept',
+                'status' => 'delivered',
+                'created_at' => $oldIso,
+                'delivered_at' => $oldIso,
+                'requeue_count' => 0,
+            ],
+            [
+                'id' => 'ag_20261127_100004_dddd4444',
+                'channel' => 'tickets',
+                'title' => 'Ticket-Autopilot eigener Watchdog',
+                'execution_mode' => 'direct',
+                'status' => 'delivered',
+                'created_at' => $oldIso,
+                'delivered_at' => $oldIso,
+                'requeue_count' => 0,
+            ],
+            [
+                'id' => 'ag_20261127_100005_eeee5555',
+                'channel' => 'android',
+                'title' => 'Bereits 2x requeued (Schutzbremse)',
+                'execution_mode' => 'direct',
+                'status' => 'delivered',
+                'created_at' => $oldIso,
+                'delivered_at' => $oldIso,
+                'requeue_count' => 2,
+            ],
+        ]);
+
+        // Pipeline-Health erkennt vor dem Requeue die 2 überfälligen delivered-Direct-Aufträge
+        $healthBefore = $this->inboxService->getPipelineHealth();
+        $this->assertFalse($healthBefore['healthy']);
+        $this->assertSame(2, $healthBefore['stale_delivered_count']);
+
+        // --peek-pending hebt nur den 1 berechtigten, überfälligen Direct-Task atomar auf pending
+        $exitPeek = Artisan::call('system:ag-inbox', ['--peek-pending' => true]);
+        $this->assertSame(0, $exitPeek);
+        $peekData = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame('success', $peekData['status'] ?? null);
+        $this->assertSame(1, $peekData['count'] ?? null);
+        $this->assertSame('ag_20261127_100001_aaaa1111', $peekData['items'][0]['id'] ?? null);
+        $this->assertSame('pending', $peekData['items'][0]['status'] ?? null);
+        $this->assertSame(1, $peekData['items'][0]['requeue_count'] ?? null);
+        $this->assertNotEmpty($peekData['items'][0]['last_requeued_at'] ?? null);
+
+        // --requeue-stale meldet die 2x-erschöpfte ID unter exhausted_ids und fasst concept/fresh/tickets nicht an
+        $exitReq = Artisan::call('system:ag-inbox', ['--requeue-stale' => true]);
+        $this->assertSame(0, $exitReq);
+        $reqData = json_decode(trim(Artisan::output()), true);
+        $this->assertSame(0, $reqData['requeued_count'] ?? null);
+        $this->assertContains('ag_20261127_100005_eeee5555', $reqData['exhausted_ids'] ?? []);
+    }
 }

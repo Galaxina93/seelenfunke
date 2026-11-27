@@ -261,6 +261,18 @@ fun FunkiraLiveScreen(
 
     val agItems by de.meinseelenfunke.app.util.AgDirectInboxManager.itemsFlow.collectAsState()
 
+    // Keep screen awake during active hands-free Live-Call so Android never locks & drops the mic/WebSocket
+    val hostView = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(isConnected || isConnecting) {
+        val prevKeepScreenOn = hostView.keepScreenOn
+        if (isConnected || isConnecting) {
+            hostView.keepScreenOn = true
+        }
+        onDispose {
+            hostView.keepScreenOn = prevKeepScreenOn
+        }
+    }
+
     // Disconnect when leaving screen & run adaptive realtime Antigravity status sync
     DisposableEffect(Unit) {
         de.meinseelenfunke.app.util.AgDirectInboxManager.acquireRealtimeObserver(context)
@@ -670,8 +682,14 @@ fun FunkiraLiveScreen(
                 Spacer(modifier = Modifier.width(20.dp))
 
                 // Hang Up Button
+                var lastHangupTapMs by remember { mutableStateOf(0L) }
                 IconButton(
                     onClick = {
+                        val nowTapMs = android.os.SystemClock.uptimeMillis()
+                        if (!FunkiraLiveViewModel.shouldAllowCallButtonTap(lastHangupTapMs, nowTapMs)) {
+                            return@IconButton
+                        }
+                        lastHangupTapMs = nowTapMs
                         de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.click_file_in_project_brain)
                         coroutineScope.launch {
                             delay(500)

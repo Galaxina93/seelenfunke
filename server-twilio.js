@@ -9,7 +9,368 @@ const { WaveFile } = wavefile;
 
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
+
+const DEFAULT_LIVE_MODEL = 'models/gemini-3.1-flash-live-preview';
+const VALID_LIVE_MODELS = [
+    'models/gemini-3.1-flash-live-preview',
+    'models/gemini-2.0-flash-live-001'
+];
+
+export function isGemini3Model(modelName) {
+    const m = String(modelName || '').toLowerCase();
+    return m.includes('3.') || m.includes('gemini-3');
+}
+
+export function isVertexOr25Model(modelName) {
+    const m = String(modelName || '').toLowerCase();
+    return m.includes('2.5') || m.startsWith('projects/');
+}
+
+export function normalizeThinkingConfigForModel(generationConfig, effectiveModel) {
+    const cfg = (generationConfig && typeof generationConfig === 'object' && !Array.isArray(generationConfig))
+        ? { ...generationConfig }
+        : {};
+
+    if (isVertexOr25Model(effectiveModel)) {
+        const existingBudget = cfg.thinkingConfig && typeof cfg.thinkingConfig.thinkingBudget === 'number'
+            ? cfg.thinkingConfig.thinkingBudget
+            : 0;
+        cfg.thinkingConfig = { thinkingBudget: existingBudget };
+    } else if (isGemini3Model(effectiveModel)) {
+        const existingLevel = cfg.thinkingConfig && typeof cfg.thinkingConfig.thinkingLevel === 'string' && cfg.thinkingConfig.thinkingLevel.trim() !== ''
+            ? cfg.thinkingConfig.thinkingLevel.trim()
+            : 'minimal';
+        cfg.thinkingConfig = { thinkingLevel: existingLevel };
+    } else if (cfg.thinkingConfig && typeof cfg.thinkingConfig === 'object') {
+        delete cfg.thinkingConfig.thinkingLevel;
+    }
+
+    return cfg;
+}
+
+export function sanitizeGeminiLiveSetup(setupObj, options = {}) {
+    if (!setupObj || typeof setupObj !== 'object' || Array.isArray(setupObj)) {
+        return { setup: null, modelRewritten: false, requestedModel: null, effectiveModel: DEFAULT_LIVE_MODEL };
+    }
+
+    const useVertexLive = Boolean(options.useVertexLive);
+    const targetVertexModel = options.targetVertexModel || '';
+    const requestedModel = setupObj.model || null;
+    const setup = { ...setupObj };
+    let modelRewritten = false;
+
+    if (useVertexLive && targetVertexModel) {
+        if (setup.model !== targetVertexModel) {
+            setup.model = targetVertexModel;
+            modelRewritten = true;
+        }
+    } else if (!setup.model || !VALID_LIVE_MODELS.includes(setup.model)) {
+        setup.model = DEFAULT_LIVE_MODEL;
+        modelRewritten = true;
+    }
+
+    const effectiveModel = setup.model;
+    setup.generationConfig = normalizeThinkingConfigForModel(setup.generationConfig, effectiveModel);
+
+    if (setup.systemInstruction && typeof setup.systemInstruction === 'object') {
+        const rawParts = Array.isArray(setup.systemInstruction.parts) ? setup.systemInstruction.parts : [];
+        const cleanParts = rawParts.filter(p => p && typeof p === 'object' && typeof p.text === 'string' && p.text.trim() !== '');
+        if (cleanParts.length > 0) {
+            setup.systemInstruction = { ...setup.systemInstruction, parts: cleanParts };
+        } else {
+            delete setup.systemInstruction;
+        }
+    }
+
+    if (Array.isArray(setup.tools)) {
+        const cleanTools = setup.tools
+            .filter(t => t && typeof t === 'object')
+            .map(t => {
+                if (Array.isArray(t.functionDeclarations)) {
+                    const decls = t.functionDeclarations.filter(fn => fn && typeof fn === 'object' && typeof fn.name === 'string' && fn.name.trim() !== '');
+                    return decls.length > 0 ? { ...t, functionDeclarations: decls } : null;
+                }
+                return Object.keys(t).length > 0 ? t : null;
+            })
+            .filter(Boolean);
+
+        if (cleanTools.length > 0) {
+            setup.tools = cleanTools;
+        } else {
+            delete setup.tools;
+        }
+    }
+
+    if (!setup.realtimeInputConfig) {
+        setup.realtimeInputConfig = {
+            automaticActivityDetection: {
+                disabled: false,
+                startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+                endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+                prefixPaddingMs: 100,
+                silenceDurationMs: 420
+            }
+        };
+    }
+    if (!setup.inputAudioTranscription) {
+        setup.inputAudioTranscription = {};
+    }
+    if (!setup.outputAudioTranscription) {
+        setup.outputAudioTranscription = {};
+    }
+    if (!setup.contextWindowCompression) {
+        setup.contextWindowCompression = { slidingWindow: {} };
+    }
+    if (!setup.sessionResumption || typeof setup.sessionResumption !== 'object' || Array.isArray(setup.sessionResumption)) {
+        setup.sessionResumption = {};
+    } else if (modelRewritten) {
+        // Ein Session-Resumption-Handle eines anderen Modells/Endpunkts führt bei Google sofort zu Code 1007/1008.
+        setup.sessionResumption = {};
+    } else if (setup.sessionResumption.handle !== undefined) {
+        const cleanHandle = typeof setup.sessionResumption.handle === 'string'
+            ? setup.sessionResumption.handle.trim()
+            : '';
+        setup.sessionResumption = cleanHandle !== '' ? { handle: cleanHandle } : {};
+    }
+
+    return { setup, modelRewritten, requestedModel, effectiveModel };
+}
+
+export function normalizeWsOutboundPayload(message) {
+    if (Buffer.isBuffer(message)) {
+        return message.toString('utf8');
+    }
+    if (message instanceof Uint8Array) {
+        return Buffer.from(message).toString('utf8');
+    }
+    return typeof message === 'string' ? message : String(message ?? '');
+}
+
+export function isFastAudioPassthroughFrame(rawStr) {
+    if (typeof rawStr !== 'string' || rawStr === '') {
+        return false;
+    }
+    return rawStr.includes('"realtimeInput"')
+        && rawStr.includes('"audio"')
+        && !rawStr.includes('"mediaChunks"')
+        && !rawStr.includes('"setup"')
+        && !rawStr.includes('"clientContent"')
+        && !rawStr.includes('"toolResponse"')
+        && !rawStr.includes('"text"')
+        && !rawStr.includes('"data":""')
+        && !rawStr.includes('"data": ""');
+}
+
+export function sanitizeGeminiLiveRealtimeInput(realtimeInput, effectiveModel = '') {
+    if (!realtimeInput || typeof realtimeInput !== 'object' || Array.isArray(realtimeInput)) {
+        return { realtimeInput: null, convertedMediaChunks: false, convertedTextFrame: null };
+    }
+
+    const out = { ...realtimeInput };
+    let convertedMediaChunks = false;
+    let convertedTextFrame = null;
+
+    if (Array.isArray(out.mediaChunks)) {
+        const audioChunkIdx = out.mediaChunks.findIndex(
+            c => c && typeof c.mimeType === 'string' && c.mimeType.startsWith('audio/') && typeof c.data === 'string' && c.data.length > 0
+        );
+        if (audioChunkIdx !== -1 && (!out.audio || !out.audio.data)) {
+            const audioChunk = out.mediaChunks[audioChunkIdx];
+            out.audio = {
+                mimeType: audioChunk.mimeType,
+                data: audioChunk.data
+            };
+            convertedMediaChunks = true;
+        }
+        const imageChunkIdx = out.mediaChunks.findIndex(
+            c => c && typeof c.mimeType === 'string' && c.mimeType.startsWith('image/') && typeof c.data === 'string' && c.data.length > 0
+        );
+        if (imageChunkIdx !== -1 && (!out.video || !out.video.data)) {
+            const imageChunk = out.mediaChunks[imageChunkIdx];
+            out.video = {
+                mimeType: imageChunk.mimeType,
+                data: imageChunk.data
+            };
+            convertedMediaChunks = true;
+        }
+        delete out.mediaChunks;
+    }
+
+    if (out.audio !== undefined) {
+        if (!out.audio || typeof out.audio !== 'object' || typeof out.audio.data !== 'string' || out.audio.data.length === 0) {
+            delete out.audio;
+        } else {
+            out.audio = {
+                mimeType: (typeof out.audio.mimeType === 'string' && out.audio.mimeType.trim() !== '') ? out.audio.mimeType.trim() : 'audio/pcm;rate=16000',
+                data: out.audio.data
+            };
+        }
+    }
+
+    if (out.video !== undefined) {
+        if (!out.video || typeof out.video !== 'object' || typeof out.video.data !== 'string' || out.video.data.length === 0) {
+            delete out.video;
+        } else {
+            out.video = {
+                mimeType: (typeof out.video.mimeType === 'string' && out.video.mimeType.trim() !== '') ? out.video.mimeType.trim() : 'image/jpeg',
+                data: out.video.data
+            };
+        }
+    }
+
+    if (out.text !== undefined) {
+        if (typeof out.text !== 'string' || out.text.trim() === '') {
+            delete out.text;
+        } else if (isVertexOr25Model(effectiveModel)) {
+            convertedTextFrame = {
+                clientContent: {
+                    turns: [{ role: 'user', parts: [{ text: out.text.trim() }] }],
+                    turnComplete: true
+                }
+            };
+            delete out.text;
+        }
+    }
+
+    if (Object.keys(out).length === 0) {
+        return { realtimeInput: null, convertedMediaChunks, convertedTextFrame };
+    }
+
+    return { realtimeInput: out, convertedMediaChunks, convertedTextFrame };
+}
+
+export function sanitizeGeminiLiveClientContent(clientContent, effectiveModel) {
+    if (!clientContent || typeof clientContent !== 'object' || Array.isArray(clientContent)) {
+        return { drop: true, reason: 'invalid_client_content', isWhitespaceInterrupt: false, frames: [] };
+    }
+
+    const rawTurns = Array.isArray(clientContent.turns) ? clientContent.turns : [];
+    const isWhitespaceInterrupt = clientContent.turnComplete === false
+        && rawTurns.length > 0
+        && rawTurns.every(t => t && Array.isArray(t.parts) && t.parts.every(p => p && typeof p.text === 'string' && p.text.trim() === '' && !p.inlineData));
+
+    if (isWhitespaceInterrupt) {
+        return { drop: true, reason: 'empty_interrupt', isWhitespaceInterrupt: true, frames: [] };
+    }
+
+    const cleanTurns = [];
+    for (const t of rawTurns) {
+        if (!t || typeof t !== 'object') continue;
+        const rawParts = Array.isArray(t.parts) ? t.parts : [];
+        const cleanParts = [];
+        for (const p of rawParts) {
+            if (!p || typeof p !== 'object') continue;
+            if (typeof p.text === 'string' && p.text.trim() !== '') {
+                cleanParts.push({ text: p.text });
+            } else if (
+                p.inlineData
+                && typeof p.inlineData === 'object'
+                && typeof p.inlineData.mimeType === 'string'
+                && p.inlineData.mimeType.trim() !== ''
+                && typeof p.inlineData.data === 'string'
+                && p.inlineData.data.length > 0
+            ) {
+                cleanParts.push({
+                    inlineData: {
+                        mimeType: p.inlineData.mimeType.trim(),
+                        data: p.inlineData.data
+                    }
+                });
+            }
+        }
+        if (cleanParts.length > 0) {
+            const role = (t.role === 'model' || t.role === 'user') ? t.role : 'user';
+            cleanTurns.push({ role, parts: cleanParts });
+        }
+    }
+
+    if (cleanTurns.length === 0) {
+        return { drop: true, reason: 'empty_turns', isWhitespaceInterrupt: false, frames: [] };
+    }
+
+    if (isGemini3Model(effectiveModel)) {
+        const frames = [];
+        const textChunks = [];
+        for (const t of cleanTurns) {
+            for (const p of t.parts) {
+                if (p.inlineData && p.inlineData.mimeType.startsWith('image/')) {
+                    frames.push({
+                        realtimeInput: {
+                            video: {
+                                mimeType: p.inlineData.mimeType,
+                                data: p.inlineData.data
+                            }
+                        }
+                    });
+                } else if (typeof p.text === 'string' && p.text.trim() !== '') {
+                    textChunks.push(p.text.trim());
+                }
+            }
+        }
+
+        if (clientContent.turnComplete === false && frames.length === 0) {
+            return { drop: true, reason: 'suppressed_3x_silent_context', isWhitespaceInterrupt: false, frames: [] };
+        }
+
+        if (textChunks.length > 0 && clientContent.turnComplete !== false) {
+            frames.push({
+                realtimeInput: {
+                    text: textChunks.join('\n')
+                }
+            });
+        }
+
+        if (frames.length === 0) {
+            return { drop: true, reason: 'empty_3x_conversion', isWhitespaceInterrupt: false, frames: [] };
+        }
+
+        return { drop: false, reason: 'converted_to_realtime_input', isWhitespaceInterrupt: false, frames };
+    }
+
+    return {
+        drop: false,
+        reason: 'sanitized_client_content',
+        isWhitespaceInterrupt: false,
+        frames: [{
+            clientContent: {
+                turns: cleanTurns,
+                turnComplete: clientContent.turnComplete !== false
+            }
+        }]
+    };
+}
+
+export function sanitizeGeminiLiveToolResponse(toolResponse) {
+    if (!toolResponse || typeof toolResponse !== 'object' || Array.isArray(toolResponse)) {
+        return null;
+    }
+
+    const rawResponses = Array.isArray(toolResponse.functionResponses) ? toolResponse.functionResponses : [];
+    const cleanResponses = [];
+    for (const r of rawResponses) {
+        if (!r || typeof r !== 'object') continue;
+        const name = typeof r.name === 'string' ? r.name.trim() : '';
+        if (name === '') continue;
+        const responseObj = (r.response && typeof r.response === 'object' && !Array.isArray(r.response))
+            ? r.response
+            : { result: r.response !== undefined && r.response !== null ? r.response : 'ok' };
+        const entry = {
+            name,
+            response: responseObj
+        };
+        if (r.id !== undefined && r.id !== null && String(r.id).trim() !== '') {
+            entry.id = String(r.id).trim();
+        }
+        cleanResponses.push(entry);
+    }
+
+    if (cleanResponses.length === 0) {
+        return null;
+    }
+
+    return { functionResponses: cleanResponses };
+}
 
 // Bevorzuge IPv4 vor verzögerten IPv6-Stub-Resolvern (verhindert EAI_AGAIN / Resource temporarily unavailable auf Linux/Mittwald)
 try {
@@ -395,7 +756,8 @@ process.on('unhandledRejection', (reason, promise) => {
 function safeSend(ws, message) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     try {
-        ws.send(message, (err) => {
+        const textPayload = normalizeWsOutboundPayload(message);
+        ws.send(textPayload, (err) => {
             if (err) {
                 debugLog('WebSocket safeSend callback error:', err);
             }
@@ -602,7 +964,8 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     const normalizationsApplied = {
         model_rewritten: false,
         media_chunks_converted: 0,
-        empty_interrupts_dropped: 0
+        empty_interrupts_dropped: 0,
+        realtime_text_converted: 0
     };
     const recentEvents = [];
     const recordEvent = (event, detail = '') => {
@@ -675,9 +1038,9 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     });
     const googlePingInterval = setInterval(() => {
         if (googleWs.readyState === WebSocket.OPEN) {
-            if (Date.now() - lastGoogleRxOrPongAt > 35000) {
-                recordEvent('google_pong_timeout', 'No upstream pong/packet >35s');
-                debugLog('⚠️ Gemini Live Proxy: Google Upstream antwortet nicht auf Pings (>35s). Schließe für sauberen Client-Auto-Reconnect.');
+            if (Date.now() - lastGoogleRxOrPongAt > 130000) {
+                recordEvent('google_pong_timeout', 'No upstream pong/packet >130s');
+                debugLog('⚠️ Gemini Live Proxy: Google Upstream antwortet nicht auf Pings (>130s). Schließe für sauberen Client-Auto-Reconnect.');
                 try { googleWs.terminate(); } catch (_) {}
                 safeClose(clientWs, 1011, 'Upstream ping timeout');
                 return;
@@ -687,7 +1050,7 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
         if (clientWs && clientWs.readyState === WebSocket.OPEN) {
             try { clientWs.ping(); } catch (e) {}
         }
-    }, 12000);
+    }, 15000);
 
     function cleanup() {
         if (isCleanedUp) return;
@@ -878,6 +1241,10 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
                 if (data.serverContent.turnComplete) {
                     scLog += ' [TURN_COMPLETE]';
                     recordEvent('google_turn_complete');
+                    if (userTurnTranscript.trim()) {
+                        persistTranscript('user', userTurnTranscript.trim());
+                        userTurnTranscript = "";
+                    }
                     if (aiTurnTranscript.trim()) {
                         persistTranscript('assistant', aiTurnTranscript.trim());
                         aiTurnTranscript = "";
@@ -973,22 +1340,20 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             return;
         }
 
-        const rawStr = message.toString();
+        const rawStr = normalizeWsOutboundPayload(message);
 
         // Fast zero-JSON.parse pass-through for high-frequency realtimeInput.audio frames (~24 packets/sec)
-        if (isGoogleSetupComplete && googleWs.readyState === WebSocket.OPEN &&
-            rawStr.includes('"realtimeInput"') && rawStr.includes('"audio"') &&
-            !rawStr.includes('"mediaChunks"') && !rawStr.includes('"setup"')) {
+        if (isGoogleSetupComplete && googleWs.readyState === WebSocket.OPEN && isFastAudioPassthroughFrame(rawStr)) {
             clientAudioPacketsReceived++;
             if (clientAudioPacketsReceived === 1) {
                 recordEvent('first_client_audio', 'fast_passthrough_pcm');
             }
-            safeSend(googleWs, message);
+            safeSend(googleWs, rawStr);
             return;
         }
 
         let data = null;
-        let outgoingMessage = message;
+        let outgoingMessages = [rawStr];
         try {
             data = JSON.parse(rawStr);
             if (data && data.type === 'ping') {
@@ -1002,131 +1367,91 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
                 return;
             }
             if (data && data.setup) {
-                requestedModel = data.setup.model || null;
-                let setupModified = false;
-                if (useVertexLive) {
-                    const targetVertexModel = creds.live_model || getVertexLiveModelResource();
-                    if (data.setup.model !== targetVertexModel) {
-                        debugLog(`🔄 Vertex AI Live Proxy: Setze setup.model auf "${targetVertexModel}".`);
-                        data.setup.model = targetVertexModel;
-                        normalizationsApplied.model_rewritten = true;
-                        setupModified = true;
-                        recordEvent('model_normalized_vertex', `${requestedModel} -> ${targetVertexModel}`);
-                    }
-                } else {
-                    const DEFAULT_LIVE_MODEL = 'models/gemini-3.1-flash-live-preview';
-                    const VALID_LIVE_MODELS = [
-                        'models/gemini-3.1-flash-live-preview',
-                        'models/gemini-2.0-flash-live-001'
-                    ];
-                    if (!data.setup.model || !VALID_LIVE_MODELS.includes(data.setup.model)) {
-                        debugLog(`⚠️ Gemini Live Proxy: Client sendete veraltetes/inkompatibles Modell "${data.setup.model}". Normalisiere auf "${DEFAULT_LIVE_MODEL}".`);
-                        data.setup.model = DEFAULT_LIVE_MODEL;
-                        normalizationsApplied.model_rewritten = true;
-                        setupModified = true;
-                        recordEvent('model_normalized', `${requestedModel} -> ${DEFAULT_LIVE_MODEL}`);
-                    }
+                if (isGoogleSetupComplete) {
+                    recordEvent('duplicate_setup_dropped', 'Dropped duplicate setup after setupComplete');
+                    return;
                 }
-                effectiveModel = data.setup.model;
-                if (effectiveModel && String(effectiveModel).includes('2.5')) {
-                    data.setup.generationConfig = data.setup.generationConfig || {};
-                    if (!data.setup.generationConfig.thinkingConfig) {
-                        data.setup.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-                        setupModified = true;
-                    }
+                const targetVertexModel = useVertexLive ? (creds.live_model || getVertexLiveModelResource()) : '';
+                const setupResult = sanitizeGeminiLiveSetup(data.setup, { useVertexLive, targetVertexModel });
+                if (!setupResult.setup) {
+                    recordEvent('invalid_setup_dropped', 'Dropped invalid setup payload');
+                    return;
                 }
-                if (!data.setup.realtimeInputConfig) {
-                    data.setup.realtimeInputConfig = {
-                        automaticActivityDetection: {
-                            disabled: false,
-                            startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
-                            endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
-                            prefixPaddingMs: 100,
-                            silenceDurationMs: 420
-                        }
-                    };
-                    setupModified = true;
+                requestedModel = setupResult.requestedModel;
+                effectiveModel = setupResult.effectiveModel;
+                if (setupResult.modelRewritten) {
+                    normalizationsApplied.model_rewritten = true;
+                    recordEvent(useVertexLive ? 'model_normalized_vertex' : 'model_normalized', `${requestedModel} -> ${effectiveModel}`);
                 }
-                if (!data.setup.inputAudioTranscription) {
-                    data.setup.inputAudioTranscription = {};
-                    setupModified = true;
-                }
-                if (!data.setup.outputAudioTranscription) {
-                    data.setup.outputAudioTranscription = {};
-                    setupModified = true;
-                }
-                if (setupModified) {
-                    outgoingMessage = JSON.stringify(data);
-                }
+                data.setup = setupResult.setup;
+                outgoingMessages = [JSON.stringify({ setup: data.setup })];
                 recordEvent('client_setup', `model=${effectiveModel}`);
                 debugLog('🧠 Gemini Live Proxy: Client sendet Setup: ' + JSON.stringify(data.setup).substring(0, 150));
             } else if (data && data.realtimeInput) {
-                // Normalisiere veraltetes mediaChunks-Audio/Video-Format (z.B. von älteren Android-Clients) auf realtimeInput.audio / realtimeInput.video,
-                // um Google Fehler 1007 (CONTENT_TYPE_AUDIO not supported) und 1008 zu verhindern.
-                if (Array.isArray(data.realtimeInput.mediaChunks)) {
-                    let chunksModified = false;
-                    const audioChunkIdx = data.realtimeInput.mediaChunks.findIndex(
-                        c => c && typeof c.mimeType === 'string' && c.mimeType.startsWith('audio/pcm')
-                    );
-                    if (audioChunkIdx !== -1 && !data.realtimeInput.audio) {
-                        const audioChunk = data.realtimeInput.mediaChunks[audioChunkIdx];
-                        data.realtimeInput.audio = {
-                            mimeType: audioChunk.mimeType,
-                            data: audioChunk.data
-                        };
-                        data.realtimeInput.mediaChunks.splice(audioChunkIdx, 1);
-                        chunksModified = true;
-                    }
-                    const imageChunkIdx = data.realtimeInput.mediaChunks.findIndex(
-                        c => c && typeof c.mimeType === 'string' && c.mimeType.startsWith('image/')
-                    );
-                    if (imageChunkIdx !== -1 && !data.realtimeInput.video) {
-                        const imageChunk = data.realtimeInput.mediaChunks[imageChunkIdx];
-                        data.realtimeInput.video = {
-                            mimeType: imageChunk.mimeType,
-                            data: imageChunk.data
-                        };
-                        data.realtimeInput.mediaChunks.splice(imageChunkIdx, 1);
-                        chunksModified = true;
-                    }
-                    if (chunksModified) {
-                        if (data.realtimeInput.mediaChunks.length === 0) {
-                            delete data.realtimeInput.mediaChunks;
-                        }
-                        normalizationsApplied.media_chunks_converted++;
-                        if (normalizationsApplied.media_chunks_converted === 1) {
-                            recordEvent('media_chunks_normalized', 'Converted legacy mediaChunks to realtimeInput.audio/video');
-                        }
-                        outgoingMessage = JSON.stringify(data);
-                    }
-                }
-                clientAudioPacketsReceived++;
-                if (clientAudioPacketsReceived === 1) {
-                    recordEvent('first_client_audio', `mime=${data.realtimeInput.audio?.mimeType || 'pcm'}`);
-                }
-                if (clientAudioPacketsReceived <= 5 || clientAudioPacketsReceived % 100 === 0) {
-                    const audioLength = data.realtimeInput.audio?.data?.length 
-                        || data.realtimeInput.mediaChunks?.[0]?.data?.length 
-                        || 0;
-                    debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${clientAudioPacketsReceived}, Base64-Länge: ${audioLength})`);
-                }
-            } else if (data && data.clientContent) {
-                // Blockiere fehlerhafte leere Interrupt-Frames (turnComplete: false mit leerem Text " "),
-                // die bei manchen Clients (z.B. Android) zu Google Code 1008 (Requested entity was not found) führen.
-                const turns = Array.isArray(data.clientContent.turns) ? data.clientContent.turns : [];
-                const isWhitespaceOnlyInterrupt = data.clientContent.turnComplete === false
-                    && turns.length > 0
-                    && turns.every(t => Array.isArray(t.parts) && t.parts.every(p => typeof p.text === 'string' && p.text.trim() === '' && !p.inlineData));
-                if (isWhitespaceOnlyInterrupt) {
-                    normalizationsApplied.empty_interrupts_dropped++;
-                    recordEvent('empty_interrupt_blocked', `dropped=#${normalizationsApplied.empty_interrupts_dropped}`);
-                    debugLog('🛡️ Gemini Live Proxy: Ignoriere leeres clientContent-Interrupt-Paket (verhindert Code 1008/1007 Abbruch).');
+                // Normalisiere veraltetes mediaChunks-Audio/Video-Format (z.B. von älteren Android-Clients) auf realtimeInput.audio / realtimeInput.video
+                // und konvertiere realtimeInput.text bei Vertex/2.5 automatisch nach clientContent, um Google Code 1007 zu verhindern.
+                const rtResult = sanitizeGeminiLiveRealtimeInput(data.realtimeInput, effectiveModel);
+                if (!rtResult.realtimeInput && !rtResult.convertedTextFrame) {
+                    recordEvent('empty_realtime_input_dropped', 'Dropped empty realtimeInput frame (prevents Code 1007)');
                     return;
                 }
-                recordEvent('client_content', `turnComplete=${data.clientContent.turnComplete}`);
+                if (rtResult.convertedMediaChunks && rtResult.realtimeInput) {
+                    if (rtResult.realtimeInput.audio) {
+                        data.realtimeInput.audio = rtResult.realtimeInput.audio;
+                    }
+                    normalizationsApplied.media_chunks_converted++;
+                    if (normalizationsApplied.media_chunks_converted === 1) {
+                        recordEvent('media_chunks_normalized', 'Converted legacy mediaChunks to realtimeInput.audio/video');
+                    }
+                }
+                outgoingMessages = [];
+                if (rtResult.realtimeInput) {
+                    data.realtimeInput = rtResult.realtimeInput;
+                    outgoingMessages.push(JSON.stringify({ realtimeInput: data.realtimeInput }));
+                    clientAudioPacketsReceived++;
+                    if (clientAudioPacketsReceived === 1) {
+                        recordEvent('first_client_audio', `mime=${data.realtimeInput.audio?.mimeType || 'pcm'}`);
+                    }
+                    if (clientAudioPacketsReceived <= 5 || clientAudioPacketsReceived % 100 === 0) {
+                        const audioLength = data.realtimeInput.audio?.data?.length || 0;
+                        debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${clientAudioPacketsReceived}, Base64-Länge: ${audioLength})`);
+                    }
+                }
+                if (rtResult.convertedTextFrame) {
+                    normalizationsApplied.realtime_text_converted++;
+                    recordEvent('realtime_text_converted_to_client_content', effectiveModel);
+                    outgoingMessages.push(JSON.stringify(rtResult.convertedTextFrame));
+                }
+            } else if (data && data.clientContent) {
+                const ccResult = sanitizeGeminiLiveClientContent(data.clientContent, effectiveModel);
+                if (ccResult.isWhitespaceInterrupt) {
+                    const isWhitespaceOnlyInterrupt = true;
+                    if (isWhitespaceOnlyInterrupt) {
+                        normalizationsApplied.empty_interrupts_dropped++;
+                        recordEvent('empty_interrupt_blocked', `dropped=#${normalizationsApplied.empty_interrupts_dropped}`);
+                        debugLog('🛡️ Gemini Live Proxy: Ignoriere leeres clientContent-Interrupt-Paket (verhindert Code 1008/1007 Abbruch).');
+                    }
+                    return;
+                }
+                if (ccResult.drop || ccResult.frames.length === 0) {
+                    recordEvent(ccResult.reason || 'client_content_dropped', 'Dropped invalid/empty clientContent (prevents Code 1007/1008)');
+                    return;
+                }
+                outgoingMessages = ccResult.frames.map(frame => JSON.stringify(frame));
+                if (ccResult.reason === 'converted_to_realtime_input') {
+                    recordEvent('client_content_converted_to_realtime_text', `frames=${outgoingMessages.length}`);
+                } else {
+                    recordEvent('client_content', `turnComplete=${data.clientContent.turnComplete}`);
+                }
                 debugLog('🧠 Gemini Live Proxy: Client sendet clientContent: ' + JSON.stringify(data).substring(0, 150));
             } else if (data && data.toolResponse) {
-                const respNames = (data.toolResponse.functionResponses || []).map(r => r.name).join(', ');
+                const sanitizedToolResp = sanitizeGeminiLiveToolResponse(data.toolResponse);
+                if (!sanitizedToolResp) {
+                    recordEvent('invalid_tool_response_dropped', 'Dropped invalid/empty toolResponse (prevents Code 1007)');
+                    return;
+                }
+                outgoingMessages = [JSON.stringify({ toolResponse: sanitizedToolResp })];
+                const respNames = sanitizedToolResp.functionResponses.map(r => r.name).join(', ');
                 recordEvent('client_tool_response', respNames);
                 debugLog('🧠 Gemini Live Proxy: Client sendet toolResponse: ' + respNames);
             } else {
@@ -1136,13 +1461,20 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
         } catch (e) {
             recordEvent('client_parse_error', e.message);
             debugLog('🧠 Gemini Live Proxy: Fehler beim Parsen der Client-Nachricht', e);
+            return;
         }
 
-        if (googleWs.readyState === WebSocket.OPEN && (isGoogleSetupComplete || (data && data.setup))) {
-            safeSend(googleWs, outgoingMessage);
-        } else if (googleWs.readyState === WebSocket.CONNECTING || (googleWs.readyState === WebSocket.OPEN && !isGoogleSetupComplete)) {
-            debugLog('🧠 Gemini Live Proxy: Google WS noch nicht bereit für Nutzdaten (SetupComplete=' + isGoogleSetupComplete + '). Nachricht gepuffert. Queue: ' + (googleQueue.length + 1));
-            googleQueue.push(outgoingMessage);
+        for (const outMsg of outgoingMessages) {
+            if (googleWs.readyState === WebSocket.OPEN && (isGoogleSetupComplete || (data && data.setup))) {
+                safeSend(googleWs, outMsg);
+            } else if (googleWs.readyState === WebSocket.CONNECTING || (googleWs.readyState === WebSocket.OPEN && !isGoogleSetupComplete)) {
+                if (googleQueue.length >= 150) {
+                    // Verwerfe aelteste gepufferte Audio-Pakete statt OOM oder Code 1007 Burst
+                    googleQueue.shift();
+                }
+                debugLog('🧠 Gemini Live Proxy: Google WS noch nicht bereit für Nutzdaten (SetupComplete=' + isGoogleSetupComplete + '). Nachricht gepuffert. Queue: ' + (googleQueue.length + 1));
+                googleQueue.push(outMsg);
+            }
         }
     });
     
@@ -1178,6 +1510,10 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     clientWs.on('error', (err) => {
         recordEvent('client_ws_error', err.message || String(err));
         cleanup();
+        if (userTurnTranscript.trim()) {
+            persistTranscript('user', userTurnTranscript.trim());
+            userTurnTranscript = "";
+        }
         if (aiTurnTranscript.trim()) {
             persistTranscript('assistant', aiTurnTranscript.trim());
             aiTurnTranscript = "";
@@ -1192,8 +1528,9 @@ async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
         safeClose(googleWs, 1011, 'Client error');
     });
 
-    if (earlyPendingClientMessages.length > 0) {
-        while (earlyPendingClientMessages.length > 0) {
+    if (earlyPendingClientMessages.length > 0 && !isCleanedUp && clientWs.readyState === WebSocket.OPEN) {
+        recordEvent('early_client_replay', `count=${earlyPendingClientMessages.length}`);
+        while (earlyPendingClientMessages.length > 0 && !isCleanedUp && clientWs.readyState === WebSocket.OPEN) {
             const earlyMsg = earlyPendingClientMessages.shift();
             clientWs.emit('message', earlyMsg);
         }
@@ -1374,7 +1711,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                         }]
                     }],
                     generationConfig: {
-                        responseModalities: ["audio"],
+                        responseModalities: ["AUDIO"],
                         ...(useVertexTwilio ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
                         speechConfig: {
                             voiceConfig: {
@@ -1403,12 +1740,21 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
         geminiWs.on('message', (data) => {
             const responseStr = data.toString();
             // debugLog("RAW GEMINI MSG: " + responseStr.substring(0, 200));
-            const response = JSON.parse(responseStr);
+            let response;
+            try {
+                response = JSON.parse(responseStr);
+            } catch (parseErr) {
+                debugLog("Twilio Gemini JSON parse error:", parseErr);
+                return;
+            }
+            if (!response || typeof response !== 'object') {
+                return;
+            }
             
             if (response.toolCall) {
-                const functionCalls = response.toolCall.functionCalls;
+                const functionCalls = Array.isArray(response.toolCall.functionCalls) ? response.toolCall.functionCalls : [];
                 for (const call of functionCalls) {
-                    if (call.name === 'end_call') {
+                    if (call && call.name === 'end_call') {
                         console.log('☎️ KI möchte auflegen. Warte auf turnComplete...');
                         shouldEndCall = true; // wait for turnComplete
                         
@@ -1586,9 +1932,17 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
 
     // 2. Höre auf Nachrichten von Twilio
     ws.on('message', (message) => {
-        const msg = JSON.parse(message);
+        let msg;
+        try {
+            msg = JSON.parse(message);
+        } catch (_) {
+            return;
+        }
+        if (!msg || typeof msg !== 'object') {
+            return;
+        }
 
-        if (msg.event === 'start') {
+        if (msg.event === 'start' && msg.start) {
             debugLog('Twilio stream started. StreamSid: ' + msg.start.streamSid);
             streamSid = msg.start.streamSid;
             callSid = msg.start.callSid || streamSid;
@@ -1600,7 +1954,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
             // Jetzt wo wir den Kontext haben, starten wir die Gemini Verbindung
             initGemini();
             
-        } else if (msg.event === 'media') {
+        } else if (msg.event === 'media' && msg.media && typeof msg.media.payload === 'string' && msg.media.payload.length > 0) {
             // Twilio sendet uns Audio vom Anrufer (mulaw 8kHz base64)
             if (geminiWs && geminiWs.readyState === WebSocket.OPEN && isGeminiSetupComplete) {
                 if (kickoffSentAtMs > 0 && (Date.now() - kickoffSentAtMs) < 500) {
@@ -2315,8 +2669,11 @@ wss.on('connection', (ws, req) => {
     }
 });
  
-debugLog(`Versuche auf Port ${PORT} zu lauschen... (process.env.PORT=${process.env.PORT})`);
-server.listen(PORT, '0.0.0.0', () => {
-    debugLog(`🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port ${PORT}`);
-    debugLog(`Erfolgreich gebunden auf Port ${PORT}`);
-});
+const isDirectExecution = Boolean(process.argv[1]) && resolve(process.argv[1]) === resolve(__filename);
+if (isDirectExecution) {
+    debugLog(`Versuche auf Port ${PORT} zu lauschen... (process.env.PORT=${process.env.PORT})`);
+    server.listen(PORT, '0.0.0.0', () => {
+        debugLog(`🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port ${PORT}`);
+        debugLog(`Erfolgreich gebunden auf Port ${PORT}`);
+    });
+}

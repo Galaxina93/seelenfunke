@@ -84,6 +84,31 @@ class MailMessage extends Model implements HasSystemBlueprint
         'tags' => 'array',
     ];
 
+    /**
+     * Stellt sicher, dass jeder E-Mail-Zeitstempel (z. B. -0800 PST oder +0000 UTC)
+     * vor dem Speichern in die MySQL-DATETIME-Spalte exakt in die App-Zeitzone
+     * (Europe/Berlin) konvertiert wird, damit "Alle Posteingänge" immer exakt sortiert.
+     */
+    public function setReceivedAtAttribute(mixed $value): void
+    {
+        if ($value === null || $value === '') {
+            $this->attributes['received_at'] = null;
+            return;
+        }
+
+        $appTz = (string) config('app.timezone', 'Europe/Berlin');
+        try {
+            if ($value instanceof \DateTimeInterface) {
+                $dt = \Carbon\Carbon::instance($value)->copy()->setTimezone($appTz);
+            } else {
+                $dt = \Carbon\Carbon::parse((string) $value)->setTimezone($appTz);
+            }
+            $this->attributes['received_at'] = $dt->format($this->getDateFormat());
+        } catch (\Throwable) {
+            $this->attributes['received_at'] = $this->fromDateTime($value);
+        }
+    }
+
     protected $appends = [
         'safe_body_html',
     ];

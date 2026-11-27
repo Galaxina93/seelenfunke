@@ -22,6 +22,21 @@ using Renci.SshNet;
 
 namespace FunkenwerkFtp
 {
+    public sealed class ProfileComboItemTemplateSelector : DataTemplateSelector
+    {
+        public DataTemplate? SelectedTemplate { get; set; }
+        public DataTemplate? DropDownTemplate { get; set; }
+
+        public override DataTemplate? SelectTemplate(object item, DependencyObject container)
+        {
+            if (item == null) return null;
+            if (container is ContentPresenter cp && cp.TemplatedParent is ComboBox)
+                return SelectedTemplate ?? base.SelectTemplate(item, container);
+
+            return DropDownTemplate ?? SelectedTemplate ?? base.SelectTemplate(item, container);
+        }
+    }
+
     public sealed class FileEntryItem : INotifyPropertyChanged
     {
         private bool _isDropTarget;
@@ -87,6 +102,7 @@ namespace FunkenwerkFtp
         private bool _isDarkMode = true;
         private bool _isPassVisible = false;
         private bool _suppressPassSync = false;
+        private bool _suppressProfileSelection = false;
         private string _selectedPrivateKeyPath = "";
 
         private SftpClient? _sftpClient;
@@ -140,8 +156,11 @@ namespace FunkenwerkFtp
             PurgeStaleLiveEditFiles();
             DragStagingManager.PruneOldBatches(TimeSpan.FromMinutes(15));
             LoadProfilesIntoUi();
-            string startLocal = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            NavigateLocalDirectory(startLocal);
+            if (string.IsNullOrWhiteSpace(LocalPathBox.Text) || !Directory.Exists(LocalPathBox.Text))
+            {
+                string startLocal = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                NavigateLocalDirectory(startLocal);
+            }
         }
 
         public static void PurgeStaleLiveEditFiles()
@@ -165,28 +184,71 @@ namespace FunkenwerkFtp
             try
             {
                 _profiles = FunkenwerkFtpSecurity.LoadAndImportProfiles();
-                ProfilesCombo.ItemsSource = null;
-                ProfilesCombo.ItemsSource = _profiles;
-                if (_profiles.Count > 0)
-                {
-                    var preferred = _profiles.FirstOrDefault(p => p.Name.Contains("Mittwald", StringComparison.OrdinalIgnoreCase))
-                                    ?? _profiles[0];
-                    ProfilesCombo.SelectedItem = preferred;
-                }
+                string lastId = FunkenwerkFtpSecurity.LoadLastSelectedProfileId();
+                var preferred = (!string.IsNullOrWhiteSpace(lastId)
+                                    ? _profiles.FirstOrDefault(p => string.Equals(p.Id, lastId, StringComparison.OrdinalIgnoreCase))
+                                    : null)
+                                ?? _profiles.FirstOrDefault(p => p.Name.Contains("Mittwald", StringComparison.OrdinalIgnoreCase))
+                                ?? _profiles.FirstOrDefault();
+
+                RefreshProfilesCombo(preferred?.Id, applyToInputs: true);
                 StatusText.Text = $"🔒 AES-256-GCM + DPAPI Vault aktiv · {_profiles.Count} Profile geladen";
             }
             catch (Exception ex)
             {
                 _profiles = new List<FtpConnectionProfile>();
-                ProfilesCombo.ItemsSource = _profiles;
+                RefreshProfilesCombo(null, applyToInputs: false);
                 StatusText.Text = $"🚨 Tresor-Schutz aktiv: {ex.Message}";
             }
         }
 
-        private void ProfilesCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void RefreshProfilesCombo(string? selectProfileId, bool applyToInputs)
         {
-            if (ProfilesCombo.SelectedItem is not FtpConnectionProfile p) return;
+            _suppressProfileSelection = true;
+            try
+            {
+                ProfilesCombo.ItemsSource = null;
+                ProfilesCombo.ItemsSource = _profiles;
 
+                FtpConnectionProfile? target = null;
+                if (!string.IsNullOrWhiteSpace(selectProfileId))
+                    target = _profiles.FirstOrDefault(p => string.Equals(p.Id, selectProfileId, StringComparison.OrdinalIgnoreCase));
+                if (target == null && _profiles.Count > 0)
+                    target = _profiles[0];
+
+                ProfilesCombo.SelectedItem = target;
+            }
+            finally
+            {
+                _suppressProfileSelection = false;
+            }
+
+            if (ProfilesCombo.SelectedItem is FtpConnectionProfile selected)
+            {
+                if (applyToInputs)
+                    ApplyProfileToConnectionBar(selected);
+                else
+                    UpdateProfileUiState(selected);
+            }
+            else
+            {
+                if (applyToInputs)
+                    ClearConnectionInputsToDefaults();
+                else
+                    UpdateProfileUiState(null);
+            }
+        }
+
+        private void UpdateProfileUiState(FtpConnectionProfile? activeProfile)
+        {
+            DeleteProfileBtn.IsEnabled = activeProfile != null;
+            ProfilesCombo.ToolTip = activeProfile != null
+                ? activeProfile.DisplayLabel
+                : "Kein Server-Profil gespeichert (+ für neues Profil)";
+        }
+
+        private void ApplyProfileToConnectionBar(FtpConnectionProfile p)
+        {
             SelectProtocolItem(p.Protocol);
             HostBox.Text = p.Host;
             PortBox.Text = p.Port.ToString();
@@ -205,10 +267,177 @@ namespace FunkenwerkFtp
                 ? "SSH Private Key wählen"
                 : $"SSH Key: {_selectedPrivateKeyPath}";
 
-            if (!string.IsNullOrWhiteSpace(p.RemoteDirectory))
-                RemotePathBox.Text = p.RemoteDirectory;
+            RemotePathBox.Text = string.IsNullOrWhiteSpace(p.RemoteDirectory) ? "/" : p.RemoteDirectory;
             if (!string.IsNullOrWhiteSpace(p.LocalDirectory) && Directory.Exists(p.LocalDirectory))
                 NavigateLocalDirectory(p.LocalDirectory);
+
+            UpdateProfileUiState(p);
+            FunkenwerkFtpSecurity.SaveLastSelectedProfileId(p.Id);
+        }
+
+        private void ClearConnectionInputsToDefaults()
+        {
+            SelectProtocolItem("SFTP");
+            HostBox.Text = "";
+            PortBox.Text = "22";
+            UserBox.Text = "";
+            SetPasswordValue("");
+            _selectedPrivateKeyPath = "";
+            PickKeyBtn.ToolTip = "SSH Private Key wählen";
+            RemotePathBox.Text = "/";
+            UpdateProfileUiState(null);
+            FunkenwerkFtpSecurity.SaveLastSelectedProfileId("");
+        }
+
+        private void ProfilesCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressProfileSelection) return;
+            if (ProfilesCombo.SelectedItem is FtpConnectionProfile p)
+            {
+                ApplyProfileToConnectionBar(p);
+            }
+            else
+            {
+                UpdateProfileUiState(null);
+            }
+        }
+
+        private void ProfilesCombo_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            bool hasSelection = ProfilesCombo.SelectedItem is FtpConnectionProfile;
+            MenuProfileRename.IsEnabled = hasSelection;
+            MenuProfileDuplicate.IsEnabled = hasSelection;
+            MenuProfileDelete.IsEnabled = hasSelection;
+        }
+
+        private ProfileManagerDraft? BuildNewProfileDraftFromBar()
+        {
+            string host = HostBox.Text.Trim();
+            string user = UserBox.Text.Trim();
+            string proto = GetSelectedProtocol();
+            int port = int.TryParse(PortBox.Text.Trim(), out int parsedPort) && parsedPort >= 1 && parsedPort <= 65535
+                ? parsedPort
+                : FtpProfileStore.DefaultPortForProtocol(proto);
+            string pass = GetPasswordValue();
+            string localDir = LocalPathBox.Text.Trim();
+            string remoteDir = RemotePathBox.Text.Trim();
+
+            var selected = ProfilesCombo.SelectedItem as FtpConnectionProfile;
+            bool barDiffersFromSelected = selected != null &&
+                FtpProfileStore.DetermineSaveIntent(selected, proto, host, port, user) == FtpProfileSaveIntent.AskUpdateOrCreateNew;
+
+            if (barDiffersFromSelected && !string.IsNullOrWhiteSpace(host))
+            {
+                return new ProfileManagerDraft
+                {
+                    Name = FtpProfileStore.SuggestNameForConnection(_profiles, host, user, selected?.Name),
+                    Protocol = proto,
+                    Host = host,
+                    Port = port,
+                    Username = user,
+                    Password = pass,
+                    PrivateKeyPath = _selectedPrivateKeyPath,
+                    RemoteDirectory = string.IsNullOrWhiteSpace(remoteDir) ? "/" : remoteDir,
+                    LocalDirectory = localDir
+                };
+            }
+
+            if (selected == null && !string.IsNullOrWhiteSpace(host))
+            {
+                return new ProfileManagerDraft
+                {
+                    Name = FtpProfileStore.SuggestNameForConnection(_profiles, host, user),
+                    Protocol = proto,
+                    Host = host,
+                    Port = port,
+                    Username = user,
+                    Password = pass,
+                    PrivateKeyPath = _selectedPrivateKeyPath,
+                    RemoteDirectory = string.IsNullOrWhiteSpace(remoteDir) ? "/" : remoteDir,
+                    LocalDirectory = localDir
+                };
+            }
+
+            return new ProfileManagerDraft
+            {
+                Protocol = "SFTP",
+                Port = 22,
+                RemoteDirectory = "/",
+                LocalDirectory = string.IsNullOrWhiteSpace(localDir)
+                    ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                    : localDir
+            };
+        }
+
+        private void NewProfile_Click(object sender, RoutedEventArgs e)
+        {
+            OpenProfileManager(startInNewMode: true, draft: BuildNewProfileDraftFromBar());
+        }
+
+        private void ManageProfiles_Click(object sender, RoutedEventArgs e)
+        {
+            OpenProfileManager(startInNewMode: false, draft: null);
+        }
+
+        private void OpenProfileManager(bool startInNewMode, ProfileManagerDraft? draft)
+        {
+            string? currentId = (ProfilesCombo.SelectedItem as FtpConnectionProfile)?.Id;
+            var dlg = new FtpProfileManagerDialog(
+                this,
+                _isDarkMode,
+                _profiles,
+                initialSelectedProfileId: currentId,
+                startInNewMode: startInNewMode,
+                initialDraft: draft);
+
+            dlg.ShowDialog();
+
+            string? targetId = dlg.SelectedProfileId ?? currentId;
+            if (dlg.ProfilesChanged || !string.Equals(targetId, currentId, StringComparison.OrdinalIgnoreCase))
+            {
+                RefreshProfilesCombo(targetId, applyToInputs: true);
+                StatusText.Text = $"🔒 {_profiles.Count} Verbindungsprofil(e) im AES-256-GCM Vault gespeichert.";
+            }
+
+            if (dlg.ConnectRequested && !IsConnected())
+            {
+                Connect_Click(ConnectBtn, new RoutedEventArgs());
+            }
+        }
+
+        private void RenameProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (ProfilesCombo.SelectedItem is not FtpConnectionProfile current) return;
+            string? newName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Profil umbenennen", current.Name, "Umbenennen");
+            if (string.IsNullOrWhiteSpace(newName)) return;
+
+            try
+            {
+                FtpProfileStore.RenameProfile(_profiles, current.Id, newName);
+                FunkenwerkFtpSecurity.SaveProfiles(_profiles);
+                RefreshProfilesCombo(current.Id, applyToInputs: false);
+                StatusText.Text = $"🔒 Profil umbenannt in '{current.Name}'.";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ {ex.Message}";
+            }
+        }
+
+        private void DuplicateProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (ProfilesCombo.SelectedItem is not FtpConnectionProfile current) return;
+            try
+            {
+                var clone = FtpProfileStore.DuplicateProfile(_profiles, current.Id);
+                FunkenwerkFtpSecurity.SaveProfiles(_profiles);
+                RefreshProfilesCombo(clone.Id, applyToInputs: true);
+                StatusText.Text = $"🔒 Profil '{clone.Name}' dupliziert (Benutzername & Passwort jetzt frei anpassbar).";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ {ex.Message}";
+            }
         }
 
         private void ConnectionInput_KeyDown(object sender, KeyEventArgs e)
@@ -222,9 +451,10 @@ namespace FunkenwerkFtp
 
         private void SelectProtocolItem(string proto)
         {
+            string norm = FtpProfileStore.NormalizeProtocol(proto);
             foreach (ComboBoxItem item in ProtocolCombo.Items)
             {
-                if (string.Equals(item.Content?.ToString(), proto, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(item.Content?.ToString(), norm, StringComparison.OrdinalIgnoreCase))
                 {
                     ProtocolCombo.SelectedItem = item;
                     break;
@@ -237,7 +467,7 @@ namespace FunkenwerkFtp
 
         private void ProtocolCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (PortBox == null) return;
+            if (PortBox == null || _suppressProfileSelection) return;
             string proto = GetSelectedProtocol();
             if (proto == "SFTP" && PortBox.Text == "21") PortBox.Text = "22";
             else if (proto != "SFTP" && PortBox.Text == "22") PortBox.Text = "21";
@@ -297,51 +527,58 @@ namespace FunkenwerkFtp
             try
             {
                 string host = FunkenwerkFtpSecurity.SanitizeHost(HostBox.Text);
-                if (string.IsNullOrWhiteSpace(host)) return;
-                int port = int.TryParse(PortBox.Text, out int pt) ? pt : 22;
+                if (string.IsNullOrWhiteSpace(host))
+                {
+                    StatusText.Text = "⚠ Bitte zuerst einen Server-Host eingeben.";
+                    return;
+                }
+
+                string proto = GetSelectedProtocol();
+                int port = FtpProfileStore.ParseAndValidatePort(PortBox.Text, proto);
                 string user = UserBox.Text.Trim();
                 string pass = GetPasswordValue();
-                string proto = GetSelectedProtocol();
+                string localDir = LocalPathBox.Text.Trim();
+                string remoteDir = RemotePathBox.Text.Trim();
 
                 var current = ProfilesCombo.SelectedItem as FtpConnectionProfile;
-                if (current != null && string.Equals(current.Host, host, StringComparison.OrdinalIgnoreCase))
+                var intent = FtpProfileStore.DetermineSaveIntent(current, proto, host, port, user);
+
+                bool saveAsNew = intent == FtpProfileSaveIntent.CreateNew;
+                if (intent == FtpProfileSaveIntent.AskUpdateOrCreateNew && current != null)
                 {
-                    current.Protocol = proto;
-                    current.Host = host;
-                    current.Port = port;
-                    current.Username = user;
-                    current.EncryptedPassword = FunkenwerkFtpSecurity.EncryptSecret(pass);
-                    current.PrivateKeyPath = _selectedPrivateKeyPath;
-                    current.LocalDirectory = LocalPathBox.Text.Trim();
-                    current.RemoteDirectory = RemotePathBox.Text.Trim();
+                    string endpoint = string.IsNullOrWhiteSpace(user)
+                        ? $"{proto} · {host}:{port}"
+                        : $"{proto} · {user}@{host}:{port}";
+                    var choice = FtpModalDialogs.ShowProfileSaveChoiceDialog(this, _isDarkMode, current.Name, endpoint);
+                    if (choice == FtpModalDialogs.FtpProfileSaveChoice.Cancel) return;
+                    saveAsNew = choice == FtpModalDialogs.FtpProfileSaveChoice.SaveAsNew;
                 }
-                else
+
+                if (saveAsNew)
                 {
-                    string defaultName = string.IsNullOrWhiteSpace(user) ? host : $"{user}@{host}";
-                    string? chosenName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Profilname speichern", defaultName, "Speichern");
+                    string suggestedName = FtpProfileStore.SuggestNameForConnection(_profiles, host, user, current?.Name);
+                    string? chosenName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Neues Profil speichern", suggestedName, "Speichern");
                     if (string.IsNullOrWhiteSpace(chosenName)) return;
 
-                    var newProf = new FtpConnectionProfile
-                    {
-                        Name = chosenName,
-                        Protocol = proto,
-                        Host = host,
-                        Port = port,
-                        Username = user,
-                        EncryptedPassword = FunkenwerkFtpSecurity.EncryptSecret(pass),
-                        PrivateKeyPath = _selectedPrivateKeyPath,
-                        LocalDirectory = LocalPathBox.Text.Trim(),
-                        RemoteDirectory = RemotePathBox.Text.Trim(),
-                        Source = "Manuell"
-                    };
-                    _profiles.Add(newProf);
-                    ProfilesCombo.ItemsSource = null;
-                    ProfilesCombo.ItemsSource = _profiles;
-                    ProfilesCombo.SelectedItem = newProf;
-                }
+                    var created = FtpProfileStore.CreateProfile(
+                        _profiles, chosenName, proto, host, port, user, pass, _selectedPrivateKeyPath, remoteDir, localDir);
 
-                FunkenwerkFtpSecurity.SaveProfiles(_profiles);
-                StatusText.Text = "🔒 Verbindungsprofil AES-256-GCM verschlüsselt gespeichert.";
+                    FunkenwerkFtpSecurity.SaveProfiles(_profiles);
+                    FunkenwerkFtpSecurity.SaveLastSelectedProfileId(created.Id);
+                    RefreshProfilesCombo(created.Id, applyToInputs: false);
+                    StatusText.Text = $"🔒 Neues Profil '{created.Name}' AES-256-GCM verschlüsselt gespeichert ({_profiles.Count} Profile).";
+                }
+                else if (current != null)
+                {
+                    FtpProfileStore.UpdateProfile(
+                        _profiles, current.Id, current.Name, proto, host, port, user, pass,
+                        preserveExistingPasswordIfNull: false, _selectedPrivateKeyPath, remoteDir, localDir);
+
+                    FunkenwerkFtpSecurity.SaveProfiles(_profiles);
+                    FunkenwerkFtpSecurity.SaveLastSelectedProfileId(current.Id);
+                    RefreshProfilesCombo(current.Id, applyToInputs: false);
+                    StatusText.Text = $"🔒 Profil '{current.Name}' aktualisiert und AES-256-GCM verschlüsselt gespeichert.";
+                }
             }
             catch (Exception ex)
             {
@@ -352,15 +589,18 @@ namespace FunkenwerkFtp
         private void DeleteProfile_Click(object sender, RoutedEventArgs e)
         {
             if (ProfilesCombo.SelectedItem is not FtpConnectionProfile current) return;
-            if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Profil entfernen", $"Gespeichertes Profil '{current.Name}' wirklich entfernen?", "Entfernen", isDanger: true))
+            if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Profil entfernen", $"Gespeichertes Profil '{current.Name}' ({current.SubtitleLabel}) wirklich entfernen?", "Entfernen", isDanger: true))
                 return;
 
-            _profiles.Remove(current);
+            int oldIdx = _profiles.FindIndex(p => string.Equals(p.Id, current.Id, StringComparison.OrdinalIgnoreCase));
+            FtpProfileStore.DeleteProfile(_profiles, current.Id);
             FunkenwerkFtpSecurity.SaveProfiles(_profiles);
-            ProfilesCombo.ItemsSource = null;
-            ProfilesCombo.ItemsSource = _profiles;
-            if (_profiles.Count > 0) ProfilesCombo.SelectedIndex = 0;
-            StatusText.Text = "Profil entfernt.";
+
+            string? nextId = _profiles.Count > 0
+                ? _profiles[Math.Clamp(oldIdx, 0, _profiles.Count - 1)].Id
+                : null;
+            RefreshProfilesCombo(nextId, applyToInputs: true);
+            StatusText.Text = $"Profil '{current.Name}' entfernt ({_profiles.Count} verbleibend).";
         }
 
         // =====================================================================

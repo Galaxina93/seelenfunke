@@ -47,7 +47,7 @@
         @endif
 
         <!-- Quick Status & Metriken -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
             <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/80 rounded-2xl p-4 shadow-sm dark:shadow-inner relative overflow-hidden group">
                 <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <div class="relative z-10">
@@ -94,6 +94,38 @@
                         {{ $tts_enabled ? ($ttsProviders[$tts_provider] ?? 'Aktiv') : 'Deaktiviert' }}
                     </div>
                     <div class="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">{{ $tts_enabled ? 'Speed: '.number_format((float)$tts_speed, 1).'x' : '-' }}</div>
+                </div>
+            </div>
+
+            <div class="col-span-2 md:col-span-1 bg-white dark:bg-[#09090B] border border-gray-200 dark:border-gray-800 hover:border-[#C5A059]/60 rounded-2xl p-4 shadow-sm relative overflow-hidden transition-colors">
+                <div class="relative z-10 flex flex-col justify-between h-full">
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mb-1 flex items-center justify-between gap-1">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-[#C5A059]"></span>
+                            Verhaltens-Score
+                        </span>
+                        @if($behaviorSummary && empty($behaviorSummary['excluded']) && $agentId !== 'new')
+                            <a href="{{ route('admin.ai-analytics', ['tab' => 'behavior', 'agent' => $agentId]) }}"
+                               class="text-[10px] font-bold text-[#9A742B] dark:text-[#C5A059] hover:underline">
+                                Profil
+                            </a>
+                        @endif
+                    </div>
+                    @if($behaviorSummary && !empty($behaviorSummary['excluded']))
+                        <div class="mt-1 text-xs font-bold text-gray-500 dark:text-gray-400">Eingefroren</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5 truncate" title="{{ $behaviorSummary['reason'] }}">Kunden-Supporter</div>
+                    @elseif($behaviorSummary)
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span class="text-xl font-black text-gray-900 dark:text-white font-mono">
+                                {{ $behaviorSummary['score'] !== null ? number_format($behaviorSummary['score'], 0) . ' %' : '-' }}
+                            </span>
+                            <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">+{{ $behaviorSummary['praise'] }}</span>
+                            <span class="text-[10px] font-mono text-rose-600 dark:text-rose-400">-{{ $behaviorSummary['negative'] }}</span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 mt-1">{{ $behaviorSummary['active_rules'] }} aktive Regeln (30T)</div>
+                    @else
+                        <div class="mt-1 text-sm font-bold text-gray-400">Neu</div>
+                    @endif
                 </div>
             </div>
         </div>

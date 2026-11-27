@@ -279,10 +279,25 @@ object ShopWatchtowerManager {
             editor.putLong(KEY_LAST_ALERT_MS, 0L)
             editor.remove(KEY_LAST_FINGERPRINT)
             postWatchtowerNotification(appCtx, decision.title, decision.message)
+        } else if (decision.action == "healthy" && !decision.newAlertOpen) {
+            (appCtx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)?.cancel(NOTIFICATION_ID)
         }
         editor.apply()
 
         return decision
+    }
+
+    fun isAlertOpen(context: Context): Boolean {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_WATCHTOWER, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_ALERT_OPEN, false)
+    }
+
+    fun clearResolvedNotification(context: Context): Boolean {
+        val appCtx = context.applicationContext
+        if (isAlertOpen(appCtx)) return false
+        val nm = appCtx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return false
+        nm.cancel(NOTIFICATION_ID)
+        return true
     }
 
     private fun verifySmartphoneInternetOnline(): Boolean {

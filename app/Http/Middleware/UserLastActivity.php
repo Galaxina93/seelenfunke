@@ -13,17 +13,28 @@ class UserLastActivity
 {
     public function handle(Request $request, Closure $next)
     {
-        $guards = array_keys(Config::get('auth.guards'));
+        $guardsConfig = Config::get('auth.guards', []);
+        $guards = is_array($guardsConfig) ? array_keys($guardsConfig) : [];
 
         foreach ($guards as $guard) {
+            if (!is_string($guard) || $guard === '') {
+                continue;
+            }
             if (Auth::guard($guard)->check()) {
                 $user = Auth::guard($guard)->user();
+                if ($user === null || empty($user->id)) {
+                    continue;
+                }
 
                 try {
                     $expireTime = Carbon::now()->addMinute(1); // keep online for 1 min
-                    Cache::put('is_online' . $user->id, true, $expireTime);
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Redis connection failed during UserLastActivity middleware: ' . $e->getMessage());
+                    \App\Services\System\RedisResilienceService::safeCachePut('is_online' . $user->id, true, $expireTime);
+                } catch (\Throwable $e) {
+                    if (\App\Services\System\RedisResilienceService::isRedisConnectivityException($e)) {
+                        \App\Services\System\RedisResilienceService::tripCircuitBreakerAndFallback($e);
+                    } else {
+                        \Illuminate\Support\Facades\Log::warning('Cache connection failed during UserLastActivity middleware: ' . $e->getMessage());
+                    }
                 }
 
                 if ($user->profile) {

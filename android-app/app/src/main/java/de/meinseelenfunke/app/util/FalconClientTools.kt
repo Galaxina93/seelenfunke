@@ -889,6 +889,36 @@ object FalconClientTools {
         return gson.toJson(obj)
     }
 
+    fun isGemini3LiveModel(modelName: String?): Boolean {
+        val lower = modelName.orEmpty().trim().lowercase(Locale.ROOT)
+        if (lower.isEmpty()) return true
+        if (lower.contains("2.5") || lower.contains("2.0")) return false
+        return lower.contains("3.") || lower.contains("gemini-3")
+    }
+
+    fun resolveEffectiveSetupModel(
+        wsUrl: String,
+        activeLiveModel: String?,
+        isDirectGoogle: Boolean
+    ): String {
+        val cleanActive = activeLiveModel?.trim().orEmpty()
+        val isDirectAiStudio = isDirectGoogle && !wsUrl.contains("aiplatform.googleapis.com", ignoreCase = true)
+        if (isDirectAiStudio) {
+            return "models/gemini-3.1-flash-live-preview"
+        }
+        if (cleanActive.startsWith("projects/", ignoreCase = true) || cleanActive.contains("2.5")) {
+            return cleanActive
+        }
+        return if (cleanActive.isNotBlank()) cleanActive else "models/gemini-3.1-flash-live-preview"
+    }
+
+    fun buildRealtimePromptPacketForModel(
+        prompt: String,
+        modelName: String = "models/gemini-3.1-flash-live-preview"
+    ): JsonObject {
+        return buildClientContentKickPacket(prompt, modelName)
+    }
+
     fun buildRealtimeVideoFramePacket(base64Jpeg: String): JsonObject {
         return JsonObject().apply {
             add("realtimeInput", JsonObject().apply {
@@ -908,7 +938,13 @@ object FalconClientTools {
         }
     }
 
-    fun buildClientContentKickPacket(prompt: String): JsonObject {
+    fun buildClientContentKickPacket(
+        prompt: String,
+        modelName: String = "models/gemini-3.1-flash-live-preview"
+    ): JsonObject {
+        if (isGemini3LiveModel(modelName)) {
+            return buildRealtimeTextPromptPacket(prompt)
+        }
         return JsonObject().apply {
             add("clientContent", JsonObject().apply {
                 add("turns", JsonArray().apply {
@@ -926,7 +962,13 @@ object FalconClientTools {
         }
     }
 
-    fun buildSilentClientContextPacket(prompt: String): JsonObject {
+    fun buildSilentClientContextPacket(
+        prompt: String,
+        modelName: String = "models/gemini-3.1-flash-live-preview"
+    ): JsonObject {
+        if (isGemini3LiveModel(modelName)) {
+            return buildRealtimeTextPromptPacket(prompt)
+        }
         return JsonObject().apply {
             add("clientContent", JsonObject().apply {
                 add("turns", JsonArray().apply {
@@ -1939,7 +1981,7 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Webportal/Shop/Produkte/Konfigurator sowie ALLE 3D-Modelle & 3D-Druck-Konstruktionen, 'android' für Android-App/Widgets, 'minipc' NUR für reine Werkstatt-Mini-PC Linux/Kiosk-Technik (NIEMALS für 3D-Modelle/Konstruktionen!), 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
+                                "Optionaler Ziel-Kanal: 'leitung' für Seelenfunke Standard (Standard), 'invest' für Steinhauer Invest / Steini App -> Invest-Chat, 'shop' für Webportal/Shop/Produkte/Konfigurator sowie ALLE 3D-Modelle & 3D-Druck-Konstruktionen, 'android' für Android-App/Widgets, 'minipc' NUR für reine Werkstatt-Mini-PC Linux/Kiosk-Technik (NIEMALS für 3D-Modelle/Konstruktionen!), 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
                             )
                         })
                         add("attach_captured_photo", JsonObject().apply {
@@ -1960,7 +2002,7 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Webportal/Shop/Produkte/Konfigurator sowie ALLE 3D-Modelle & 3D-Druck-Konstruktionen, 'android' für Android-App/Widgets, 'minipc' NUR für reine Werkstatt-Mini-PC Linux/Kiosk-Technik (NIEMALS für 3D-Modelle/Konstruktionen!), 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
+                                "Optionaler Ziel-Kanal: 'leitung' für Seelenfunke Standard (abteilungsübergreifende Themen), 'invest' für Steinhauer/Steinauer Invest Portal, Steini App & Vermietung (-> Invest-Chat), 'shop' für Webportal/Shop/Produkte/Konfigurator sowie ALLE 3D-Modelle & 3D-Druck-Konstruktionen, 'android' für Android-App/Widgets, 'minipc' NUR für reine Werkstatt-Mini-PC Linux/Kiosk-Technik (NIEMALS für 3D-Modelle/Konstruktionen!), 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
                             )
                         })
                     }
@@ -2042,18 +2084,21 @@ object FalconClientTools {
                         })
                         add("channel", JsonObject().apply {
                             addProperty("type", "STRING")
-                            addProperty("description", "Ziel-Kanal: leitung, shop, android, minipc oder buchhaltung.")
+                            addProperty("description", "Ziel-Kanal: leitung (Seelenfunke), invest (Steinhauer Invest / Invest-Chat), shop, android, minipc oder buchhaltung.")
                         })
                         add("execution_mode", JsonObject().apply {
                             addProperty("type", "STRING")
                             addProperty("description", "concept (Erst Konzept) oder direct (Direkt umsetzen).")
+                        })
+                        add("priority", JsonObject().apply {
+                            addProperty("type", "STRING")
+                            addProperty("description", "Prioritaet des Sammelpakets: normal, high oder urgent (dringend wird ganz oben priorisiert).")
                         })
                         add("attach_captured_photo", JsonObject().apply {
                             addProperty("type", "BOOLEAN")
                             addProperty("description", "True, um ein hinterlegtes oder gerade aufgenommenes Foto direkt ins Sammelpaket zu legen.")
                         })
                     })
-                    add("required", JsonArray().apply { add("item") })
                 })
             })
         }
@@ -2527,7 +2572,7 @@ object FalconClientTools {
                     isVoiceDirect || rawMode.trim().lowercase(Locale.ROOT) == "direct" -> "direct"
                     else -> AgDirectInboxManager.normalizeExecutionMode(rawMode)
                 }
-                val channel = AgDirectInboxManager.normalizeChannel(args.optString("channel"))
+                val channel = AgDirectInboxManager.resolveEffectiveChannel(args.optString("channel"), title, body)
                 val explicitAttach = args.optNullableBoolean("attach_captured_photo")
 
                 val pooledSnapshot = if (explicitAttach != false) FalconCameraController.mediaPoolFlow.value else emptyList()
@@ -2677,9 +2722,15 @@ object FalconClientTools {
                 val multiItems = args.optStringList("items")
                 val pkgUuid = args.optString("package_uuid").trim().takeIf { it.isNotBlank() }
                 val pkgTitle = args.optString("package_title").trim().takeIf { it.isNotBlank() }
-                val channel = AgDirectInboxManager.normalizeChannel(args.optString("channel"))
+                val combinedPackageText = (listOfNotNull(singleItem.takeIf { it.isNotBlank() }) + multiItems).joinToString("\n")
+                val channel = AgDirectInboxManager.resolveEffectiveChannel(
+                    args.optString("channel"),
+                    pkgTitle.orEmpty(),
+                    combinedPackageText
+                )
                 val rawMode = args.optString("execution_mode")
                 val mode = if (rawMode.isNotBlank()) rawMode else "concept"
+                val priority = FunkiraPackageStore.normalizePackagePriority(args.optString("priority"))
                 val explicitAttach = args.optNullableBoolean("attach_captured_photo")
 
                 val pooledItems = if (explicitAttach != false) FalconCameraController.mediaPoolFlow.value else emptyList()
@@ -2704,6 +2755,7 @@ object FalconClientTools {
                     packageTitle = pkgTitle,
                     channel = channel,
                     executionMode = mode,
+                    priority = priority,
                     attachment = attachmentToPack,
                     attachmentCaption = singleItem.ifBlank { pkgTitle.orEmpty() },
                     source = "live_call"
@@ -2732,12 +2784,13 @@ object FalconClientTools {
                         addProperty("title", stagedPkg.title)
                         addProperty("channel", stagedPkg.channel)
                         addProperty("execution_mode", stagedPkg.executionMode)
+                        addProperty("priority", stagedPkg.priority)
                         addProperty("item_count", stagedPkg.checklist.size)
                         addProperty("attachment_count", stagedPkg.attachmentCount)
                         addProperty("photo_attached", attachmentToPack != null)
                         addProperty(
                             "reply_rule",
-                            "Bestaetige kurz einmalig, dass der Punkt im Sammelpaket liegt, und frage genau EINMAL ob weiter gesammelt oder abgesendet werden soll. Nicht wiederholen."
+                            "Militaerisch-knackig in maximal 1 kurzen Satz ohne Fuellwoerter bestaetigen, dass Punkt/Foto im Sammelpaket liegt, und einmalig fragen ob erweitern oder absenden."
                         )
                     }
                 }

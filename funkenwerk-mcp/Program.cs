@@ -1586,7 +1586,7 @@ namespace FunkenwerkMcp
                 }
 
                 if (string.IsNullOrWhiteSpace(rawChannel))
-                    throw new ArgumentException("Aufruf: --ag-set-channel-chat <leitung|shop|android|minipc|buchhaltung> <guid|reset>");
+                    throw new ArgumentException("Aufruf: --ag-set-channel-chat <leitung|invest|tickets|shop|android|minipc|buchhaltung> <guid|reset>");
 
                 if (!resetFlag && rawGuid == null)
                     throw new ArgumentException("Bitte eine Konversations-UUID oder 'reset' angeben: --ag-set-channel-chat <channel> <guid|reset>");
@@ -1827,7 +1827,7 @@ namespace FunkenwerkMcp
                         string title = itemObj["title"]?.GetValue<string>() ?? "";
                         string? body = itemObj["body"]?.GetValue<string>();
                         string? execMode = itemObj["execution_mode"]?.GetValue<string>();
-                        string channel = McpSecurityGuard.NormalizeAgChannel(itemObj["channel"]?.GetValue<string>());
+                        string channel = McpSecurityGuard.ResolveEffectiveAgChannel(itemObj["channel"]?.GetValue<string>(), title, body);
                         string channelTitle = McpSecurityGuard.GetAgChannelDisplayTitle(channel);
                         var checklist = ExtractChecklistStrings(itemObj["checklist"]);
 
@@ -1922,7 +1922,7 @@ namespace FunkenwerkMcp
                         }
                         else
                         {
-                            // Fixed department channels: shop, android, minipc, buchhaltung
+                            // Fixed department channels: invest, shop, android, minipc, buchhaltung
                             cfg = McpSecurityGuard.LoadAgBridgeConfig();
                             bool hasExistingDeptUuid = cfg.ChannelConversationIds.TryGetValue(channel, out string? deptUuid)
                                                        && !string.IsNullOrWhiteSpace(deptUuid);
@@ -2583,10 +2583,10 @@ namespace FunkenwerkMcp
 
                 string ticketNumber = claimObj["ticket_number"]?.GetValue<string>() ?? "";
                 string agItemId = McpSecurityGuard.ValidateAgInboxSingleId(claimObj["ag_item_id"]?.GetValue<string>());
-                string channel = McpSecurityGuard.NormalizeAgChannel(claimObj["channel"]?.GetValue<string>() ?? "tickets");
-                string channelTitle = McpSecurityGuard.GetAgChannelDisplayTitle(channel);
                 string title = claimObj["title"]?.GetValue<string>() ?? ticketNumber;
                 string prompt = claimObj["prompt"]?.GetValue<string>() ?? "";
+                string channel = McpSecurityGuard.ResolveEffectiveAgChannel(claimObj["channel"]?.GetValue<string>() ?? "tickets", title, prompt);
+                string channelTitle = McpSecurityGuard.GetAgChannelDisplayTitle(channel);
                 int attempt = claimObj["attempt"]?.GetValue<int>() ?? 1;
                 int openCount = claimObj["open_count"]?.GetValue<int>() ?? 1;
 
@@ -3864,7 +3864,7 @@ namespace FunkenwerkMcp
             new
             {
                 name = "ag_direct_inbox",
-                description = "Verwaltet die 24/7 'Direktnachricht an AG'-Brücke inkl. der 5 festen Abteilungs-Kanäle ('leitung', 'shop', 'android', 'minipc', 'buchhaltung') und Sonder-Kanal 'new': Neue pending-Aufträge abholen ('pull'), alle Einträge auflisten ('list'), erledigte Punkte mit Zusammenfassung zurückmelden ('complete'), Master-Chat setzen ('set_master_chat') oder Abteilungs-Kanal-UUIDs abfragen/setzen/zurücksetzen ('list_channels', 'set_channel_chat', 'reset_channel_chat').",
+                description = "Verwaltet die 24/7 'Direktnachricht an AG'-Brücke inkl. der festen Abteilungs-Kanäle ('leitung', 'invest' [Invest-Chat], 'tickets', 'shop', 'android', 'minipc', 'buchhaltung') und Sonder-Kanal 'new': Neue pending-Aufträge abholen ('pull'), alle Einträge auflisten ('list'), erledigte Punkte mit Zusammenfassung zurückmelden ('complete'), Master-Chat setzen ('set_master_chat') oder Abteilungs-Kanal-UUIDs abfragen/setzen/zurücksetzen ('list_channels', 'set_channel_chat', 'reset_channel_chat').",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
@@ -3884,7 +3884,7 @@ namespace FunkenwerkMcp
                     },
                     "channel": {
                       "type": "string",
-                      "enum": ["leitung", "shop", "android", "minipc", "buchhaltung"],
+                      "enum": ["leitung", "invest", "tickets", "shop", "android", "minipc", "buchhaltung"],
                       "description": "Fester Abteilungs-Kanal bei action='set_channel_chat' oder 'reset_channel_chat'."
                     },
                     "conversation_id": {
@@ -6918,22 +6918,37 @@ namespace FunkenwerkMcp
                 {
                     McpSecurityGuard.ResetRateLimiterForTests();
 
-                    // a) NormalizeAgChannel & Title/Scope mapping
+                    // a) NormalizeAgChannel, ResolveEffectiveAgChannel & Title/Scope mapping
                     bool normOk = McpSecurityGuard.NormalizeAgChannel("shop") == "shop"
                                   && McpSecurityGuard.NormalizeAgChannel("ANDROID") == "android"
                                   && McpSecurityGuard.NormalizeAgChannel("mini-pc") == "minipc"
                                   && McpSecurityGuard.NormalizeAgChannel("buchhaltung") == "buchhaltung"
+                                  && McpSecurityGuard.NormalizeAgChannel("invest") == "invest"
+                                  && McpSecurityGuard.NormalizeAgChannel("Steinhauer-Invest") == "invest"
+                                  && McpSecurityGuard.NormalizeAgChannel("Steinauer Invest") == "invest"
+                                  && McpSecurityGuard.NormalizeAgChannel("Invest-Chat") == "invest"
+                                  && McpSecurityGuard.NormalizeAgChannel("steini") == "invest"
                                   && McpSecurityGuard.NormalizeAgChannel("new") == "new"
                                   && McpSecurityGuard.NormalizeAgChannel("") == "leitung"
                                   && McpSecurityGuard.NormalizeAgChannel("unbekannt_xyz") == "leitung"
                                   && McpSecurityGuard.GetAgChannelDisplayTitle("shop") == "Shop & Konfigurator"
-                                  && McpSecurityGuard.GetAgChannelDisplayTitle("buchhaltung") == "Buchhaltung & Marketing";
+                                  && McpSecurityGuard.GetAgChannelDisplayTitle("buchhaltung") == "Buchhaltung & Marketing"
+                                  && McpSecurityGuard.GetAgChannelDisplayTitle("invest") == "Invest-Chat"
+                                  && McpSecurityGuard.ResolveEffectiveAgChannel("leitung", "Steinauer Invest: Mietnebenkosten-PDF prüfen", "") == "invest"
+                                  && McpSecurityGuard.ResolveEffectiveAgChannel("minipc", "Steinauer Invest: Mietnebenkosten-PDF prüfen", "") == "invest"
+                                  && McpSecurityGuard.ResolveEffectiveAgChannel("invest", "Seelenfunke Checkout prüfen", "") == "leitung"
+                                  && McpSecurityGuard.ResolveEffectiveAgChannel("leitung", "Automatisches Routing für Anträge (Seelenfunke -> Leitung, Steinauer Invest -> Invest-Chat) sicherstellen.", "") == "leitung"
+                                  && McpSecurityGuard.ResolveEffectiveAgChannel("invest", "Automatisches Routing für Anträge (Seelenfunke -> Leitung, Steinauer Invest -> Invest-Chat) sicherstellen.", "") == "leitung";
 
                     // b) Prompt header includes [KANAL: ...] & file-conflict scope hint
                     string shopPrompt = McpSecurityGuard.BuildAgDirectMasterPrompt(
                         "ag_chan_01", "Konfigurator Preislogik", "Prüfen", null, "direct", null, "shop");
+                    string investPrompt = McpSecurityGuard.BuildAgDirectMasterPrompt(
+                        "ag_chan_02", "Steinauer Invest Nebenkosten", "PDF prüfen", null, "direct", null, "leitung");
                     bool shopPromptOk = shopPrompt.Contains("[KANAL: Shop & Konfigurator]", StringComparison.Ordinal)
-                                        && shopPrompt.Contains("ohne AccountingSeeder.php", StringComparison.Ordinal);
+                                        && shopPrompt.Contains("ohne AccountingSeeder.php", StringComparison.Ordinal)
+                                        && investPrompt.Contains("[KANAL: Invest-Chat]", StringComparison.Ordinal)
+                                        && investPrompt.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase);
 
                     // c) BuildAgentApiNewConversationStartInfo hardening (UseShellExecute=false, --title=..., --)
                     var newConvPsi = McpSecurityGuard.BuildAgentApiNewConversationStartInfo(
@@ -7001,6 +7016,44 @@ namespace FunkenwerkMcp
                     bool shopResetOk = !afterResetShopCfg.ChannelConversationIds.ContainsKey("shop")
                                        && afterResetShopCfg.ChannelConversationIds["leitung"] == afterResetShopCfg.MasterConversationId;
 
+                    string? setInvestResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 6003,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "ag_direct_inbox",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["action"] = "set_channel_chat",
+                                ["channel"] = "invest",
+                                ["conversation_id"] = stdoutUuid
+                            }
+                        }
+                    }.ToJsonString());
+                    var afterSetInvestCfg = McpSecurityGuard.LoadAgBridgeConfig();
+                    bool investPersisted = afterSetInvestCfg.ChannelConversationIds.TryGetValue("invest", out string? savedInvestId)
+                                           && savedInvestId == stdoutUuid;
+
+                    string? resetInvestResp = await Program.ProcessJsonRpcMessageAsync(new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0",
+                        ["id"] = 6004,
+                        ["method"] = "tools/call",
+                        ["params"] = new JsonObject
+                        {
+                            ["name"] = "ag_direct_inbox",
+                            ["arguments"] = new JsonObject
+                            {
+                                ["action"] = "reset_channel_chat",
+                                ["channel"] = "invest"
+                            }
+                        }
+                    }.ToJsonString());
+                    var afterResetInvestCfg = McpSecurityGuard.LoadAgBridgeConfig();
+                    bool investResetOk = !afterResetInvestCfg.ChannelConversationIds.ContainsKey("invest");
+
                     // f) Cross-thread / cross-process StageDeployMutex contention & clean wait handoff
                     string testMutexName = $@"Local\FunkenwerkStageDeployTest_{Guid.NewGuid():N}";
                     int waitingLogCount = 0;
@@ -7016,7 +7069,7 @@ namespace FunkenwerkMcp
                     using var secondLock = await secondAcquireTask;
                     bool mutexOk = secondLock.WaitedForContention && waitingLogCount == 1;
 
-                    AssertTest("60. 5 Department Channels + 'new' Special Channel + Brain UUID Fallback + StageDeployMutex",
+                    AssertTest("60. Department Channels (incl. Invest-Chat) + 'new' Special Channel + Brain UUID Fallback + StageDeployMutex",
                         normOk
                         && shopPromptOk
                         && newConvPsiOk
@@ -7026,6 +7079,10 @@ namespace FunkenwerkMcp
                         && shopPersisted
                         && resetShopResp != null && resetShopResp.Contains("\"isError\":false")
                         && shopResetOk
+                        && setInvestResp != null && setInvestResp.Contains("\"isError\":false")
+                        && investPersisted
+                        && resetInvestResp != null && resetInvestResp.Contains("\"isError\":false")
+                        && investResetOk
                         && mutexOk);
                 }
 

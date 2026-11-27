@@ -222,7 +222,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261127v1')", $html);
         $this->assertStringContainsString('data-testid="lobby-character-picker-modal"', $html);
         $this->assertStringContainsString('data-testid="lobby-char-select-male"', $html);
         $this->assertStringContainsString('data-testid="lobby-char-select-female"', $html);
@@ -230,9 +230,11 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('data-testid="lobby-armory-prompt-card"', $html);
         $this->assertStringContainsString('data-testid="lobby-weapon-swing-btn"', $html);
         $this->assertStringContainsString('Charakter wählen', $html);
+        $this->assertStringContainsString('Funki', $html);
+        $this->assertStringContainsString('Funkira', $html);
         $this->assertStringContainsString('Männlich', $html);
         $this->assertStringContainsString('Weiblich', $html);
-        $this->assertStringContainsString('Starter · Barfuß', $html);
+        $this->assertStringNotContainsString('Starter · Barfuß', $html);
         $this->assertStringContainsString('avatar_gender:', $html);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $html);
         $this->assertStringContainsString('window.__sfLobbyAudioRegistry', $html);
@@ -565,7 +567,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261127v1', $hostJs);
         $this->assertStringContainsString("root.setAttribute('data-sf-3d-lobby-modal', 'heroes')", $hostJs);
         $this->assertStringContainsString('stopPrewarmAndForceLobbySilence', $hostJs);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $hostJs);
@@ -1375,6 +1377,93 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('triggerWeaponSwing', $js);
         foreach ($armoryFiles as $fileName) {
             $this->assertStringContainsString('/shop/customer/gamification/models/armory/' . $fileName, $js);
+        }
+    }
+
+    public function test_funki_male_and_funkira_female_atelier_models_and_dynamic_armory_fit_are_wired(): void
+    {
+        $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+
+        $atelierModels = [
+            'male' => public_path('shop/customer/gamification/models/char_starter_male_rigged.glb'),
+            'female' => public_path('shop/customer/gamification/models/char_starter_female_rigged.glb'),
+        ];
+
+        foreach ($atelierModels as $gender => $path) {
+            $info = $optimizer->inspectGlb($path);
+            $this->assertTrue($info['exists'] ?? false);
+            $this->assertTrue($info['has_copyright_watermark'] ?? false);
+            $this->assertGreaterThanOrEqual(25000, (int) ($info['triangles'] ?? 0), "Expected luxury Chibi Funki/Funkira mesh for {$gender}");
+
+            $fp = fopen($path, 'rb');
+            $this->assertNotFalse($fp);
+            $hdr = unpack('a4magic/Vversion/Vlength/VchunkLen/a4chunkType', (string) fread($fp, 20));
+            $json = json_decode((string) fread($fp, (int) $hdr['chunkLen']), true);
+            fclose($fp);
+
+            $mat = $json['materials'][0] ?? [];
+            $this->assertNotEmpty($mat['pbrMetallicRoughness']['baseColorTexture'] ?? null);
+            $this->assertNotEmpty($mat['pbrMetallicRoughness']['metallicRoughnessTexture'] ?? null);
+            $this->assertNotEmpty($mat['normalTexture'] ?? null);
+            $this->assertNotEmpty($mat['emissiveTexture'] ?? null);
+        }
+
+        // Verify both weapons are centered symmetrically on the grip axis (no off-axis skew)
+        foreach (['weapon_crystal_lance.glb', 'weapon_crystal_spear.glb'] as $weaponFile) {
+            $wPath = public_path('shop/customer/gamification/models/armory/' . $weaponFile);
+            $fp = fopen($wPath, 'rb');
+            $this->assertNotFalse($fp);
+            $hdr = unpack('a4magic/Vversion/Vlength/VchunkLen/a4chunkType', (string) fread($fp, 20));
+            $json = json_decode((string) fread($fp, (int) $hdr['chunkLen']), true);
+            fclose($fp);
+
+            $posIdx = $json['meshes'][0]['primitives'][0]['attributes']['POSITION'] ?? null;
+            $this->assertNotNull($posIdx);
+            $min = $json['accessors'][$posIdx]['min'] ?? [0, 0, 0];
+            $max = $json['accessors'][$posIdx]['max'] ?? [0, 0, 0];
+            $this->assertLessThan(0.02, abs(((float) $min[0]) + ((float) $max[0])), "Weapon {$weaponFile} X-axis must be centered on grip");
+            $this->assertLessThan(0.02, abs(((float) $min[2]) + ((float) $max[2])), "Weapon {$weaponFile} Z-axis must be centered on grip");
+        }
+
+        $js = (string) file_get_contents(public_path('js/seelenfunke-louvre-showroom-3d.js'));
+        $this->assertStringContainsString('ATELIER_CHARACTER_PROFILES', $js);
+        $this->assertStringContainsString('ARMORY_GENDER_FIT_PROFILES', $js);
+        $this->assertStringContainsString('_buildGenderAdaptedArmorGeometry', $js);
+        $this->assertStringContainsString('_resolveWeaponGripCalibration', $js);
+        $this->assertStringContainsString('_syncArmoryStandToGender', $js);
+        $this->assertStringContainsString('LiveRetinaVisor_', $js);
+
+        $heroesJs = (string) file_get_contents(public_path('js/funkenwerk-heroes-3d.js'));
+        $this->assertStringContainsString('✦ Funkira · Weiblich', $heroesJs);
+        $this->assertStringContainsString('✦ Funki · Männlich', $heroesJs);
+        $this->assertStringNotContainsString('Starter · Barfuß', $heroesJs);
+    }
+
+    public function test_blender_atelier_architectural_glbs_and_interactive_magic_systems_are_valid_and_wired(): void
+    {
+        $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+        $archModels = [
+            'atelier_corinthian_column.glb',
+            'atelier_grand_chandelier.glb',
+            'atelier_luxury_pedestal.glb',
+            'atelier_museum_bench.glb',
+            'atelier_urn_topiary.glb',
+            'atelier_wall_sconce.glb',
+        ];
+
+        $js = (string) file_get_contents(public_path('js/seelenfunke-louvre-showroom-3d.js'));
+        $this->assertStringContainsString('SHOWROOM_MODEL_URLS', $js);
+        $this->assertStringContainsString('_loadAndMountAtelierBlenderKit', $js);
+        $this->assertStringContainsString('_buildAtelierMagicSystems', $js);
+        $this->assertStringContainsString('buildOpusSectileMedallionTexture', $js);
+
+        foreach ($archModels as $fileName) {
+            $full = public_path('shop/showroom/models/' . $fileName);
+            $this->assertFileExists($full, "Missing Blender atelier GLB {$fileName}");
+            $info = $optimizer->inspectGlb($full);
+            $this->assertTrue($info['has_copyright_watermark'] ?? false, "Missing copyright watermark on {$fileName}");
+            $this->assertGreaterThan(500, (int) ($info['triangles'] ?? 0), "Expected detailed geometry in {$fileName}");
+            $this->assertStringContainsString('/shop/showroom/models/' . $fileName, $js);
         }
     }
 }

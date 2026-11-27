@@ -18,7 +18,7 @@ class FetchMailsCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'crm:fetch-mails';
+    protected $signature = 'crm:fetch-mails {--force : Erzwingt sofortigen Abruf ohne Kurzdrosselung und prüft temporär pausierte Postfächer erneut}';
 
     /**
      * The console command description.
@@ -31,6 +31,40 @@ class FetchMailsCommand extends Command
      * Execute the console command.
      */
     public function handle()
+    {
+        $forceSync = (bool) $this->option('force');
+        $lock = \Illuminate\Support\Facades\Cache::lock('crm_fetch_mails_run_lock', 90);
+
+        try {
+            if (!$lock->block(20)) {
+                $this->line('IMAP-Synchronisation läuft bereits in einem anderen Prozess.');
+                return self::SUCCESS;
+            }
+        } catch (\Throwable) {
+            $lock = null;
+        }
+
+        try {
+            if (!$forceSync) {
+                $lastFinishedAt = (int) \Illuminate\Support\Facades\Cache::get('crm_fetch_mails_last_finished_at', 0);
+                if ($lastFinishedAt > 0 && (now()->timestamp - $lastFinishedAt) < 5) {
+                    $this->line('IMAP-Synchronisation wurde gerade erst abgeschlossen (< 5s).');
+                    return self::SUCCESS;
+                }
+            }
+
+            $result = $this->runFetchCycle($forceSync);
+            \Illuminate\Support\Facades\Cache::put('crm_fetch_mails_last_finished_at', now()->timestamp, now()->addMinutes(5));
+            return $result;
+        } finally {
+            try {
+                $lock?->release();
+            } catch (\Throwable) {
+            }
+        }
+    }
+
+    protected function runFetchCycle(bool $forceSync): int
     {
         $rawMem = trim((string) @ini_get('memory_limit'));
         if ($rawMem !== '-1') {
@@ -80,12 +114,16 @@ class FetchMailsCommand extends Command
                 $persistedBackoff = is_string($rawBackoff) ? json_decode($rawBackoff, true) : null;
             }
 
+            $skipByBackoff = !$forceSync || $account->last_sync_at === null;
             if (
-                \Illuminate\Support\Facades\Cache::has($authCooldownKey)
-                || (
-                    is_array($persistedBackoff)
-                    && ($persistedBackoff['pwd_fp'] ?? '') === $pwdFingerprint
-                    && (int) ($persistedBackoff['until'] ?? 0) > now()->timestamp
+                $skipByBackoff
+                && (
+                    \Illuminate\Support\Facades\Cache::has($authCooldownKey)
+                    || (
+                        is_array($persistedBackoff)
+                        && ($persistedBackoff['pwd_fp'] ?? '') === $pwdFingerprint
+                        && (int) ($persistedBackoff['until'] ?? 0) > now()->timestamp
+                    )
                 )
             ) {
                 $this->line("Postfach pausiert (IMAP-Authentifizierungs-Cooldown aktiv): {$account->email}");
@@ -94,34 +132,38 @@ class FetchMailsCommand extends Command
 
             $this->info("Postfach wird verarbeitet: {$account->email}...");
 
-            if (!\App\Services\System\SystemSecurityService::isSafeMailHost((string) $account->imap_host)) {
-                Log::warning("IMAP Fetch blocked for {$account->email}: Unsafe IMAP host '{$account->imap_host}' (SSRF guard).");
-                $this->error("FEHLER: Unsicherer IMAP-Host für {$account->email} blockiert.");
+            $imapHost = trim((string) $account->imap_host);
+            $imapPort = (int) ($account->imap_port ?: 993);
+
+            if ($imapHost === '' || !\App\Services\System\SystemSecurityService::isSafeMailHost($imapHost)) {
+                Log::warning("IMAP Fetch blocked for {$account->email}: Unsafe or empty IMAP host '{$imapHost}' (SSRF guard).");
+                $this->error("FEHLER: Unsicherer oder leerer IMAP-Host für {$account->email} blockiert.");
                 $account->update(['status' => 'error']);
                 continue;
             }
 
+            $client = null;
             try {
                 // Dynamically build IMAP config array with connection timeouts to prevent scheduler hangs
                 $client = \Webklex\IMAP\Facades\Client::make([
-                    'host'          => $account->imap_host,
-                    'port'          => $account->imap_port,
-                    'encryption'    => $account->imap_encryption === 'none' ? false : $account->imap_encryption,
+                    'host'          => $imapHost,
+                    'port'          => $imapPort,
+                    'encryption'    => $account->imap_encryption === 'none' ? false : ($account->imap_encryption ?: 'ssl'),
                     'validate_cert' => true,
                     'username'      => $account->imap_username ?: $account->email,
                     'password'      => $account->password,
                     'protocol'      => 'imap',
-                    'timeout'       => 15,
+                    'timeout'       => 10,
                     'options'       => [
-                        'timeout' => 15,
+                        'timeout' => 10,
                     ]
                 ]);
 
                 try {
                     $client->connect();
                 } catch (\Throwable $firstConnEx) {
-                    // Einmaliger Retry nach 800ms bei kurzzeitigem DNS-/Socket-Jitter
-                    usleep(800000);
+                    // Einmaliger Retry nach 400ms bei kurzzeitigem DNS-/Socket-Jitter
+                    usleep(400000);
                     $client->connect();
                 }
 
@@ -151,7 +193,7 @@ class FetchMailsCommand extends Command
                         $rawSubject = (string) $message->getSubject();
                         $decodedSubject = self::repairCorruptedSubjectIcons(self::decodeMimeHeaderSafe($rawSubject));
 
-                        $receivedAt = $message->getDate() ? Carbon::parse($message->getDate()) : null;
+                        $receivedAt = self::normalizeImapDate($message->getDate());
 
                         if ($normalizedMessageId === '') {
                             $fromAddress = $fromEmail;
@@ -165,8 +207,16 @@ class FetchMailsCommand extends Command
                                 ->where('message_id', $normalizedMessageId)
                                 ->first();
                             if ($existingMsg) {
+                                $existingUpdates = [];
                                 if ($decodedSubject !== '' && $existingMsg->subject !== $decodedSubject && str_contains((string) $existingMsg->subject, '??')) {
-                                    $existingMsg->update(['subject' => $decodedSubject]);
+                                    $existingUpdates['subject'] = $decodedSubject;
+                                }
+                                $healedReceivedAt = self::normalizeImapDate($message->getDate(), $existingMsg->created_at ?? now());
+                                if ($healedReceivedAt !== null && (!$existingMsg->received_at || abs($existingMsg->received_at->timestamp - $healedReceivedAt->timestamp) >= 120)) {
+                                    $existingUpdates['received_at'] = $healedReceivedAt;
+                                }
+                                if (!empty($existingUpdates)) {
+                                    $existingMsg->update($existingUpdates);
                                 }
                                 if ($existingMsg->has_attachments) {
                                     $missingDbAtts = $existingMsg->attachments->filter(fn ($a) => !empty($a->path) && !Storage::disk('local')->exists($a->path));
@@ -320,21 +370,29 @@ class FetchMailsCommand extends Command
                     // Set message as SEEN on remote server so we don't fetch it again next poll loop
                     $message->setFlag('Seen');
                     $count++;
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         Log::error("Failed to import single message for {$account->email}: " . $e->getMessage());
                     }
                 }
 
                 $this->info("   -> {$count} neue Mails in Datenbank importiert.");
-                
-                if ($count > 0) {
-                    event(new \App\Events\Management\MailReceivedEvent());
+
+                try {
+                    $client->disconnect();
+                } catch (\Throwable) {
                 }
-                $client->disconnect();
 
                 $account->update(['status' => 'connected', 'last_sync_at' => now()]);
+                \Illuminate\Support\Facades\Cache::forget($authCooldownKey);
                 if ($hasSettingsTable) {
                     \App\Models\System\SystemSetting::where('key', $settingKey)->delete();
+                }
+
+                if ($count > 0 && class_exists(\App\Events\Management\MailReceivedEvent::class)) {
+                    \App\Services\System\RealtimeBroadcastService::dispatch(
+                        new \App\Events\Management\MailReceivedEvent(),
+                        'crm:fetch-mails'
+                    );
                 }
 
             } catch (\Throwable $e) {
@@ -366,12 +424,15 @@ class FetchMailsCommand extends Command
                     || stripos($classChainStr, 'AuthFailedException') !== false;
 
                 if ($isAuthFailure) {
-                    $backoffHours = $isStageOrDev ? 24 : 6;
-                    \Illuminate\Support\Facades\Cache::put($authCooldownKey, true, now()->addHours($backoffHours));
+                    $wasPreviouslyConnected = $account->last_sync_at !== null;
+                    $backoffUntil = $wasPreviouslyConnected
+                        ? now()->addMinutes(15)
+                        : now()->addHours($isStageOrDev ? 24 : 6);
+                    \Illuminate\Support\Facades\Cache::put($authCooldownKey, true, $backoffUntil);
                     if ($hasSettingsTable) {
                         \App\Models\System\SystemSetting::updateOrCreate(
                             ['key' => $settingKey],
-                            ['value' => json_encode(['pwd_fp' => $pwdFingerprint, 'until' => now()->addHours($backoffHours)->timestamp])]
+                            ['value' => json_encode(['pwd_fp' => $pwdFingerprint, 'until' => $backoffUntil->timestamp])]
                         );
                     }
                 }
@@ -380,7 +441,8 @@ class FetchMailsCommand extends Command
 
                 if ($isAuthFailure && $isStageOrDev) {
                     // Auf Stage/Local kein Cronjob-Fehler-Spam durch Test-/Platzhalter-Zugangsdaten
-                    $this->warn("IMAP-Anmeldung auf Stage/Dev übersprungen ({$account->email}): Cooldown 24h aktiviert.");
+                    $cooldownLabel = $account->last_sync_at !== null ? '15 Min.' : '24h';
+                    $this->warn("IMAP-Anmeldung auf Stage/Dev übersprungen ({$account->email}): Cooldown {$cooldownLabel} aktiviert.");
                     continue;
                 }
 
@@ -406,6 +468,54 @@ class FetchMailsCommand extends Command
         }
 
         return $failedAccounts > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Parst ein Webklex-IMAP-Datumsattribut (oder RFC-2822-String / DateTimeInterface)
+     * zeitzonenbewusst und konvertiert es exakt in die konfigurierte App-Zeitzone
+     * (Europe/Berlin), ohne den Zeitzonen-Offset durch __toString() zu verlieren.
+     */
+    public static function normalizeImapDate(mixed $dateAttr, ?Carbon $referenceNow = null): ?Carbon
+    {
+        if ($dateAttr === null || $dateAttr === '') {
+            return null;
+        }
+
+        $appTz = (string) config('app.timezone', 'Europe/Berlin');
+        $ref = ($referenceNow ? $referenceNow->copy() : now())->setTimezone($appTz);
+
+        try {
+            $parsed = null;
+            if (is_object($dateAttr) && method_exists($dateAttr, 'toDate')) {
+                $firstVal = method_exists($dateAttr, 'first') ? $dateAttr->first() : null;
+                if ($firstVal instanceof \DateTimeInterface) {
+                    $parsed = Carbon::instance($firstVal)->copy();
+                } elseif ($firstVal !== null && trim((string) $firstVal) !== '') {
+                    $parsed = Carbon::parse((string) $firstVal);
+                } else {
+                    $parsed = $dateAttr->toDate()->copy();
+                }
+            } elseif ($dateAttr instanceof \DateTimeInterface) {
+                $parsed = Carbon::instance($dateAttr)->copy();
+            } else {
+                $raw = trim((string) $dateAttr);
+                if ($raw === '') {
+                    return null;
+                }
+                $parsed = Carbon::parse($raw);
+            }
+
+            $normalized = $parsed->setTimezone($appTz);
+
+            // Schutz gegen fehlerhafte Absender-Uhren weit in der Zukunft
+            if ($normalized->greaterThan($ref->copy()->addMinutes(10))) {
+                return $ref;
+            }
+
+            return $normalized;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public static function sanitizeEmailHtml(?string $bodyHtml): ?string

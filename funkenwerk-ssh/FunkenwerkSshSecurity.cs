@@ -27,6 +27,7 @@ namespace FunkenwerkSsh
         public string PrivateKeyPath { get; set; } = "";
         public string StartupDirectory { get; set; } = "";
         public string Source { get; set; } = "PuTTY";
+        public string ImportedKey { get; set; } = "";
 
         [JsonIgnore]
         public string Subtitle => string.IsNullOrWhiteSpace(Username)
@@ -735,6 +736,81 @@ namespace FunkenwerkSsh
             catch { }
         }
 
+        public static string SanitizeProfileName(string? rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName))
+                throw new ArgumentException("Profilname darf nicht leer sein.", nameof(rawName));
+
+            var sb = new StringBuilder(rawName.Length);
+            foreach (char ch in rawName)
+            {
+                if (char.IsControl(ch)) continue;
+                sb.Append(ch);
+            }
+
+            string clean = Regex.Replace(sb.ToString().Trim(), @"\s{2,}", " ");
+            if (string.IsNullOrWhiteSpace(clean))
+                throw new ArgumentException("Profilname darf nicht leer sein.", nameof(rawName));
+
+            if (clean.Length > 80)
+                clean = clean.Substring(0, 80).Trim();
+
+            return clean;
+        }
+
+        public static bool RenameProfile(List<SshConnectionProfile> profiles, SshConnectionProfile profile, string? newName)
+        {
+            if (profiles == null) throw new ArgumentNullException(nameof(profiles));
+            if (profile == null) throw new ArgumentNullException(nameof(profile));
+
+            string cleanName = SanitizeProfileName(newName);
+
+            // Bewahre den ursprünglichen Registry-Schlüssel vor dem Umbenennen, damit PuTTY/WinSCP beim Neustart kein Duplikat anlegt
+            if (string.IsNullOrWhiteSpace(profile.ImportedKey) &&
+                (string.Equals(profile.Source, "PuTTY", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(profile.Source, "WinSCP", StringComparison.OrdinalIgnoreCase)) &&
+                !string.IsNullOrWhiteSpace(profile.Name))
+            {
+                profile.ImportedKey = $"{profile.Source}:{profile.Name}";
+            }
+
+            if (string.Equals(profile.Name, cleanName, StringComparison.Ordinal))
+                return false;
+
+            profile.Name = cleanName;
+            SaveProfiles(profiles);
+            return true;
+        }
+
+        public static bool MatchesImportedRegistrySession(
+            SshConnectionProfile existing,
+            string source,
+            string sessionLabel,
+            string cleanHost,
+            int port,
+            string rawUser)
+        {
+            string expectedKey = $"{source}:{sessionLabel}";
+            if (!string.IsNullOrWhiteSpace(existing.ImportedKey) &&
+                string.Equals(existing.ImportedKey, expectedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (string.Equals(existing.Name, sessionLabel, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (!string.IsNullOrWhiteSpace(rawUser) &&
+                string.Equals(existing.Host, cleanHost, StringComparison.OrdinalIgnoreCase) &&
+                existing.Port == port &&
+                string.Equals(existing.Username, rawUser, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         public static void SaveProfiles(List<SshConnectionProfile> profiles)
         {
             string dir = VaultDir;
@@ -786,7 +862,7 @@ namespace FunkenwerkSsh
                         string keyPath = ResolveOpenSshKeyPath(rawKey);
 
                         var match = existing.FirstOrDefault(p =>
-                            string.Equals(p.Name, sessionLabel, StringComparison.OrdinalIgnoreCase));
+                            MatchesImportedRegistrySession(p, "PuTTY", sessionLabel, cleanHost, port, rawUser));
 
                         if (match == null)
                         {
@@ -797,7 +873,8 @@ namespace FunkenwerkSsh
                                 Port = port,
                                 Username = rawUser,
                                 PrivateKeyPath = keyPath,
-                                Source = "PuTTY"
+                                Source = "PuTTY",
+                                ImportedKey = $"PuTTY:{sessionLabel}"
                             });
                             addedAny = true;
                         }
@@ -838,7 +915,7 @@ namespace FunkenwerkSsh
                         string keyPath = ResolveOpenSshKeyPath(Convert.ToString(sk.GetValue("PublicKeyFile")));
 
                         var match = existing.FirstOrDefault(p =>
-                            string.Equals(p.Name, sessionLabel, StringComparison.OrdinalIgnoreCase));
+                            MatchesImportedRegistrySession(p, "WinSCP", sessionLabel, cleanHost, port, rawUser));
 
                         if (match == null)
                         {
@@ -851,7 +928,8 @@ namespace FunkenwerkSsh
                                 EncryptedPassword = !string.IsNullOrEmpty(decodedPass) ? EncryptSecret(decodedPass) : "",
                                 PrivateKeyPath = keyPath,
                                 StartupDirectory = remoteDir,
-                                Source = "WinSCP"
+                                Source = "WinSCP",
+                                ImportedKey = $"WinSCP:{sessionLabel}"
                             });
                             addedAny = true;
                         }
@@ -1392,9 +1470,47 @@ namespace FunkenwerkSsh
                     return tofuOk && matchOk && mitmRejected && loopbackGuardOk;
                 });
 
+                // 22. Profile rename: sanitization, persistence, and PuTTY/WinSCP duplicate-reimport prevention
+                Check("22_ProfileRename_PersistsSanitizesAndPreventsRegistryReimportDuplicate", () =>
+                {
+                    var sample = new SshConnectionProfile
+                    {
+                        Name = "ssh-cqa7h4@a-bycqrf@ssh.altgemeinde.project.host",
+                        Host = "ssh.altgemeinde.project.host",
+                        Port = 22,
+                        Username = "kontakt@mein-seelenfunke.de@a-bycqrf",
+                        Source = "PuTTY"
+                    };
+                    var list = new List<SshConnectionProfile> { sample };
+                    SaveProfiles(list);
+
+                    bool blankRejected = false;
+                    try { SanitizeProfileName("   \r\n\t  "); } catch (ArgumentException) { blankRejected = true; }
+
+                    bool renamed = RenameProfile(list, sample, "  Mittwald\tStage\r\nServer  ");
+                    var reloaded = LoadAndImportProfiles();
+                    var found = reloaded.FirstOrDefault(p => p.Id == sample.Id);
+
+                    bool matchesOldRegistry = found != null &&
+                        MatchesImportedRegistrySession(
+                            found,
+                            "PuTTY",
+                            "ssh-cqa7h4@a-bycqrf@ssh.altgemeinde.project.host",
+                            "ssh.altgemeinde.project.host",
+                            22,
+                            "kontakt@mein-seelenfunke.de@a-bycqrf");
+
+                    return blankRejected &&
+                           renamed &&
+                           found != null &&
+                           found.Name == "MittwaldStageServer" &&
+                           found.ImportedKey == "PuTTY:ssh-cqa7h4@a-bycqrf@ssh.altgemeinde.project.host" &&
+                           matchesOldRegistry;
+                });
+
                 logs.Add($"SUMMARY: {passed}/{passed + failed} checks passed.");
                 logLines = logs;
-                return failed == 0 && passed >= 21;
+                return failed == 0 && passed >= 22;
             }
             finally
             {

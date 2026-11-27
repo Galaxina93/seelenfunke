@@ -32,9 +32,416 @@ namespace FunkenwerkFtp
         public string Source { get; set; } = "Manuell";
 
         [JsonIgnore]
+        public string ProtocolTag => FtpProfileStore.NormalizeProtocol(Protocol);
+
+        [JsonIgnore]
+        public string SubtitleLabel
+        {
+            get
+            {
+                string hostPort = string.IsNullOrWhiteSpace(Host) ? "" : $"{Host}:{Port}";
+                string endpoint = string.IsNullOrWhiteSpace(Username)
+                    ? hostPort
+                    : (string.IsNullOrWhiteSpace(hostPort) ? Username : $"{Username}@{hostPort}");
+                return string.IsNullOrWhiteSpace(endpoint) ? ProtocolTag : endpoint;
+            }
+        }
+
+        [JsonIgnore]
         public string DisplayLabel => string.IsNullOrWhiteSpace(Username)
-            ? $"{Name} ({Protocol}://{Host}:{Port})"
+            ? $"{Name} ({ProtocolTag}://{Host}:{Port})"
             : $"{Name} ({Username}@{Host}:{Port})";
+    }
+
+    public enum FtpProfileSaveIntent
+    {
+        CreateNew,
+        UpdateSelected,
+        AskUpdateOrCreateNew
+    }
+
+    public sealed class FtpUiState
+    {
+        public string LastProfileId { get; set; } = "";
+    }
+
+    public static class FtpProfileStore
+    {
+        public static string NormalizeProtocol(string? protocol)
+        {
+            string upper = (protocol ?? "").Trim().ToUpperInvariant();
+            return upper switch
+            {
+                "FTPS" => "FTPS",
+                "FTP" => "FTP",
+                _ => "SFTP"
+            };
+        }
+
+        public static int DefaultPortForProtocol(string? protocol) =>
+            NormalizeProtocol(protocol) == "SFTP" ? 22 : 21;
+
+        public static int NormalizePort(int port, string? protocol) =>
+            (port >= 1 && port <= 65535) ? port : DefaultPortForProtocol(protocol);
+
+        public static int ParseAndValidatePort(string? rawPort, string? protocol)
+        {
+            if (string.IsNullOrWhiteSpace(rawPort))
+                return DefaultPortForProtocol(protocol);
+
+            if (!int.TryParse(rawPort.Trim(), out int port) || port < 1 || port > 65535)
+                throw new ArgumentException("Port muss eine Zahl zwischen 1 und 65535 sein.");
+
+            return port;
+        }
+
+        public static string NormalizeRemoteDirectory(string? remoteDir)
+        {
+            string trimmed = (remoteDir ?? "").Trim().Replace('\\', '/');
+            return string.IsNullOrWhiteSpace(trimmed) ? "/" : trimmed;
+        }
+
+        public static bool EnsureProfileIntegrity(List<FtpConnectionProfile> profiles)
+        {
+            if (profiles == null) return false;
+            bool changed = false;
+
+            for (int i = profiles.Count - 1; i >= 0; i--)
+            {
+                if (profiles[i] == null)
+                {
+                    profiles.RemoveAt(i);
+                    changed = true;
+                }
+            }
+
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in profiles)
+            {
+                if (string.IsNullOrWhiteSpace(p.Id) || !seenIds.Add(p.Id))
+                {
+                    p.Id = Guid.NewGuid().ToString();
+                    seenIds.Add(p.Id);
+                    changed = true;
+                }
+
+                string normProto = NormalizeProtocol(p.Protocol);
+                if (!string.Equals(p.Protocol, normProto, StringComparison.Ordinal))
+                {
+                    p.Protocol = normProto;
+                    changed = true;
+                }
+
+                int normPort = NormalizePort(p.Port, normProto);
+                if (p.Port != normPort)
+                {
+                    p.Port = normPort;
+                    changed = true;
+                }
+
+                string trimmedName = (p.Name ?? "").Trim();
+                if (string.IsNullOrEmpty(trimmedName))
+                {
+                    trimmedName = !string.IsNullOrWhiteSpace(p.Username) && !string.IsNullOrWhiteSpace(p.Host)
+                        ? $"{p.Username}@{p.Host}"
+                        : (!string.IsNullOrWhiteSpace(p.Host) ? p.Host : "Unbenanntes Profil");
+                    p.Name = trimmedName;
+                    changed = true;
+                }
+                else if (!string.Equals(p.Name, trimmedName, StringComparison.Ordinal))
+                {
+                    p.Name = trimmedName;
+                    changed = true;
+                }
+
+                if (p.Username == null) { p.Username = ""; changed = true; }
+                if (p.Host == null) { p.Host = ""; changed = true; }
+                if (p.EncryptedPassword == null) { p.EncryptedPassword = ""; changed = true; }
+                if (p.PrivateKeyPath == null) { p.PrivateKeyPath = ""; changed = true; }
+                if (p.LocalDirectory == null) { p.LocalDirectory = ""; changed = true; }
+                if (string.IsNullOrWhiteSpace(p.RemoteDirectory)) { p.RemoteDirectory = "/"; changed = true; }
+                if (string.IsNullOrWhiteSpace(p.Source)) { p.Source = "Manuell"; changed = true; }
+            }
+
+            return changed;
+        }
+
+        public static FtpProfileSaveIntent DetermineSaveIntent(
+            FtpConnectionProfile? selectedProfile,
+            string protocol,
+            string host,
+            int port,
+            string username)
+        {
+            if (selectedProfile == null)
+                return FtpProfileSaveIntent.CreateNew;
+
+            string normProto = NormalizeProtocol(protocol);
+            string normSelectedProto = NormalizeProtocol(selectedProfile.Protocol);
+            string normHost = (host ?? "").Trim();
+            string normSelectedHost = (selectedProfile.Host ?? "").Trim();
+            string normUser = (username ?? "").Trim();
+            string normSelectedUser = (selectedProfile.Username ?? "").Trim();
+
+            bool sameAccount =
+                string.Equals(normSelectedProto, normProto, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(normSelectedHost, normHost, StringComparison.OrdinalIgnoreCase) &&
+                selectedProfile.Port == port &&
+                string.Equals(normSelectedUser, normUser, StringComparison.Ordinal);
+
+            return sameAccount
+                ? FtpProfileSaveIntent.UpdateSelected
+                : FtpProfileSaveIntent.AskUpdateOrCreateNew;
+        }
+
+        public static string SuggestUniqueName(
+            IEnumerable<FtpConnectionProfile> profiles,
+            string requestedBaseName,
+            string? excludeProfileId = null)
+        {
+            string clean = (requestedBaseName ?? "").Trim();
+            if (string.IsNullOrEmpty(clean))
+                clean = "Neues Profil";
+
+            var existingNames = new HashSet<string>(
+                (profiles ?? Array.Empty<FtpConnectionProfile>())
+                    .Where(p => p != null && !string.Equals(p.Id, excludeProfileId, StringComparison.OrdinalIgnoreCase))
+                    .Select(p => (p.Name ?? "").Trim()),
+                StringComparer.OrdinalIgnoreCase);
+
+            if (!existingNames.Contains(clean))
+                return clean;
+
+            for (int n = 2; n < 10000; n++)
+            {
+                string candidate = $"{clean} ({n})";
+                if (!existingNames.Contains(candidate))
+                    return candidate;
+            }
+
+            return $"{clean} ({Guid.NewGuid().ToString("N")[..6]})";
+        }
+
+        public static string SuggestNameForConnection(
+            IEnumerable<FtpConnectionProfile> profiles,
+            string host,
+            string username,
+            string? baseProfileName = null)
+        {
+            string cleanHost = (host ?? "").Trim();
+            string cleanUser = (username ?? "").Trim();
+            string cleanBase = (baseProfileName ?? "").Trim();
+
+            string proposed;
+            if (!string.IsNullOrEmpty(cleanBase) && !string.IsNullOrEmpty(cleanUser))
+            {
+                string shortUser = cleanUser.Contains('@') ? cleanUser.Split('@')[0].Trim() : cleanUser;
+                if (string.IsNullOrEmpty(shortUser)) shortUser = cleanUser;
+                proposed = $"{cleanBase} ({shortUser})";
+            }
+            else if (!string.IsNullOrEmpty(cleanUser) && !string.IsNullOrEmpty(cleanHost))
+            {
+                proposed = $"{cleanUser}@{cleanHost}";
+            }
+            else if (!string.IsNullOrEmpty(cleanHost))
+            {
+                proposed = cleanHost;
+            }
+            else
+            {
+                proposed = "Neues Profil";
+            }
+
+            return SuggestUniqueName(profiles, proposed);
+        }
+
+        public static string ValidateAndNormalizeName(
+            IEnumerable<FtpConnectionProfile> profiles,
+            string? rawName,
+            string? excludeProfileId = null)
+        {
+            string clean = (rawName ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(clean))
+                throw new ArgumentException("Bitte einen Profilnamen eingeben.");
+
+            if (clean.Length > 100)
+                throw new ArgumentException("Der Profilname darf maximal 100 Zeichen lang sein.");
+
+            bool duplicate = (profiles ?? Array.Empty<FtpConnectionProfile>()).Any(p =>
+                p != null &&
+                !string.Equals(p.Id, excludeProfileId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals((p.Name ?? "").Trim(), clean, StringComparison.OrdinalIgnoreCase));
+
+            if (duplicate)
+                throw new ArgumentException($"Ein Profil mit dem Namen '{clean}' existiert bereits.");
+
+            return clean;
+        }
+
+        public static FtpConnectionProfile CreateProfile(
+            List<FtpConnectionProfile> profiles,
+            string name,
+            string protocol,
+            string host,
+            int port,
+            string username,
+            string plainPassword,
+            string? privateKeyPath = "",
+            string? remoteDirectory = "/",
+            string? localDirectory = "",
+            string source = "Manuell")
+        {
+            if (profiles == null) throw new ArgumentNullException(nameof(profiles));
+
+            string validName = ValidateAndNormalizeName(profiles, name);
+            string cleanHost = FunkenwerkFtpSecurity.SanitizeHost(host);
+            if (string.IsNullOrWhiteSpace(cleanHost))
+                throw new ArgumentException("Bitte einen Server-Host eingeben.");
+
+            string normProto = NormalizeProtocol(protocol);
+            int normPort = NormalizePort(port, normProto);
+
+            var profile = new FtpConnectionProfile
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = validName,
+                Protocol = normProto,
+                Host = cleanHost,
+                Port = normPort,
+                Username = (username ?? "").Trim(),
+                EncryptedPassword = string.IsNullOrEmpty(plainPassword)
+                    ? ""
+                    : FunkenwerkFtpSecurity.EncryptSecret(plainPassword),
+                PrivateKeyPath = (privateKeyPath ?? "").Trim(),
+                RemoteDirectory = NormalizeRemoteDirectory(remoteDirectory),
+                LocalDirectory = (localDirectory ?? "").Trim(),
+                Source = string.IsNullOrWhiteSpace(source) ? "Manuell" : source.Trim()
+            };
+
+            profiles.Add(profile);
+            return profile;
+        }
+
+        public static FtpConnectionProfile UpdateProfile(
+            List<FtpConnectionProfile> profiles,
+            string profileId,
+            string name,
+            string protocol,
+            string host,
+            int port,
+            string username,
+            string? plainPassword,
+            bool preserveExistingPasswordIfNull = false,
+            string? privateKeyPath = null,
+            string? remoteDirectory = null,
+            string? localDirectory = null)
+        {
+            if (profiles == null) throw new ArgumentNullException(nameof(profiles));
+            if (string.IsNullOrWhiteSpace(profileId))
+                throw new ArgumentException("Profil-ID fehlt.", nameof(profileId));
+
+            var target = profiles.FirstOrDefault(p => string.Equals(p.Id, profileId, StringComparison.OrdinalIgnoreCase))
+                ?? throw new KeyNotFoundException("Das ausgewählte Profil wurde nicht gefunden.");
+
+            string validName = ValidateAndNormalizeName(profiles, name, excludeProfileId: target.Id);
+            string cleanHost = FunkenwerkFtpSecurity.SanitizeHost(host);
+            if (string.IsNullOrWhiteSpace(cleanHost))
+                throw new ArgumentException("Bitte einen Server-Host eingeben.");
+
+            string normProto = NormalizeProtocol(protocol);
+            int normPort = NormalizePort(port, normProto);
+
+            target.Name = validName;
+            target.Protocol = normProto;
+            target.Host = cleanHost;
+            target.Port = normPort;
+            target.Username = (username ?? "").Trim();
+
+            if (plainPassword != null || !preserveExistingPasswordIfNull)
+            {
+                string passVal = plainPassword ?? "";
+                target.EncryptedPassword = string.IsNullOrEmpty(passVal)
+                    ? ""
+                    : FunkenwerkFtpSecurity.EncryptSecret(passVal);
+            }
+
+            if (privateKeyPath != null)
+                target.PrivateKeyPath = privateKeyPath.Trim();
+            if (remoteDirectory != null)
+                target.RemoteDirectory = NormalizeRemoteDirectory(remoteDirectory);
+            if (localDirectory != null)
+                target.LocalDirectory = localDirectory.Trim();
+
+            return target;
+        }
+
+        public static FtpConnectionProfile RenameProfile(List<FtpConnectionProfile> profiles, string profileId, string newName)
+        {
+            if (profiles == null) throw new ArgumentNullException(nameof(profiles));
+            var target = profiles.FirstOrDefault(p => string.Equals(p.Id, profileId, StringComparison.OrdinalIgnoreCase))
+                ?? throw new KeyNotFoundException("Das ausgewählte Profil wurde nicht gefunden.");
+
+            target.Name = ValidateAndNormalizeName(profiles, newName, excludeProfileId: target.Id);
+            return target;
+        }
+
+        public static FtpConnectionProfile DuplicateProfile(
+            List<FtpConnectionProfile> profiles,
+            string sourceProfileId,
+            string? requestedName = null)
+        {
+            if (profiles == null) throw new ArgumentNullException(nameof(profiles));
+            int srcIdx = profiles.FindIndex(p => string.Equals(p.Id, sourceProfileId, StringComparison.OrdinalIgnoreCase));
+            if (srcIdx < 0)
+                throw new KeyNotFoundException("Das Quellprofil zum Duplizieren wurde nicht gefunden.");
+
+            var src = profiles[srcIdx];
+            string cloneName = !string.IsNullOrWhiteSpace(requestedName)
+                ? ValidateAndNormalizeName(profiles, requestedName)
+                : SuggestUniqueName(profiles, $"{src.Name} (Kopie)");
+
+            var clone = new FtpConnectionProfile
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = cloneName,
+                Protocol = NormalizeProtocol(src.Protocol),
+                Host = src.Host,
+                Port = NormalizePort(src.Port, src.Protocol),
+                Username = src.Username,
+                EncryptedPassword = src.EncryptedPassword,
+                PrivateKeyPath = src.PrivateKeyPath,
+                RemoteDirectory = NormalizeRemoteDirectory(src.RemoteDirectory),
+                LocalDirectory = src.LocalDirectory,
+                Source = "Manuell"
+            };
+
+            profiles.Insert(srcIdx + 1, clone);
+            return clone;
+        }
+
+        public static bool DeleteProfile(List<FtpConnectionProfile> profiles, string profileId)
+        {
+            if (profiles == null || string.IsNullOrWhiteSpace(profileId)) return false;
+            int idx = profiles.FindIndex(p => string.Equals(p.Id, profileId, StringComparison.OrdinalIgnoreCase));
+            if (idx < 0) return false;
+            profiles.RemoveAt(idx);
+            return true;
+        }
+
+        public static bool MoveProfile(List<FtpConnectionProfile> profiles, string profileId, int delta)
+        {
+            if (profiles == null || string.IsNullOrWhiteSpace(profileId) || delta == 0) return false;
+            int idx = profiles.FindIndex(p => string.Equals(p.Id, profileId, StringComparison.OrdinalIgnoreCase));
+            if (idx < 0) return false;
+
+            int newIdx = idx + delta;
+            if (newIdx < 0 || newIdx >= profiles.Count) return false;
+
+            var item = profiles[idx];
+            profiles.RemoveAt(idx);
+            profiles.Insert(newIdx, item);
+            return true;
+        }
     }
 
     public static class FunkenwerkFtpSecurity
@@ -115,6 +522,7 @@ namespace FunkenwerkFtp
 
         private static string VaultKeyFile => Path.Combine(VaultDir, "master.dpapi");
         private static string ProfilesFile => Path.Combine(VaultDir, "profiles_vault.json");
+        private static string UiStateFile => Path.Combine(VaultDir, "ui_state.json");
         private static string KnownHostsFile => Path.Combine(VaultDir, "known_hosts_sha256.json");
         private static string HandoffTicketFile => Path.Combine(SshHandoffVaultDir, "handoff_ticket.dpapi");
 
@@ -714,7 +1122,8 @@ namespace FunkenwerkFtp
             string profFile = ProfilesFile;
 
             List<FtpConnectionProfile> profiles = new();
-            if (File.Exists(profFile))
+            bool existedBefore = File.Exists(profFile);
+            if (existedBefore)
             {
                 List<FtpConnectionProfile>? loaded;
                 try
@@ -738,12 +1147,43 @@ namespace FunkenwerkFtp
                 LockDownFileAcl(profFile);
             }
 
-            bool changed = !_isSelfTestMode && ImportFromWinScpAndPuttyRegistry(profiles);
-            if (changed || !File.Exists(profFile))
+            bool repaired = FtpProfileStore.EnsureProfileIntegrity(profiles);
+            // Only auto-import WinSCP/PuTTY registry sessions on initial vault creation so explicitly deleted profiles never resurrect on restart.
+            bool imported = !_isSelfTestMode && !existedBefore && ImportFromWinScpAndPuttyRegistry(profiles);
+            if (repaired || imported || !existedBefore)
             {
                 SaveProfiles(profiles);
             }
             return profiles;
+        }
+
+        public static string LoadLastSelectedProfileId()
+        {
+            try
+            {
+                string file = UiStateFile;
+                if (!File.Exists(file)) return "";
+                var state = JsonSerializer.Deserialize<FtpUiState>(File.ReadAllText(file));
+                return (state?.LastProfileId ?? "").Trim();
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        public static void SaveLastSelectedProfileId(string? profileId)
+        {
+            try
+            {
+                string dir = VaultDir;
+                LockDownDirectoryAcl(dir);
+                string file = UiStateFile;
+                string json = JsonSerializer.Serialize(new FtpUiState { LastProfileId = (profileId ?? "").Trim() }, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(file, json);
+                LockDownFileAcl(file);
+            }
+            catch { }
         }
 
         private static void BackupCorruptVaultFile(string filePath)
@@ -1494,9 +1934,104 @@ namespace FunkenwerkFtp
                            wrapHidesGutter && unwrapRestoresGutter;
                 });
 
+                // 22. Multi-user same-host FTP profiles: CRUD, save-intent guard, no clobber, ordering & ACLs
+                Check("22_MultiUserSameHostProfiles_CrudNoClobberAndAcl", () =>
+                {
+                    var list = new List<FtpConnectionProfile>();
+                    var p1 = FtpProfileStore.CreateProfile(list, "Mittwald Live", "SFTP", "ssh.altgemeinde.project.host", 22, "p-user1@p-proj1", "pw-live-1!", "", "/home/p-proj1");
+                    var p2 = FtpProfileStore.CreateProfile(list, "Mittwald Stage", "SFTP", "ssh.altgemeinde.project.host", 22, "p-user2@p-proj2", "pw-stage-2!", "", "/home/p-proj2");
+                    var p3 = FtpProfileStore.CreateProfile(list, "Mittwald Kunde", "SFTP", "ssh.altgemeinde.project.host", 22, "p-user3@p-proj3", "pw-kunde-3!", "", "/home/p-proj3");
+
+                    // Same host + same user -> UpdateSelected; same host + DIFFERENT user -> AskUpdateOrCreateNew (never silently clobber!)
+                    var intentSame = FtpProfileStore.DetermineSaveIntent(p1, "SFTP", "ssh.altgemeinde.project.host", 22, "p-user1@p-proj1");
+                    var intentDiffUser = FtpProfileStore.DetermineSaveIntent(p1, "SFTP", "ssh.altgemeinde.project.host", 22, "p-user9@p-proj9");
+                    var intentNoSelection = FtpProfileStore.DetermineSaveIntent(null, "SFTP", "ssh.altgemeinde.project.host", 22, "p-user1@p-proj1");
+
+                    // Duplicate name rejected
+                    bool dupNameBlocked = false;
+                    try { _ = FtpProfileStore.CreateProfile(list, "mittwald live", "SFTP", "ssh.altgemeinde.project.host", 22, "p-other", "pw"); }
+                    catch (ArgumentException) { dupNameBlocked = true; }
+
+                    // Invalid port rejected
+                    bool badPortBlocked = false;
+                    try { _ = FtpProfileStore.ParseAndValidatePort("99999", "SFTP"); }
+                    catch (ArgumentException) { badPortBlocked = true; }
+
+                    // Update p2 strictly by Id -> p1 and p3 untouched
+                    FtpProfileStore.UpdateProfile(list, p2.Id, "Mittwald Stage Neu", "SFTP", "ssh.altgemeinde.project.host", 22, "p-user2b@p-proj2", "pw-stage-updated!", false, "", "/home/p-proj2/html");
+
+                    // Duplicate, rename, move & persist
+                    var pDup = FtpProfileStore.DuplicateProfile(list, p1.Id);
+                    FtpProfileStore.RenameProfile(list, pDup.Id, "Mittwald Live Backup");
+                    bool moved = FtpProfileStore.MoveProfile(list, p3.Id, -1);
+
+                    SaveProfiles(list);
+                    SaveLastSelectedProfileId(p2.Id);
+
+                    var reloaded = LoadAndImportProfiles();
+                    string lastId = LoadLastSelectedProfileId();
+                    bool aclOk = VerifyStrictCurrentUserAcl(ProfilesFile, isDirectory: false) &&
+                                 VerifyStrictCurrentUserAcl(UiStateFile, isDirectory: false);
+
+                    var r1 = reloaded.FirstOrDefault(x => x.Id == p1.Id);
+                    var r2 = reloaded.FirstOrDefault(x => x.Id == p2.Id);
+                    var r3 = reloaded.FirstOrDefault(x => x.Id == p3.Id);
+                    var rDup = reloaded.FirstOrDefault(x => x.Id == pDup.Id);
+
+                    bool deleteOk = FtpProfileStore.DeleteProfile(reloaded, pDup.Id) && reloaded.Count == 3;
+
+                    return intentSame == FtpProfileSaveIntent.UpdateSelected &&
+                           intentDiffUser == FtpProfileSaveIntent.AskUpdateOrCreateNew &&
+                           intentNoSelection == FtpProfileSaveIntent.CreateNew &&
+                           dupNameBlocked && badPortBlocked && moved && aclOk &&
+                           lastId == p2.Id && reloaded.Count == 3 && deleteOk &&
+                           r1 != null && r1.Username == "p-user1@p-proj1" && DecryptSecret(r1.EncryptedPassword) == "pw-live-1!" &&
+                           r2 != null && r2.Name == "Mittwald Stage Neu" && r2.Username == "p-user2b@p-proj2" && DecryptSecret(r2.EncryptedPassword) == "pw-stage-updated!" &&
+                           r3 != null && r3.Username == "p-user3@p-proj3" && DecryptSecret(r3.EncryptedPassword) == "pw-kunde-3!" &&
+                           rDup != null && rDup.Name == "Mittwald Live Backup" && rDup.Host == "ssh.altgemeinde.project.host";
+                });
+
+                // 23. Headless STA Profile Manager Dialog: Create, Duplicate, Update & Delete in Dark & Light Mode
+                Check("23_HeadlessStaProfileManagerDialog_CreateDuplicateUpdateDelete", () =>
+                {
+                    if (testWin == null) return false;
+                    var profiles = new List<FtpConnectionProfile>();
+                    FtpProfileStore.CreateProfile(profiles, "Mittwald Haupt", "SFTP", "ssh.altgemeinde.project.host", 22, "p-main@p-1", "secret-main");
+                    SaveProfiles(profiles);
+
+                    var dlgDark = new FtpProfileManagerDialog(testWin, isDark: true, profiles, profiles[0].Id, startInNewMode: true);
+                    dlgDark.FillFormForSelfTest("Mittwald Projekt 2", "SFTP", "ssh.altgemeinde.project.host", 22, "p-two@p-2", "secret-two", "/html");
+                    bool savedNew = dlgDark.SaveFormForSelfTest();
+                    string? createdId = dlgDark.SelectedProfileId;
+
+                    // Duplicate the newly created profile directly inside manager
+                    dlgDark.DuplicateSelectedForSelfTest();
+                    bool duplicated = profiles.Count == 3;
+                    string? dupId = dlgDark.SelectedProfileId;
+
+                    // Update duplicated profile to a 3rd Mittwald user
+                    dlgDark.FillFormForSelfTest("Mittwald Projekt 3", "SFTP", "ssh.altgemeinde.project.host", 22, "p-three@p-3", "secret-three", "/var/www");
+                    bool updatedDup = dlgDark.SaveFormForSelfTest();
+
+                    // Delete 3rd profile via manager
+                    if (!string.IsNullOrWhiteSpace(dupId))
+                        dlgDark.DeleteProfileForSelfTest(dupId);
+                    dlgDark.Close();
+
+                    // Also instantiate in Light Mode to verify zero resource/theme crashes
+                    var dlgLight = new FtpProfileManagerDialog(testWin, isDark: false, profiles, createdId, startInNewMode: false);
+                    dlgLight.Close();
+
+                    var persisted = LoadAndImportProfiles();
+                    return savedNew && duplicated && updatedDup &&
+                           persisted.Count == 2 &&
+                           persisted.Any(p => p.Name == "Mittwald Haupt" && p.Username == "p-main@p-1") &&
+                           persisted.Any(p => p.Name == "Mittwald Projekt 2" && p.Username == "p-two@p-2" && DecryptSecret(p.EncryptedPassword) == "secret-two");
+                });
+
                 logs.Add($"SUMMARY: {passed}/{passed + failed} checks passed.");
                 logLines = logs;
-                return failed == 0 && passed >= 20;
+                return failed == 0 && passed >= 23;
             }
             finally
             {

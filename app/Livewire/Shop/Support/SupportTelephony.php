@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Support;
 
 use App\Models\Ai\AiCall;
+use App\Services\System\FunkiraPhoneConciergeService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -16,6 +17,9 @@ class SupportTelephony extends Component
     public string $themingDepartment = 'Support';
 
     public $currentTab = 'calls'; // calls, contacts, settings
+    public bool $conciergeEnabled = true;
+    public bool $customerServiceEnabled = true;
+    public int $ringDelaySeconds = 12;
 
     public function boot(): void
     {
@@ -29,6 +33,31 @@ class SupportTelephony extends Component
         if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
+
+        $this->conciergeEnabled = FunkiraPhoneConciergeService::isEnabled();
+        $this->customerServiceEnabled = FunkiraPhoneConciergeService::isCustomerServiceEnabled();
+        $this->ringDelaySeconds = FunkiraPhoneConciergeService::getRingDelaySeconds();
+    }
+
+    public function toggleConciergeEnabled(): void
+    {
+        $this->conciergeEnabled = !$this->conciergeEnabled;
+        FunkiraPhoneConciergeService::updateConfig(enabled: $this->conciergeEnabled);
+    }
+
+    public function toggleCustomerServiceEnabled(): void
+    {
+        $this->customerServiceEnabled = !$this->customerServiceEnabled;
+        FunkiraPhoneConciergeService::updateConfig(customerServiceEnabled: $this->customerServiceEnabled);
+    }
+
+    public function saveRingDelay(): void
+    {
+        $this->validate([
+            'ringDelaySeconds' => 'required|integer|min:0|max:30',
+        ]);
+        $this->ringDelaySeconds = max(0, min(30, (int) $this->ringDelaySeconds));
+        FunkiraPhoneConciergeService::updateConfig(ringDelaySeconds: $this->ringDelaySeconds);
     }
 
     #[On('refreshTelephony')]

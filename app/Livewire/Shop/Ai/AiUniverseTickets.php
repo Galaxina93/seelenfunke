@@ -94,6 +94,8 @@ class AiUniverseTickets extends Component
             abort(403, 'Zugriff auf das zentrale Ticketsystem verweigert.');
         }
 
+        \App\Services\AI\AntigravityUniverseTicketBridge::reconcileIfNeeded(20);
+
         if (!in_array($this->mainView, ['tickets', 'files', 'organigramm', 'knowledge'], true)) {
             $this->mainView = 'tickets';
         }

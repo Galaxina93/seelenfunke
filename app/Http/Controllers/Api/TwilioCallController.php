@@ -59,14 +59,14 @@ class TwilioCallController extends Controller
             'url' => $url,
         ]);
 
-        if ($context) {
-            $stream->parameter(['name' => 'contact_name', 'value' => $context['contact_name'] ?? 'Unbekannt']);
-            $stream->parameter(['name' => 'objective', 'value' => $context['objective'] ?? 'Führe ein nettes Gespräch.']);
-            $stream->parameter(['name' => 'system_instructions', 'value' => $context['system_instructions'] ?? '']);
-            $stream->parameter(['name' => 'ai_learned_facts', 'value' => $context['ai_learned_facts'] ?? '']);
-            $stream->parameter(['name' => 'calendar_events', 'value' => $context['calendar_events'] ?? 'Keine Termine']);
-            $stream->parameter(['name' => 'agent_name', 'value' => $context['agent_name'] ?? shop_setting('owner_proprietor', 'Alina Steinhauer')]);
-            $stream->parameter(['name' => 'agent_profile', 'value' => $context['agent_profile'] ?? 'Du bist eine hilfreiche KI Assistentin.']);
+        if (is_array($context) && !empty($context)) {
+            $stream->parameter(['name' => 'contact_name', 'value' => FunkiraPhoneConciergeService::sanitizeCleanText((string) ($context['contact_name'] ?? 'Unbekannt'), 140)]);
+            $stream->parameter(['name' => 'objective', 'value' => FunkiraPhoneConciergeService::sanitizeCleanText((string) ($context['objective'] ?? 'Führe ein nettes Gespräch.'), 800)]);
+            $stream->parameter(['name' => 'system_instructions', 'value' => FunkiraPhoneConciergeService::sanitizeCleanText((string) ($context['system_instructions'] ?? ''), 800)]);
+            $stream->parameter(['name' => 'ai_learned_facts', 'value' => FunkiraPhoneConciergeService::sanitizeCleanText((string) ($context['ai_learned_facts'] ?? ''), 800)]);
+            $stream->parameter(['name' => 'calendar_events', 'value' => FunkiraPhoneConciergeService::sanitizeCleanText((string) ($context['calendar_events'] ?? 'Keine Termine'), 800)]);
+            $stream->parameter(['name' => 'agent_name', 'value' => FunkiraPhoneConciergeService::sanitizeCleanText((string) ($context['agent_name'] ?? shop_setting('owner_proprietor', 'Alina Steinhauer')), 120)]);
+            $stream->parameter(['name' => 'agent_profile', 'value' => FunkiraPhoneConciergeService::sanitizeCleanText((string) ($context['agent_profile'] ?? 'Du bist eine hilfreiche KI Assistentin.'), 800)]);
             $stream->parameter(['name' => 'planned_call_id', 'value' => (string) ($context['planned_call_id'] ?? '')]);
         }
 
@@ -91,19 +91,91 @@ class TwilioCallController extends Controller
             return response($response->asXML(), 200)->header('Content-Type', 'text/xml');
         }
 
-        // 2. Strikter Whitelist-Türsteher: Unbekannte oder nicht freigegebene Anrufer werden NIEMALS angenommen!
+        // 2. Whitelist-Abgleich: Persönliche Kontakte erhalten den vertrauten Sekretärinnen-Modus;
+        //    alle übrigen Anrufer werden (sofern Kundenservice aktiv & kein Own-Number-Loopback) vom KI-Kundenservice bedient.
         $from = trim((string) $request->input('From', ''));
         $caller = trim((string) $request->input('Caller', ''));
         $forwardedFrom = trim((string) $request->input('ForwardedFrom', ''));
 
         $matchedContact = FunkiraPhoneConciergeService::matchIncomingTwilioCaller($from, $caller, $forwardedFrom);
+        $callSid = is_string($request->input('CallSid')) ? trim($request->input('CallSid')) : '';
+        $ownerName = function_exists('shop_setting')
+            ? shop_setting('owner_proprietor', 'Alina Steinhauer')
+            : 'Alina Steinhauer';
+        $shopName = function_exists('shop_setting')
+            ? shop_setting('company_name', 'Mein-Seelenfunke')
+            : 'Mein-Seelenfunke';
+        $wssUrl = config('services.twilio.wss_url') ?: 'wss://ws.mein-seelenfunke.de/twilio-stream';
+
         if (!$matchedContact) {
-            $response->reject(['reason' => 'busy']);
+            // Own-Number-Loopback-Schutz: Ruft Alinas eigene Handynummer ohne Pixel-Umleitungssignal an -> abweisen!
+            if (FunkiraPhoneConciergeService::isOwnerPhone($from)) {
+                $response->reject(['reason' => 'busy']);
+                return response($response->asXML(), 200)->header('Content-Type', 'text/xml');
+            }
+
+            // Ist der KI-Kundenservice deaktiviert (Whitelist-Only-Modus)? -> Gebührenfrei abweisen (<Reject reason="busy"/> = 0,00 €)
+            if (!FunkiraPhoneConciergeService::isCustomerServiceEnabled()) {
+                $response->reject(['reason' => 'busy']);
+                return response($response->asXML(), 200)->header('Content-Type', 'text/xml');
+            }
+
+            // KI-Kundenservice übernimmt eingehenden Kunden-/Interessenten-Anruf live!
+            $rawIncomingPhone = $from !== '' ? $from : $caller;
+            $isSuppressed = $rawIncomingPhone === '' || in_array(strtolower($rawIncomingPhone), ['anonymous', 'restricted', 'private', 'unknown', 'unavailable'], true);
+            $cleanCallerPhone = $isSuppressed ? '' : Str::limit(FunkiraPhoneConciergeService::sanitizeCleanText($rawIncomingPhone, 60), 60, '');
+            $phoneLabel = $cleanCallerPhone !== '' ? $cleanCallerPhone : 'Unterdrückt';
+            $displayLabel = $cleanCallerPhone !== '' ? "Kundenanruf ({$cleanCallerPhone})" : 'Kundenanruf (Unterdrückt)';
+
+            // Rein serverinterner Kunden-Lookup für die spätere Ticket-Zuordnung (wird NIEMALS in den Live-Stream/Prompt geleakt!)
+            $customerMatch = $cleanCallerPhone !== ''
+                ? FunkiraPhoneConciergeService::matchCustomerContextByPhone($cleanCallerPhone)
+                : ['customer_id' => null, 'source' => null];
+
+            $callRecord = SupportTelephonyCall::create([
+                'twilio_sid' => $callSid,
+                'contact_name' => $displayLabel,
+                'phone' => $phoneLabel,
+                'objective' => "Funkira Kundenservice: Eingehender Kundenanruf ({$phoneLabel})",
+                'status' => 'ongoing',
+            ]);
+
+            $callNonce = bin2hex(random_bytes(32));
+            $meta = [
+                'nonce' => $callNonce,
+                'call_record_id' => $callRecord->id,
+                'call_sid' => $callSid,
+                'call_mode' => 'inbound_customer_service',
+                'contact_id' => null,
+                'customer_id' => $customerMatch['customer_id'] ?? null,
+                'caller_name' => 'Kundenanruf',
+                'greeting_name' => 'Kunde',
+                'display_label' => $displayLabel,
+                'caller_phone' => $phoneLabel,
+            ];
+            Cache::put(self::CACHE_INBOUND_META_PREFIX . $callRecord->id, $meta, now()->addMinutes(25));
+            if ($callSid !== '') {
+                Cache::put(self::CACHE_SID_TO_CALL_PREFIX . $callSid, $callRecord->id, now()->addMinutes(25));
+            }
+
+            $serviceObjective = "KUNDENSERVICE {$shopName}: Begrüße den Anrufer freundlich per Sie, nimm Name, Anliegen, ggf. Bestellnummer oder E-Mail sowie Rahmenbedingungen auf und erstelle ein strukturiertes Ticket für {$ownerName}.";
+
+            $connect = $response->connect();
+            $stream = $connect->stream([
+                'url' => $wssUrl,
+            ]);
+            $stream->parameter(['name' => 'call_mode', 'value' => 'inbound_customer_service']);
+            $stream->parameter(['name' => 'shop_name', 'value' => (string) $shopName]);
+            $stream->parameter(['name' => 'agent_name', 'value' => (string) $ownerName]);
+            $stream->parameter(['name' => 'contact_name', 'value' => 'Kunde']);
+            $stream->parameter(['name' => 'greeting_name', 'value' => 'Kunde']);
+            $stream->parameter(['name' => 'objective', 'value' => $serviceObjective]);
+            $stream->parameter(['name' => 'planned_call_id', 'value' => "{$callRecord->id}:{$callNonce}"]);
+
             return response($response->asXML(), 200)->header('Content-Type', 'text/xml');
         }
 
-        // 3. Freigegebener Whitelist-Kontakt erkannt (z. B. Philip Goik oder Papa) -> Live-Sekretärin Funkira übernimmt!
-        $callSid = is_string($request->input('CallSid')) ? trim($request->input('CallSid')) : '';
+        // 3. Freigegebener Whitelist-Kontakt erkannt -> Persönliche Live-Sekretärin Funkira übernimmt!
         $greetingName = FunkiraPhoneConciergeService::resolveSpokenGreetingName($matchedContact);
         $fullName = trim($matchedContact->full_name) ?: $greetingName;
         $nick = trim((string) ($matchedContact->nickname ?? ''));
@@ -125,7 +197,9 @@ class TwilioCallController extends Controller
             'nonce' => $callNonce,
             'call_record_id' => $callRecord->id,
             'call_sid' => $callSid,
+            'call_mode' => 'inbound_secretary',
             'contact_id' => $matchedContact->id,
+            'customer_id' => null,
             'caller_name' => $fullName,
             'greeting_name' => $greetingName,
             'display_label' => $displayLabel,
@@ -138,10 +212,6 @@ class TwilioCallController extends Controller
 
         // 4. Sofortige Übergabe (0,0s Verzögerung, KEIN statischer Standardtext vorweg!) in den bidirektionalen
         //    Gemini-3.1-Flash-Live-Audiostream: Funkira begrüßt den Anrufer live und klärt aktiv alle Rahmenbedingungen.
-        $ownerName = function_exists('shop_setting')
-            ? shop_setting('owner_proprietor', 'Alina Steinhauer')
-            : 'Alina Steinhauer';
-
         $calendarSlots = FunkiraPhoneConciergeService::buildSafeCalendarSlotsForSecretary();
 
         $secretaryObjective = "LIVE TELEFON-SEKRETÄRIN FUNKIRA: Führe sofort ein herzliches, lebendiges Gespräch mit {$greetingName} ({$fullName}), "
@@ -153,8 +223,6 @@ class TwilioCallController extends Controller
             . $contactInstructions
             . ' ZERO-PII-REGEL: Gib niemals interne Geschäftsdaten, Kunden, Bestellungen oder Finanzen preis.'
         );
-
-        $wssUrl = config('services.twilio.wss_url') ?: 'wss://ws.mein-seelenfunke.de/twilio-stream';
 
         $connect = $response->connect();
         $stream = $connect->stream([
@@ -224,20 +292,31 @@ class TwilioCallController extends Controller
             return response()->json(['status' => 'expired']);
         }
 
-        // Nur wenn das Gespräch extrem kurz war (<= 4s, d. h. sofortiges Auflegen vor Gesprächsbeginn)
-        // kurzen Fallback anlegen; echte Gespräche sendet die Live-Bridge direkt per /api/twilio/call-log
-        // (und completeCall aktualisiert einen Fallback bei Bedarf nahtlos mit dem echten Gesprächsprotokoll!).
-        if ($durationSec <= 4) {
+        // Sicherheitsnetz: Wenn ein Whitelist-Anruf beendet wurde (egal ob <= 4s oder nach Bridge-Abbruch),
+        // aber noch auf 'ongoing' steht (z. B. weil /api/twilio/call-log nicht eintraf), sofort Fallback-Protokoll & To-Do anlegen.
+        // Sobald das echte KI-Transkript nachträglich per /api/twilio/call-log eintrifft, wird der Stub nahtlos aktualisiert!
+        if (in_array($callStatus, ['completed', 'no-answer', 'canceled', 'busy', 'failed'], true)) {
             $callRecord = SupportTelephonyCall::find($callRecordId);
             if ($callRecord && $callRecord->status === 'ongoing') {
-                $who = $meta['greeting_name'] ?? ($meta['caller_name'] ?? 'Kontakt');
-                $stubSummary = "{$who} hat kurz angerufen und noch vor Gesprächsbeginn wieder aufgelegt.";
-                $stubAction = "{$who} bei Gelegenheit kurz zurückrufen.";
+                $callMode = (string) ($meta['call_mode'] ?? 'inbound_secretary');
+                $isCustomerService = $callMode === 'inbound_customer_service';
+                $handledBy = $isCustomerService ? 'twilio_customer_service' : 'twilio_secretary';
+                $who = $isCustomerService
+                    ? ($meta['display_label'] ?? 'Telefon-Kunde')
+                    : ($meta['greeting_name'] ?? ($meta['caller_name'] ?? 'Kontakt'));
+                $stubSummary = $durationSec <= 4
+                    ? "{$who} hat kurz angerufen und noch vor Gesprächsbeginn wieder aufgelegt."
+                    : "{$who} hat angerufen ({$durationSec} Sek.), aber die Live-Zusammenfassung wurde unterbrochen.";
+                $stubAction = $isCustomerService
+                    ? "Kundenanruf ({$who}) prüfen und bei Bedarf kurz zurückrufen."
+                    : "{$who} bei Gelegenheit kurz zurückrufen.";
                 $callRecord->status = 'completed';
                 $callRecord->duration_seconds = $durationSec;
                 $callRecord->summary = $stubSummary;
                 $callRecord->next_steps = json_encode([
-                    'mode' => 'inbound_secretary',
+                    'mode' => $callMode,
+                    'call_mode' => $callMode,
+                    'handled_by' => $handledBy,
                     'rahmenbedingungen' => [],
                     'action_required' => $stubAction,
                     'urgency' => 'mittel',
@@ -248,18 +327,21 @@ class TwilioCallController extends Controller
 
                 FunkiraPhoneConciergeService::completeCall([
                     'call_id' => 'twilio_' . $callRecordId,
+                    'call_mode' => $callMode,
                     'is_simulation' => false,
                     'is_fallback_stub' => true,
                     'contact_id' => $meta['contact_id'] ?? null,
-                    'caller_name' => $meta['caller_name'] ?? 'Kontakt',
+                    'customer_id' => $meta['customer_id'] ?? null,
+                    'caller_name' => $meta['caller_name'] ?? ($isCustomerService ? 'Kundenanruf' : 'Kontakt'),
                     'greeting_name' => $meta['greeting_name'] ?? 'Kontakt',
                     'caller_phone' => $meta['caller_phone'] ?? '',
-                    'handled_by' => 'twilio_secretary',
+                    'handled_by' => $handledBy,
                     'summary' => $stubSummary,
                     'rahmenbedingungen' => [],
                     'action_required' => $stubAction,
                     'urgency' => 'mittel',
                     'callback_requested' => true,
+                    'duration_seconds' => $durationSec,
                 ]);
             }
         }
@@ -355,13 +437,43 @@ class TwilioCallController extends Controller
         $extractedCallback = true;
         $extractedRahmenbedingungen = [];
         $extractedActionRequired = '';
+        $extractedCallerName = '';
+        $extractedCallerEmail = '';
+        $extractedOrderNumber = '';
+        $extractedCategory = 'support';
+        $extractedTicketSubject = '';
 
-        // Bewerte das Live-Gespräch strukturiert mit Gemini/Vertex AI (Besprochenes, Rahmenbedingungen, Was Alina tun soll)
+        $inboundCallMode = $verifiedInboundMeta !== null
+            ? (string) ($verifiedInboundMeta['call_mode'] ?? 'inbound_secretary')
+            : 'outbound';
+        $isCustomerServiceInbound = $verifiedInboundMeta !== null && $inboundCallMode === 'inbound_customer_service';
+        $effectiveHandledBy = $verifiedInboundMeta !== null
+            ? ($isCustomerServiceInbound ? 'twilio_customer_service' : 'twilio_secretary')
+            : 'outbound';
+
+        // Bewerte das Live-Gespräch strukturiert mit Gemini/Vertex AI (Besprochenes, Rahmenbedingungen, Ticket-/Aufgabendaten)
         if (!empty($transcriptLines)) {
             if (\App\Services\AI\VertexAiService::hasCredentials() && (!app()->environment('testing') || config('services.gemini.allow_in_tests', false))) {
                 try {
                     $transcriptText = mb_substr(implode("\n", $transcriptLines), 0, 15000);
-                    if ($verifiedInboundMeta !== null) {
+                    if ($isCustomerServiceInbound) {
+                        $prompt = "Du bist die Auswertungs-KI des Kundenservices von Mein-Seelenfunke (Inhaberin Alina Steinhauer). Folgendes ist das vollständige Telefonprotokoll eines eingehenden Kundenanrufs:\n\n"
+                            . $transcriptText
+                            . "\n\nErstelle für Alina eine glasklare, strukturierte Kundenservice-Zusammenfassung auf Deutsch (niemals KI-Gedankenstriche verwenden!). "
+                            . "Extrahiere präzise:\n"
+                            . "1. 'caller_name': Vollständiger Name des Anrufers, falls genannt (sonst leerer String '')\n"
+                            . "2. 'caller_email': E-Mail-Adresse des Anrufers, falls genannt (sonst '')\n"
+                            . "3. 'order_number': Genannte Bestellnummer (z. B. ORD-... oder Ziffernfolge), falls genannt (sonst '')\n"
+                            . "4. 'category': Genau einer dieser Werte: 'support', 'return', 'order', 'product', 'general'\n"
+                            . "5. 'ticket_subject': Kurzer prägnanter Betreff für das Support-Ticket (max. 90 Zeichen)\n"
+                            . "6. 'summary': Was wurde besprochen? (1 bis 2 prägnante Sätze)\n"
+                            . "7. 'rahmenbedingungen': Array aller wichtigen geklärten Eckdaten (Wunschtermin, Produkt, Gravurtext, Frist, Erreichbarkeit)\n"
+                            . "8. 'action_required': Konkrete Handlungsanweisung für Alina\n"
+                            . "9. 'urgency': 'hoch', 'mittel' oder 'niedrig'\n"
+                            . "10. 'callback_requested': true oder false\n\n"
+                            . "Antworte ausschließlich mit einem reinen JSON-Objekt ohne Markdown-Backticks im Format:\n"
+                            . '{"caller_name": "...", "caller_email": "", "order_number": "", "category": "support", "ticket_subject": "...", "summary": "...", "rahmenbedingungen": ["..."], "action_required": "...", "urgency": "hoch|mittel|niedrig", "callback_requested": true}';
+                    } elseif ($verifiedInboundMeta !== null) {
                         $callerLabel = $verifiedInboundMeta['caller_name'] ?? 'Kontakt';
                         $prompt = "Du bist Funkira, die persönliche Sekretärin von Alina Steinhauer. Folgendes ist das vollständige Live-Gesprächsprotokoll mit {$callerLabel}:\n\n"
                             . $transcriptText
@@ -404,7 +516,7 @@ class TwilioCallController extends Controller
                         $result = json_decode(trim((string) $text), true);
 
                         if (is_array($result)) {
-                            $cleanSummary = str_replace(' – ', ', ', trim((string) ($result['summary'] ?? '')));
+                            $cleanSummary = FunkiraPhoneConciergeService::sanitizeCleanText((string) ($result['summary'] ?? ''), 1900);
                             if ($cleanSummary !== '') {
                                 $callRecord->summary = $cleanSummary;
                             }
@@ -415,23 +527,50 @@ class TwilioCallController extends Controller
                                 $extractedCallback = (bool) $result['callback_requested'];
                             }
                             if (!empty($result['rahmenbedingungen']) && is_array($result['rahmenbedingungen'])) {
-                                foreach ($result['rahmenbedingungen'] as $rb) {
-                                    $cleanRb = str_replace(' – ', ': ', trim((string) $rb));
+                                foreach (array_slice($result['rahmenbedingungen'], 0, 30) as $rb) {
+                                    $cleanRb = FunkiraPhoneConciergeService::sanitizeCleanText((string) $rb, 300);
                                     if ($cleanRb !== '') {
                                         $extractedRahmenbedingungen[] = $cleanRb;
                                     }
                                 }
                             }
                             if (!empty($result['action_required'])) {
-                                $extractedActionRequired = str_replace(' – ', ', ', trim((string) $result['action_required']));
+                                $extractedActionRequired = FunkiraPhoneConciergeService::sanitizeCleanText((string) $result['action_required'], 480);
+                            }
+                            if ($isCustomerServiceInbound) {
+                                $extractedCallerName = FunkiraPhoneConciergeService::sanitizeCleanText((string) ($result['caller_name'] ?? ''), 140);
+                                $candEmail = strtolower(trim((string) ($result['caller_email'] ?? '')));
+                                if ($candEmail !== '' && filter_var($candEmail, FILTER_VALIDATE_EMAIL)) {
+                                    $extractedCallerEmail = Str::limit($candEmail, 180, '');
+                                }
+                                $candOrder = trim((string) ($result['order_number'] ?? ''));
+                                if ($candOrder !== '' && preg_match('/^[A-Za-z0-9\-_]{3,40}$/', $candOrder)) {
+                                    $extractedOrderNumber = $candOrder;
+                                }
+                                $candCat = strtolower(trim((string) ($result['category'] ?? 'support')));
+                                if (in_array($candCat, ['support', 'return', 'order', 'product', 'general'], true)) {
+                                    $extractedCategory = $candCat;
+                                }
+                                $extractedTicketSubject = FunkiraPhoneConciergeService::sanitizeCleanText((string) ($result['ticket_subject'] ?? ''), 180);
+                                if ($extractedCallerName !== '') {
+                                    $phoneBit = !empty($verifiedInboundMeta['caller_phone']) && $verifiedInboundMeta['caller_phone'] !== 'Unterdrückt'
+                                        ? ' (' . $verifiedInboundMeta['caller_phone'] . ')'
+                                        : '';
+                                    $callRecord->contact_name = Str::limit($extractedCallerName . $phoneBit, 250, '');
+                                }
                             }
                             $stepsList = $result['next_steps'] ?? ($extractedActionRequired !== '' ? [$extractedActionRequired] : []);
                             $combinedJson = [
-                                'mode' => $verifiedInboundMeta !== null ? 'inbound_secretary' : 'outbound',
+                                'mode' => $inboundCallMode,
+                                'call_mode' => $inboundCallMode,
+                                'handled_by' => $effectiveHandledBy,
                                 'rahmenbedingungen' => $extractedRahmenbedingungen,
                                 'action_required' => $extractedActionRequired,
                                 'urgency' => $extractedUrgency,
                                 'callback_requested' => $extractedCallback,
+                                'category' => $isCustomerServiceInbound ? $extractedCategory : null,
+                                'caller_email' => $extractedCallerEmail !== '' ? $extractedCallerEmail : null,
+                                'order_number' => $extractedOrderNumber !== '' ? $extractedOrderNumber : null,
                                 'steps' => $stepsList,
                                 'goals' => $result['goals'] ?? [],
                             ];
@@ -447,7 +586,9 @@ class TwilioCallController extends Controller
 
         // Deterministischer Fallback, falls kein LLM-Summary erzeugt wurde (z. B. kurzes Gespräch oder Timeout)
         if ($verifiedInboundMeta !== null && empty($callRecord->summary)) {
-            $who = $verifiedInboundMeta['greeting_name'] ?? ($verifiedInboundMeta['caller_name'] ?? 'Kontakt');
+            $who = $isCustomerServiceInbound
+                ? ($extractedCallerName !== '' ? $extractedCallerName : ($verifiedInboundMeta['display_label'] ?? 'Telefon-Kunde'))
+                : ($verifiedInboundMeta['greeting_name'] ?? ($verifiedInboundMeta['caller_name'] ?? 'Kontakt'));
             $callerTurns = [];
             foreach ($transcriptLines as $line) {
                 if (str_starts_with($line, 'Anrufer:')) {
@@ -461,7 +602,9 @@ class TwilioCallController extends Controller
             if (mb_strlen($joinedCaller) >= 4) {
                 $callRecord->summary = Str::limit($joinedCaller, 600, '...');
                 if ($extractedActionRequired === '') {
-                    $extractedActionRequired = "{$who} zurückrufen bzw. Anliegen bearbeiten.";
+                    $extractedActionRequired = $isCustomerServiceInbound
+                        ? "Kundenanliegen ({$who}) prüfen und beantworten."
+                        : "{$who} zurückrufen bzw. Anliegen bearbeiten.";
                 }
             } else {
                 $callRecord->summary = "{$who} hat angerufen (kurzes Gespräch ohne nähere Details).";
@@ -470,11 +613,14 @@ class TwilioCallController extends Controller
                 }
             }
             $callRecord->next_steps = json_encode([
-                'mode' => 'inbound_secretary',
+                'mode' => $inboundCallMode,
+                'call_mode' => $inboundCallMode,
+                'handled_by' => $effectiveHandledBy,
                 'rahmenbedingungen' => $extractedRahmenbedingungen,
                 'action_required' => $extractedActionRequired,
                 'urgency' => $extractedUrgency,
                 'callback_requested' => $extractedCallback,
+                'category' => $isCustomerServiceInbound ? $extractedCategory : null,
                 'steps' => [$extractedActionRequired],
                 'goals' => [],
             ], JSON_UNESCAPED_UNICODE);
@@ -482,22 +628,34 @@ class TwilioCallController extends Controller
 
         $callRecord->save();
 
-        // Für eingehende Whitelist-Anrufe: Dashboard-To-Do + Kontakt-Gedächtnis + Smartphone-Push auslösen!
+        // Für eingehende Whitelist- und Kundenservice-Anrufe: Ticket, Dashboard-To-Do, App-Protokoll & Push auslösen!
         if ($verifiedInboundMeta !== null) {
+            $resolvedName = $isCustomerServiceInbound
+                ? ($extractedCallerName !== '' ? $extractedCallerName : ($verifiedInboundMeta['display_label'] ?? 'Telefon-Kunde'))
+                : ($verifiedInboundMeta['caller_name'] ?? 'Kontakt');
+
             FunkiraPhoneConciergeService::completeCall([
                 'call_id' => 'twilio_' . $callRecord->id,
+                'call_mode' => $inboundCallMode,
                 'is_simulation' => false,
                 'is_fallback_stub' => false,
                 'contact_id' => $verifiedInboundMeta['contact_id'] ?? null,
-                'caller_name' => $verifiedInboundMeta['caller_name'] ?? 'Kontakt',
-                'greeting_name' => $verifiedInboundMeta['greeting_name'] ?? 'Kontakt',
+                'customer_id' => $verifiedInboundMeta['customer_id'] ?? null,
+                'caller_name' => $resolvedName,
+                'greeting_name' => $verifiedInboundMeta['greeting_name'] ?? ($isCustomerServiceInbound ? 'Kunde' : 'Kontakt'),
                 'caller_phone' => $verifiedInboundMeta['caller_phone'] ?? '',
-                'handled_by' => 'twilio_secretary',
+                'caller_email' => $extractedCallerEmail,
+                'order_number' => $extractedOrderNumber,
+                'category' => $extractedCategory,
+                'ticket_subject' => $extractedTicketSubject,
+                'handled_by' => $effectiveHandledBy,
                 'summary' => (string) $callRecord->summary,
                 'rahmenbedingungen' => $extractedRahmenbedingungen,
                 'action_required' => $extractedActionRequired,
                 'urgency' => $extractedUrgency,
                 'callback_requested' => $extractedCallback,
+                'duration_seconds' => (int) ($callRecord->duration_seconds ?? 0),
+                'transcript' => $transcriptLines,
             ]);
         }
 

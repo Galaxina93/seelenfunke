@@ -124,13 +124,22 @@ namespace FunkenwerkSsh
                                     ?? _profiles[0];
                     ProfilesListBox.SelectedItem = preferred;
                 }
+                UpdateProfileActionButtons();
             }
             catch (Exception ex)
             {
                 _profiles = new List<SshConnectionProfile>();
                 ProfilesListBox.ItemsSource = _profiles;
+                UpdateProfileActionButtons();
                 StatusText.Text = $"🚨 Tresor-Schutz aktiv: {ex.Message}";
             }
+        }
+
+        private void UpdateProfileActionButtons()
+        {
+            bool hasSelection = ProfilesListBox.SelectedItem is SshConnectionProfile;
+            if (RenameProfileBtn != null) RenameProfileBtn.IsEnabled = hasSelection;
+            if (DeleteProfileBtn != null) DeleteProfileBtn.IsEnabled = hasSelection;
         }
 
         private void UpdateKeyButtonTooltip()
@@ -142,6 +151,7 @@ namespace FunkenwerkSsh
 
         private void ProfilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            UpdateProfileActionButtons();
             if (_suppressPassSync) return;
             if (ProfilesListBox.SelectedItem is not SshConnectionProfile p) return;
 
@@ -167,6 +177,86 @@ namespace FunkenwerkSsh
             if (ProfilesListBox.SelectedItem is SshConnectionProfile)
             {
                 await ConnectOrReconnectSshAsync();
+            }
+        }
+
+        private void ProfilesListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is DependencyObject dep)
+            {
+                while (dep != null && dep is not ListBoxItem)
+                {
+                    dep = VisualTreeHelper.GetParent(dep);
+                }
+                if (dep is ListBoxItem item)
+                {
+                    item.IsSelected = true;
+                    item.Focus();
+                }
+            }
+        }
+
+        private void ProfilesListBox_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            bool hasSelection = ProfilesListBox.SelectedItem is SshConnectionProfile;
+            if (!hasSelection)
+            {
+                e.Handled = true;
+                return;
+            }
+            if (MenuConnectProfile != null) MenuConnectProfile.IsEnabled = true;
+            if (MenuRenameProfile != null) MenuRenameProfile.IsEnabled = true;
+            if (MenuDeleteProfile != null) MenuDeleteProfile.IsEnabled = true;
+        }
+
+        private void ProfilesListBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (ProfilesListBox.SelectedItem is not SshConnectionProfile) return;
+
+            if (e.Key == Key.F2)
+            {
+                e.Handled = true;
+                RenameSelectedProfile();
+            }
+            else if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                DeleteProfile_Click(sender, new RoutedEventArgs());
+            }
+        }
+
+        private async void MenuConnectProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (ProfilesListBox.SelectedItem is SshConnectionProfile)
+            {
+                await ConnectOrReconnectSshAsync();
+            }
+        }
+
+        private void RenameProfile_Click(object sender, RoutedEventArgs e)
+        {
+            RenameSelectedProfile();
+        }
+
+        private void RenameSelectedProfile()
+        {
+            if (ProfilesListBox.SelectedItem is not SshConnectionProfile current) return;
+
+            string? entered = ShowCleanInputDialog("Profil umbenennen", current.Name, "Speichern");
+            if (entered == null) return;
+
+            try
+            {
+                bool changed = FunkenwerkSshSecurity.RenameProfile(_profiles, current, entered);
+                if (changed)
+                {
+                    ProfilesListBox.Items.Refresh();
+                    StatusText.Text = $"✎ Profil umbenannt in '{current.Name}'.";
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ {ex.Message}";
             }
         }
 
@@ -251,9 +341,14 @@ namespace FunkenwerkSsh
                 }
                 else
                 {
+                    string suggestedName = string.IsNullOrWhiteSpace(user) ? host : $"{user}@{host}";
+                    string? enteredName = ShowCleanInputDialog("SSH-Profil benennen", suggestedName, "Speichern");
+                    if (enteredName == null) return;
+
+                    string cleanName = FunkenwerkSshSecurity.SanitizeProfileName(enteredName);
                     var created = new SshConnectionProfile
                     {
-                        Name = string.IsNullOrWhiteSpace(user) ? host : $"{user}@{host}",
+                        Name = cleanName,
                         Host = host,
                         Port = port,
                         Username = user,
@@ -269,6 +364,7 @@ namespace FunkenwerkSsh
 
                 FunkenwerkSshSecurity.SaveProfiles(_profiles);
                 ProfilesListBox.Items.Refresh();
+                UpdateProfileActionButtons();
                 StatusText.Text = "🔒 SSH-Profil AES-256-GCM verschlüsselt gespeichert.";
             }
             catch (Exception ex)
@@ -288,6 +384,7 @@ namespace FunkenwerkSsh
             ProfilesListBox.ItemsSource = null;
             ProfilesListBox.ItemsSource = _profiles;
             if (_profiles.Count > 0) ProfilesListBox.SelectedIndex = 0;
+            UpdateProfileActionButtons();
         }
 
         private async void Connect_Click(object sender, RoutedEventArgs e)
@@ -1187,6 +1284,100 @@ namespace FunkenwerkSsh
         // =====================================================================
         // CLEAN LIGHT/DARK MODAL DIALOGS (HOST KEY & MULTI-LINE PASTE PREVIEW)
         // =====================================================================
+        private string? ShowCleanInputDialog(string title, string initialValue, string confirmLabel)
+        {
+            var dlg = new Window
+            {
+                Title = title,
+                Owner = IsLoaded ? this : null,
+                WindowStartupLocation = IsLoaded ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+                Width = 440,
+                SizeToContent = SizeToContent.Height,
+                ResizeMode = ResizeMode.NoResize,
+                Background = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                FontFamily = new FontFamily("Segoe UI")
+            };
+
+            var root = new StackPanel { Margin = new Thickness(20) };
+            root.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontSize = 15,
+                FontWeight = FontWeights.Bold,
+                Foreground = BrushHex("#C5A059"),
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            var inputBox = new TextBox
+            {
+                Text = initialValue ?? "",
+                Height = 36,
+                MaxLength = 80,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(10, 0, 10, 0),
+                Margin = new Thickness(0, 0, 0, 16),
+                FontSize = 13.5,
+                Background = BrushHex(_isDarkMode ? "#181C26" : "#F9FAFB"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                CaretBrush = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                BorderBrush = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB")
+            };
+            root.Children.Add(inputBox);
+
+            var btnBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancelBtn = new Button
+            {
+                Content = "Abbrechen",
+                IsCancel = true,
+                Height = 32,
+                Padding = new Thickness(14, 0, 14, 0),
+                Margin = new Thickness(0, 0, 8, 0),
+                Cursor = Cursors.Hand,
+                Background = BrushHex(_isDarkMode ? "#1D2230" : "#F3F4F6"),
+                Foreground = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827"),
+                BorderBrush = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB")
+            };
+            cancelBtn.Click += (_, _) => { dlg.DialogResult = false; dlg.Close(); };
+
+            var okBtn = new Button
+            {
+                Content = confirmLabel,
+                IsDefault = true,
+                Height = 32,
+                Padding = new Thickness(16, 0, 16, 0),
+                Cursor = Cursors.Hand,
+                FontWeight = FontWeights.Bold,
+                Background = BrushHex("#C5A059"),
+                Foreground = BrushHex("#0F1117"),
+                BorderThickness = new Thickness(0)
+            };
+            okBtn.Click += (_, _) =>
+            {
+                if (string.IsNullOrWhiteSpace(inputBox.Text))
+                {
+                    inputBox.BorderBrush = BrushHex("#EF4444");
+                    inputBox.Focus();
+                    return;
+                }
+                dlg.DialogResult = true;
+                dlg.Close();
+            };
+
+            btnBar.Children.Add(cancelBtn);
+            btnBar.Children.Add(okBtn);
+            root.Children.Add(btnBar);
+            dlg.Content = root;
+
+            dlg.Loaded += (_, _) =>
+            {
+                inputBox.Focus();
+                inputBox.SelectAll();
+            };
+
+            return dlg.ShowDialog() == true ? inputBox.Text : null;
+        }
+
         private bool ShowCleanConfirmDialog(string title, string message, string confirmLabel, bool isDanger)
         {
             var dlg = new Window

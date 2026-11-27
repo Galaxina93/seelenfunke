@@ -1,13 +1,16 @@
 package de.meinseelenfunke.app.services
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import de.meinseelenfunke.app.MainActivity
@@ -17,9 +20,73 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+internal data class VisiblePushPayload(
+    val title: String,
+    val body: String,
+    val channelId: String,
+    val isNewOrder: Boolean,
+    val notificationId: Int
+)
+
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private val tag = "FirebaseMessaging"
+
+    companion object {
+        private val SILENT_ACTIONS = setOf("ping", "noop", "silent_sync", "heartbeat")
+        private val TRUTHY_FLAGS = setOf("1", "true", "yes")
+
+        internal fun resolveVisibleNotificationPayload(
+            data: Map<String, String>,
+            notificationTitle: String?,
+            notificationBody: String?,
+            fallbackId: Int = (System.currentTimeMillis() and 0x7FFFFFFF).toInt()
+        ): VisiblePushPayload? {
+            val silentFlag = data["silent"]?.trim()?.lowercase().orEmpty()
+            if (silentFlag in TRUTHY_FLAGS) {
+                return null
+            }
+
+            val action = data["action"]?.trim()?.lowercase().orEmpty()
+            if (action.startsWith("sync_") || action in SILENT_ACTIONS) {
+                return null
+            }
+
+            val rawTitle = (data["title"] ?: notificationTitle).orEmpty().trim()
+            val rawBody = (data["body"] ?: notificationBody).orEmpty().trim()
+            if (rawTitle.isEmpty() && rawBody.isEmpty()) {
+                return null
+            }
+
+            val isNewOrder = !data["order_id"].isNullOrBlank()
+            val channelId = if (isNewOrder) "orders_notification_channel_v4" else "default_notification_channel"
+            val effectiveTitle = rawTitle.ifBlank {
+                if (isNewOrder) "Neue Bestellung" else "Funkenwerk"
+            }
+
+            val dedupeKey = listOfNotNull(
+                data["order_id"]?.trim()?.takeIf { it.isNotEmpty() }?.let { "order:$it" },
+                data["call_id"]?.trim()?.takeIf { it.isNotEmpty() }?.let { "call:$it" },
+                data["task_id"]?.trim()?.takeIf { it.isNotEmpty() }?.let { "task:$it" },
+                data["log_id"]?.trim()?.takeIf { it.isNotEmpty() }?.let { "log:$it" },
+                data["email_id"]?.trim()?.takeIf { it.isNotEmpty() }?.let { "email:$it" }
+            ).firstOrNull()
+
+            val notifId = if (dedupeKey != null) {
+                de.meinseelenfunke.app.util.NotificationBadgeGuard.stableDedupeNotificationId(dedupeKey)
+            } else {
+                fallbackId.coerceAtLeast(2000)
+            }
+
+            return VisiblePushPayload(
+                title = effectiveTitle,
+                body = rawBody,
+                channelId = channelId,
+                isNewOrder = isNewOrder,
+                notificationId = notifId
+            )
+        }
+    }
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -57,26 +124,31 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         // Check if message contains data payload
-        if (remoteMessage.data.isNotEmpty()) {
-            if (remoteMessage.data["type"] == "phone_secretary") {
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        de.meinseelenfunke.app.util.PhoneConciergeManager.fetchRecentCalls(context)
-                    } catch (_: Exception) { }
-                }
-            }
-            val title = remoteMessage.data["title"] ?: "Neue Meldung"
-            val body = remoteMessage.data["body"] ?: ""
-            sendNotification(title, body, remoteMessage.data)
-        } else {
-            remoteMessage.notification?.let {
-                sendNotification(it.title ?: "Neue Meldung", it.body ?: "", emptyMap())
+        if (remoteMessage.data["type"] == "phone_secretary") {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    de.meinseelenfunke.app.util.PhoneConciergeManager.fetchRecentCalls(context)
+                } catch (_: Exception) { }
             }
         }
+
+        val payload = resolveVisibleNotificationPayload(
+            data = remoteMessage.data,
+            notificationTitle = remoteMessage.notification?.title,
+            notificationBody = remoteMessage.notification?.body
+        ) ?: return
+
+        sendNotification(payload, remoteMessage.data)
     }
 
-    private fun sendNotification(title: String, messageBody: String, data: Map<String, String>) {
-        val isNewOrder = data.containsKey("order_id")
+    private fun sendNotification(payload: VisiblePushPayload, data: Map<String, String>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val isNewOrder = payload.isNewOrder
         val isPhoneSecretary = data["type"] == "phone_secretary"
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -101,11 +173,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         val pendingIntent = PendingIntent.getActivity(
-            this, (System.currentTimeMillis() and 0x7FFFFFFF).toInt(), intent,
+            this, payload.notificationId, intent,
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val channelId = if (isNewOrder) "orders_notification_channel_v4" else "default_notification_channel"
+        val channelId = payload.channelId
         val publicNotification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setColor(0xFFC5A059.toInt())
@@ -117,8 +189,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setColor(0xFFC5A059.toInt())
-            .setContentTitle(title)
-            .setContentText(messageBody)
+            .setContentTitle(payload.title)
+            .setContentText(payload.body)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -137,7 +209,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             }
         }
 
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
         // Notification channel is needed on Android Oreo (API 26) and above
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -168,6 +240,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             }
         }
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+        notificationManager.notify(payload.notificationId, notificationBuilder.build())
     }
 }

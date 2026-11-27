@@ -2382,9 +2382,9 @@ class SentinelTriageService
         try {
             DB::select('SELECT 1');
             $probeKey = 'sentinel:health_probe:' . Str::random(8);
-            Cache::put($probeKey, 'ok', 15);
-            $val = Cache::get($probeKey);
-            Cache::forget($probeKey);
+            RedisResilienceService::safeCachePut($probeKey, 'ok', 15);
+            $val = RedisResilienceService::safeCacheGet($probeKey);
+            RedisResilienceService::safeCacheForget($probeKey);
             return $val === 'ok';
         } catch (\Throwable $e) {
             return false;

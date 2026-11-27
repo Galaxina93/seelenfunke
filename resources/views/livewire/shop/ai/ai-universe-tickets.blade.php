@@ -244,6 +244,13 @@
                   title="Geschätzte Vertex AI Inferenzkosten im laufenden Monat (Budget-Richtwert: 50,00 €)">
                 {{ $stats['monthly_euro_formatted'] }} / 50 €
             </span>
+
+            <a href="{{ route('admin.ai-analytics', ['tab' => 'behavior']) }}"
+               title="Zentrales KI-Verhaltensprofil (Lob & Kritik über Web, App & Mini-PC)"
+               class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#C5A059]/15 text-[#9A742B] dark:text-[#C5A059] border border-[#C5A059]/35 hover:bg-[#C5A059]/25 transition-colors shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#C5A059]"></span>
+                <span>Verhaltensprofil</span>
+            </a>
         </div>
 
         {{-- Direkte Funkira-Befehlszeile (Enter = Senden, Shift+Enter = Umbruch, @ = Agenten inkl. Antigravity) --}}

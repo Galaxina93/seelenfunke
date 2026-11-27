@@ -34,6 +34,7 @@ data class FunkiraDraftPackage(
     @SerializedName("title") val title: String = "",
     @SerializedName("channel") val channel: String = AgDirectChannel.LEITUNG.code,
     @SerializedName("execution_mode") val executionMode: String = "concept",
+    @SerializedName("priority") val priority: String = "normal",
     @SerializedName("checklist") val checklist: List<String> = emptyList(),
     @SerializedName("attachments") val attachments: List<FunkiraPackageAttachment> = emptyList(),
     @SerializedName("source") val source: String = "voice",
@@ -94,6 +95,7 @@ object FunkiraPackageStore {
         packageTitle: String? = null,
         channel: String = AgDirectChannel.LEITUNG.code,
         executionMode: String = "concept",
+        priority: String = "normal",
         attachment: PreparedAgAttachment? = null,
         attachmentCaption: String = "",
         source: String = "voice"
@@ -111,8 +113,13 @@ object FunkiraPackageStore {
             return null
         }
 
-        val normalizedChannel = AgDirectInboxManager.normalizeChannel(channel)
+        val normalizedChannel = AgDirectInboxManager.resolveEffectiveChannel(
+            channel,
+            cleanTitle,
+            cleanItems.joinToString("\n")
+        )
         val normalizedMode = normalizePackageMode(executionMode)
+        val normalizedPriority = normalizePackagePriority(priority)
         val nowIso = Instant.now().toString()
 
         val resultPkg = synchronized(storeLock) {
@@ -122,7 +129,8 @@ object FunkiraPackageStore {
 
             val updatedPkg = if (targetIdx >= 0) {
                 val old = list[targetIdx]
-                val mergedItems = mergeChecklist(old.checklist, cleanItems)
+                val effectivePriority = higherPriority(old.priority, normalizedPriority)
+                val mergedItems = mergeChecklist(old.checklist, cleanItems, prioritizeAdditions = normalizedPriority == "urgent")
                 val mergedAtts = mergeAttachment(old.attachments, attachment, attachmentCaption)
                 val nextTitle = if (cleanTitle.isNotBlank() && old.title.startsWith("Sammelpaket:", ignoreCase = true)) {
                     cleanTitle
@@ -132,6 +140,7 @@ object FunkiraPackageStore {
                 val updated = old.copy(
                     title = nextTitle,
                     executionMode = if (executionMode.isNotBlank()) normalizedMode else old.executionMode,
+                    priority = effectivePriority,
                     checklist = mergedItems,
                     attachments = mergedAtts,
                     updatedAtIso = nowIso
@@ -155,6 +164,7 @@ object FunkiraPackageStore {
                     title = autoTitle,
                     channel = normalizedChannel,
                     executionMode = normalizedMode,
+                    priority = normalizedPriority,
                     checklist = effectiveItems.take(MAX_ITEMS_PER_PACKAGE),
                     attachments = mergedAtts,
                     source = source.take(32),
@@ -165,9 +175,9 @@ object FunkiraPackageStore {
                 created
             }
 
-            val capped = list.take(MAX_PACKAGES)
-            writePackagesUnlocked(file, capped)
-            _packagesFlow.value = capped
+            val prioritized = sortPackagesByPriority(list).take(MAX_PACKAGES)
+            writePackagesUnlocked(file, prioritized)
+            _packagesFlow.value = prioritized
             updatedPkg
         }
 
@@ -318,12 +328,12 @@ object FunkiraPackageStore {
                 executionModeOverride?.takeIf { it.isNotBlank() } ?: targetPkg.executionMode
             )
             val safeTitle = targetPkg.title.trim().ifBlank { "Sammelpaket" }.take(240)
-            val compiledBody = compilePackageBody(targetPkg).take(14_000)
+            val compiledBody = compilePackageBody(targetPkg).take(4800)
             val rawCombined = "$safeTitle\n$compiledBody"
             val safeChecklist = targetPkg.checklist
-                .map { sanitizeText(it).take(360) }
+                .map { sanitizeText(it).take(295) }
                 .filter { it.isNotEmpty() }
-                .take(MAX_ITEMS_PER_PACKAGE)
+                .take(25)
 
             val validAttachments = targetPkg.attachments.filter { it.base64Data.isNotBlank() }
             val primaryAttachment = validAttachments.firstOrNull()?.let { att ->
@@ -337,13 +347,14 @@ object FunkiraPackageStore {
                 )
             }
 
+            val effectiveChannel = AgDirectInboxManager.resolveEffectiveChannel(targetPkg.channel, safeTitle, compiledBody)
             val sentLive = AgDirectInboxManager.submitMessage(
                 context = appCtx,
                 rawText = rawCombined,
                 checklist = safeChecklist,
                 executionMode = effectiveMode,
                 attachment = primaryAttachment,
-                channel = targetPkg.channel,
+                channel = effectiveChannel,
                 clientUuid = targetPkg.uuid,
                 apiOverride = apiOverride
             )
@@ -367,7 +378,7 @@ object FunkiraPackageStore {
                         checklist = emptyList(),
                         executionMode = effectiveMode,
                         attachment = extraPrepared,
-                        channel = targetPkg.channel,
+                        channel = effectiveChannel,
                         clientUuid = "${targetPkg.uuid}_att_$photoIndex",
                         apiOverride = apiOverride
                     )
@@ -377,14 +388,14 @@ object FunkiraPackageStore {
 
             deletePackage(appCtx, targetPkg.uuid)
 
-            val channelLabel = AgDirectInboxManager.resolveChannelEnum(targetPkg.channel).chipLabel
+            val channelLabel = AgDirectInboxManager.resolveChannelEnum(effectiveChannel).chipLabel
             FunkiraPackageReleaseResult(
                 ok = true,
                 sentLive = allAttachmentsDispatchedLive,
                 packageTitle = targetPkg.title,
                 itemCount = targetPkg.checklist.size,
                 attachmentCount = validAttachments.size,
-                channel = targetPkg.channel,
+                channel = effectiveChannel,
                 message = if (allAttachmentsDispatchedLive) {
                     "Sammelpaket '${targetPkg.title}' (${targetPkg.checklist.size} Punkte, ${validAttachments.size} Fotos) gebündelt in $channelLabel übermittelt."
                 } else {
@@ -396,7 +407,12 @@ object FunkiraPackageStore {
 
     fun compilePackageBody(pkg: FunkiraDraftPackage): String {
         val lines = mutableListOf<String>()
-        lines.add("[Sammelpaket: ${pkg.title} | ${pkg.checklist.size} Anforderungen | ${pkg.attachments.size} Anhänge]")
+        val prioTag = when (normalizePackagePriority(pkg.priority)) {
+            "urgent" -> " | Prio: DRINGEND"
+            "high" -> " | Prio: HOCH"
+            else -> ""
+        }
+        lines.add("[Sammelpaket: ${pkg.title}$prioTag | ${pkg.checklist.size} Anforderungen | ${pkg.attachments.size} Anhänge]")
         pkg.checklist.forEachIndexed { idx, item ->
             lines.add("${idx + 1}. $item")
         }
@@ -404,16 +420,17 @@ object FunkiraPackageStore {
     }
 
     fun buildPackagesPromptDirective(context: Context): String {
-        val pkgs = hydrate(context)
+        val pkgs = sortPackagesByPriority(hydrate(context))
         if (pkgs.isEmpty()) return ""
         return buildString {
-            append("--- OFFENE SAMMELPAKETE (ENTWÜRFE VOR VERSAND) ---\n")
+            append("--- OFFENE SAMMELPAKETE (PRIORISIERT, ENTWÜRFE VOR VERSAND) ---\n")
             pkgs.take(5).forEach { p ->
-                append("[PAKET uuid=${p.uuid} kanal=${p.channel} modus=${p.executionMode} fotos=${p.attachmentCount}] ${p.title}: ")
+                val prio = normalizePackagePriority(p.priority)
+                append("[PAKET uuid=${p.uuid} kanal=${p.channel} modus=${p.executionMode} prio=$prio fotos=${p.attachmentCount}] ${p.title}: ")
                 append(p.checklist.take(5).joinToString(" | "))
                 append('\n')
             }
-            append("Nutze falcon_stage_to_package zum Buendeln neuer Gedanken in ein offenes Sammelpaket und falcon_release_package erst auf Alinas ausdrueckliches Go zum Absenden.")
+            append("Nutze falcon_stage_to_package zum priorisierten Buendeln neuer Anforderungen inkl. Fotoanhang und falcon_release_package erst auf Alinas ausdrueckliches Go zum Absenden.")
         }
     }
 
@@ -446,6 +463,34 @@ object FunkiraPackageStore {
         }
     }
 
+    internal fun normalizePackagePriority(rawPriority: String?): String {
+        return when (rawPriority?.trim()?.lowercase(Locale.ROOT)) {
+            "urgent", "dringend", "critical", "p0", "sofort" -> "urgent"
+            "high", "hoch", "wichtig", "p1" -> "high"
+            else -> "normal"
+        }
+    }
+
+    private fun priorityRank(rawPriority: String?): Int {
+        return when (normalizePackagePriority(rawPriority)) {
+            "urgent" -> 2
+            "high" -> 1
+            else -> 0
+        }
+    }
+
+    private fun higherPriority(a: String?, b: String?): String {
+        val normA = normalizePackagePriority(a)
+        val normB = normalizePackagePriority(b)
+        return if (priorityRank(normB) > priorityRank(normA)) normB else normA
+    }
+
+    private fun sortPackagesByPriority(list: List<FunkiraDraftPackage>): List<FunkiraDraftPackage> {
+        return list.withIndex()
+            .sortedWith(compareByDescending<IndexedValue<FunkiraDraftPackage>> { priorityRank(it.value.priority) }.thenBy { it.index })
+            .map { it.value }
+    }
+
     private fun resolveTargetPackageIndex(
         list: List<FunkiraDraftPackage>,
         packageUuid: String?,
@@ -471,16 +516,25 @@ object FunkiraPackageStore {
         return -1
     }
 
-    private fun mergeChecklist(existing: List<String>, additions: List<String>): List<String> {
-        val out = existing.toMutableList()
+    private fun mergeChecklist(
+        existing: List<String>,
+        additions: List<String>,
+        prioritizeAdditions: Boolean = false
+    ): List<String> {
         val seen = existing.map { it.trim().lowercase(Locale.GERMAN) }.toMutableSet()
+        val uniqueNew = mutableListOf<String>()
         for (item in additions) {
             val key = item.trim().lowercase(Locale.GERMAN)
             if (key.isNotEmpty() && seen.add(key)) {
-                out.add(item)
+                uniqueNew.add(item)
             }
         }
-        return out.take(MAX_ITEMS_PER_PACKAGE)
+        val combined = if (prioritizeAdditions && uniqueNew.isNotEmpty()) {
+            uniqueNew + existing
+        } else {
+            existing + uniqueNew
+        }
+        return combined.take(MAX_ITEMS_PER_PACKAGE)
     }
 
     private fun mergeAttachment(

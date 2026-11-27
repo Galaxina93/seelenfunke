@@ -16,6 +16,9 @@ class AntigravityDirectInboxCommand extends Command
         {--summary-b64= : Base64-codierte Kurz-Antwort fuer --complete}
         {--summary= : Klartext-Kurz-Antwort fuer --complete}
         {--list : Gibt Status-Zaehler und Eintraege (neueste zuerst) als JSON aus}
+        {--reconcile : Bereinigt verwaiste Referenz-Ketten zwischen DirectInbox und Universum-Ticketsystem}
+        {--requeue-stale : Hebt liegengebliebene Direct-Auftraege (delivered ohne Antwort nach Offline/Neustart) atomar zurueck auf pending}
+        {--stale-minutes=45 : Schwellwert in Minuten fuer --requeue-stale}
         {--import-b64= : Importiert/merged ein Base64-codiertes JSON-Array von Items idempotent}';
 
     protected $description = '24/7 SSH- und CLI-Bruecke fuer das direkte Antigravity-Postfach (Android <-> Stage <-> Master-Chat)';
@@ -23,6 +26,28 @@ class AntigravityDirectInboxCommand extends Command
     public function handle(AntigravityDirectInboxService $inbox): int
     {
         try {
+            if ((bool) $this->option('reconcile')) {
+                $stats = $inbox->reconcileOrphanedReferences(true);
+
+                return $this->emitJson([
+                    'status' => 'success',
+                    'closed_inbox_items' => $stats['closed_inbox_items'],
+                    'synced_tickets' => $stats['synced_tickets'],
+                ]);
+            }
+
+            if ((bool) $this->option('requeue-stale')) {
+                $staleMinutes = max(5, (int) $this->option('stale-minutes'));
+                $stats = $inbox->requeueStaleDelivered($staleMinutes);
+
+                return $this->emitJson([
+                    'status' => 'success',
+                    'requeued_count' => $stats['requeued_count'],
+                    'requeued_ids' => $stats['requeued_ids'],
+                    'exhausted_ids' => $stats['exhausted_ids'],
+                ]);
+            }
+
             $importB64 = trim((string) $this->option('import-b64'));
             if ($importB64 !== '') {
                 $rawJson = base64_decode(preg_replace('/\s+/', '', $importB64) ?? '', true);
@@ -102,7 +127,7 @@ class AntigravityDirectInboxCommand extends Command
             }
 
             if ((bool) $this->option('peek-pending')) {
-                $items = $inbox->peekPending(true);
+                $items = $inbox->peekPending(true, true);
 
                 return $this->emitJson([
                     'status' => 'success',

@@ -386,7 +386,8 @@ Route::middleware(['auth:admin'])->group(function () {
     // AI Agent Universe (Zentrales Funkira Universum-Ticketsystem)
     // -----------------------------------------------------------------------
     Route::get('/admin/tickets', \App\Livewire\Shop\Ai\AiUniverseTickets::class)->name('admin.tickets');
-    Route::get('/admin/ai/analytics', fn () => redirect()->route('admin.tickets'))->name('admin.ai.analytics');
+    Route::get('/admin/ai-analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai-analytics');
+    Route::get('/admin/ai/analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai.analytics');
     Route::get('/admin/ai/workspace', fn () => redirect()->route('admin.tickets'))->name('admin.ai.workspace');
     Route::get('/admin/ai/ag-attachment/{id}', function (\Illuminate\Http\Request $request, string $id, \App\Services\System\AntigravityDirectInboxService $inboxService) {
         if (session_status() === PHP_SESSION_ACTIVE) {

@@ -508,11 +508,17 @@ object PhoneConciergeManager {
         val hasPlus = primary.startsWith("+")
         val digits = primary.filter { it.isDigit() }
         if (digits.isEmpty()) return ""
-        return when {
+        val baseNormalized = when {
             hasPlus -> digits.trimStart('0')
             digits.startsWith("00") && digits.length > 4 -> digits.substring(2)
             digits.startsWith("0") && digits.length >= 7 -> "49" + digits.substring(1)
             else -> digits
+        }
+        // Handle German trunk-zero notation like "+49 (0) 176 57793016" -> "4917657793016"
+        return if (baseNormalized.startsWith("490") && baseNormalized.length >= 10) {
+            "49" + baseNormalized.substring(3)
+        } else {
+            baseNormalized
         }
     }
 
@@ -585,12 +591,18 @@ object PhoneConciergeManager {
         return missing
     }
 
-    fun buildRuntimePermissionRequestArray(sdkInt: Int = Build.VERSION.SDK_INT): Array<String> {
+    fun buildRuntimePermissionRequestArray(
+        sdkInt: Int = Build.VERSION.SDK_INT,
+        includeMicrophone: Boolean = true
+    ): Array<String> {
         val perms = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.ANSWER_PHONE_CALLS,
             Manifest.permission.READ_CONTACTS
         )
+        if (includeMicrophone) {
+            perms.add(Manifest.permission.RECORD_AUDIO)
+        }
         if (sdkInt >= Build.VERSION_CODES.TIRAMISU) {
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -665,15 +677,24 @@ object PhoneConciergeManager {
         ctx: Context,
         calls: List<PhoneSecretaryCallSummaryDto> = loadCachedRecentCalls(ctx)
     ) {
+        val appCtx = ctx.applicationContext
         val idsToMark = calls.mapNotNull { it.id.takeIf(String::isNotBlank) }
         if (idsToMark.isNotEmpty()) {
             val merged = LinkedHashSet<String>()
             merged.addAll(idsToMark)
-            merged.addAll(loadSeenCallIds(ctx))
+            merged.addAll(loadSeenCallIds(appCtx))
             val trimmed = HashSet(merged.take(60))
-            prefs(ctx).edit().putStringSet(KEY_SEEN_CALL_IDS, trimmed).apply()
+            prefs(appCtx).edit().putStringSet(KEY_SEEN_CALL_IDS, trimmed).apply()
         }
         _unseenCallCount.value = 0
+        try {
+            val nm = appCtx.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+            nm?.cancel(FunkiraPhoneConciergeService.SUMMARY_NOTIF_ID)
+            for (callId in idsToMark) {
+                nm?.cancel(NotificationBadgeGuard.stableDedupeNotificationId("call:$callId"))
+            }
+        } catch (_: Throwable) {
+        }
     }
 
     private fun formatLocalCallTimeLabel(iso: String): String {
@@ -1236,6 +1257,15 @@ object PhoneConciergeManager {
         }
         enqueuePendingCompletion(ctx, note)
         return false
+    }
+
+    fun flushPendingCompletionsAsync(ctx: Context) {
+        val app = ctx.applicationContext
+        bgScope.launch(Dispatchers.IO) {
+            try {
+                flushPendingCompletions(app)
+            } catch (_: Exception) { }
+        }
     }
 
     suspend fun flushPendingCompletions(ctx: Context): Int {

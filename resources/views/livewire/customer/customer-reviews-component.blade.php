@@ -51,6 +51,10 @@
         </div>
     </div>
 
+    <div class="mb-8">
+        <x-shop.customer-feedback-banner :darkAware="true" :showActionButtons="false" />
+    </div>
+
     @if(session()->has('success') || session()->has('reviews_notice'))
         <div class="mb-6 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 px-5 py-3.5 rounded-2xl flex items-center gap-2.5 text-xs font-bold">
             <span class="text-[#C5A059]">✓</span>

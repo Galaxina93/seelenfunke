@@ -324,4 +324,35 @@ class AntigravityWorkUntilZeroTicketQueueTest extends TestCase
         $this->assertStringContainsString('(vor Fix 5x aufgetreten)', (string) $brainReport->content);
         $this->assertContains('Code-Härtung', $brainReport->tags->pluck('name')->all());
     }
+
+    public function test_ticket_queue_preserves_invest_channel_for_steinhauer_invest_tickets(): void
+    {
+        $this->seed(AiCompanyStructureSeeder::class);
+        $this->seed(AiAgentSeeder::class);
+
+        $investTicket = AiUniverseTicket::create([
+            'ticket_number' => 'SF-9060',
+            'title' => 'Steinauer Invest: Nebenkostenabrechnung prüfen',
+            'status' => AiUniverseTicket::STATUS_IN_PROGRESS,
+            'priority' => 'high',
+            'ticket_type' => 'antigravity_dev',
+            'assigned_to_antigravity' => true,
+            'source_channel' => 'android_app',
+            'environment_tier' => 'LOCAL',
+            'action_payload' => [
+                'type' => 'antigravity_active',
+                'ag_channel' => 'steinhauer-invest',
+                'execution_mode' => 'direct',
+            ],
+            'last_activity_at' => now(),
+        ]);
+
+        $queue = app(AntigravityTicketQueueService::class);
+        $claim = $queue->claimNextDispatchableTicket(180, -1);
+
+        $this->assertSame('dispatch', $claim['action'] ?? null);
+        $this->assertSame('invest', $claim['channel'] ?? null);
+        $investTicket->refresh();
+        $this->assertSame('invest', $investTicket->action_payload['ag_channel'] ?? null);
+    }
 }

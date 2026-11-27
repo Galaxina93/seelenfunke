@@ -21,6 +21,8 @@ class BuchiReceiptPipelineService
      */
     private const SUPPLIER_RULES = [
         'westpack' => ['merchant' => 'Westpack', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 0],
+        'alibaba' => ['merchant' => 'Alibaba.com', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 0],
+        'pujiang' => ['merchant' => 'Pujiang Wangzhe Crafts Co., Ltd.', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 0],
         'glücksfieber' => ['merchant' => 'Glücksfieber', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 19],
         'gluecksfieber' => ['merchant' => 'Glücksfieber', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 19],
         'printequipment' => ['merchant' => 'PrintEquipment', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 19],

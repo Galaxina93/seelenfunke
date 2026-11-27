@@ -831,4 +831,74 @@ class FunkiraResilienceAndSecretaryTest {
         assertEquals("18:00 Uhr zurückrufen", merged[0].action_required)
         assertEquals(CallNoteVerificationEngine.STATUS_VERIFIED, merged[0].verification?.status)
     }
+
+    @Test
+    fun phoneSecretaryMicWatchdogAndAudioMode_recoverFromZeroSamplesAndNormalizeTrunkZeroNumbers() {
+        // 1. Preserve MODE_IN_CALL during active cellular calls instead of overwriting with MODE_IN_COMMUNICATION
+        assertEquals(
+            android.media.AudioManager.MODE_IN_CALL,
+            StandalonePhoneSecretaryEngine.resolveDesiredAudioModeForSecretary(android.media.AudioManager.MODE_IN_CALL)
+        )
+        assertEquals(
+            android.media.AudioManager.MODE_IN_COMMUNICATION,
+            StandalonePhoneSecretaryEngine.resolveDesiredAudioModeForSecretary(android.media.AudioManager.MODE_NORMAL)
+        )
+
+        // 2. AudioSource profile order during MODE_IN_CALL prioritizes raw MIC without conflicting hardware DSP first
+        val inCallProfiles = StandalonePhoneSecretaryEngine.resolveAudioSourceProfiles(android.media.AudioManager.MODE_IN_CALL)
+        assertEquals(4, inCallProfiles.size)
+        assertEquals(android.media.MediaRecorder.AudioSource.MIC, inCallProfiles[0].audioSource)
+        assertFalse(inCallProfiles[0].enableHardwareEffects)
+        assertEquals(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION, inCallProfiles[1].audioSource)
+        assertEquals(android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION, inCallProfiles[2].audioSource)
+        assertEquals(android.media.MediaRecorder.AudioSource.UNPROCESSED, inCallProfiles[3].audioSource)
+
+        // 3. Zero-sample watchdog rotates audio source at 28 zero frames (~1.1s), resets on real PCM, and only reports permanent silence after >= 65 frames
+        val watchdog = StandalonePhoneSecretaryEngine.MicZeroSampleWatchdog(rotateThresholdFrames = 28, reportThresholdFrames = 65)
+        val silentFrame = ShortArray(640)
+        val activeFrame = ShortArray(640).apply { this[12] = 420 }
+
+        repeat(27) {
+            assertEquals(
+                StandalonePhoneSecretaryEngine.MicFrameVerdict.SILENT_WAIT,
+                watchdog.onFrame(silentFrame, silentFrame.size, hasMoreCandidates = true)
+            )
+        }
+        assertEquals(
+            StandalonePhoneSecretaryEngine.MicFrameVerdict.ROTATE_SOURCE,
+            watchdog.onFrame(silentFrame, silentFrame.size, hasMoreCandidates = true)
+        )
+        assertEquals(1, watchdog.recoveryRotations)
+        // Non-zero speech after rotation resets all silence counters immediately
+        assertEquals(
+            StandalonePhoneSecretaryEngine.MicFrameVerdict.ACTIVE,
+            watchdog.onFrame(activeFrame, activeFrame.size, hasMoreCandidates = true)
+        )
+        assertEquals(0, watchdog.totalZeroFramesAcrossAttempts)
+
+        // Exhausting all sources for 65 frames triggers single PERMANENT_SILENCE report
+        var permanentCount = 0
+        repeat(70) {
+            if (watchdog.onFrame(silentFrame, silentFrame.size, hasMoreCandidates = false) ==
+                StandalonePhoneSecretaryEngine.MicFrameVerdict.PERMANENT_SILENCE
+            ) {
+                permanentCount++
+            }
+        }
+        assertEquals(1, permanentCount)
+
+        // 4. German trunk-zero phone normalization ("+49 (0) 176...") matches national & E.164 formats
+        assertEquals("4917657793016", PhoneConciergeManager.normalizePhoneDigits("+49 (0) 176 57793016"))
+        assertEquals("4953717269023", PhoneConciergeManager.normalizePhoneDigits("+49 (0) 5371 7269023"))
+        assertEquals(
+            PhoneConciergeManager.normalizePhoneDigits("0176 57793016"),
+            PhoneConciergeManager.normalizePhoneDigits("+49 (0) 176 57793016")
+        )
+
+        // 5. Onboarding permission request includes RECORD_AUDIO by default for direct smartphone secretary
+        val permsWithMic = PhoneConciergeManager.buildRuntimePermissionRequestArray(sdkInt = 34, includeMicrophone = true).toSet()
+        assertTrue(permsWithMic.contains(android.Manifest.permission.RECORD_AUDIO))
+        val permsWithoutMic = PhoneConciergeManager.buildRuntimePermissionRequestArray(sdkInt = 34, includeMicrophone = false).toSet()
+        assertFalse(permsWithoutMic.contains(android.Manifest.permission.RECORD_AUDIO))
+    }
 }

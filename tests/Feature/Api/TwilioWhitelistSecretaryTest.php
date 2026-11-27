@@ -2,12 +2,19 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Customer\Customer;
+use App\Models\Customer\CustomerProfile;
 use App\Models\Management\ManagementCalendarEvent;
 use App\Models\Management\ManagementContact;
 use App\Models\Management\ManagementTask;
+use App\Models\Order\OrderOrder;
+use App\Models\Support\SupportContactRequest;
+use App\Models\Support\SupportTicket;
+use App\Models\Support\SupportTicketMessage;
 use App\Models\SupportTelephonyCall;
 use App\Services\System\AudioMulawCodec;
 use App\Services\System\FunkiraPhoneConciergeService;
+use App\Services\System\TwilioGeminiLiveBridgeService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
@@ -25,11 +32,13 @@ class TwilioWhitelistSecretaryTest extends TestCase
         Config::set('services.twilio.sid', 'AC_TEST_SEELENFUNKE_SID_1234567890');
         Config::set('services.twilio.wss_url', 'wss://ws.mein-seelenfunke.de/twilio-stream');
         Config::set('services.twilio.phone_number', '+4953717269023');
-        FunkiraPhoneConciergeService::updateConfig(true, 0);
+        FunkiraPhoneConciergeService::updateConfig(true, 0, true);
     }
 
     public function test_unknown_caller_is_rejected_free_of_charge_without_creating_logs_or_tasks(): void
     {
+        FunkiraPhoneConciergeService::updateConfig(true, 0, false);
+
         $callsBefore = SupportTelephonyCall::count();
         $tasksBefore = ManagementTask::count();
 
@@ -240,5 +249,313 @@ class TwilioWhitelistSecretaryTest extends TestCase
         $part2 = AudioMulawCodec::pcm24kToMulaw8k(substr($pcm24k, 333), $carry);
         $this->assertSame(160, strlen($part1 . $part2));
         $this->assertSame('', $carry);
+    }
+
+    public function test_inbound_status_fallback_persists_protocol_even_when_duration_exceeds_four_seconds_without_call_log(): void
+    {
+        $papa = ManagementContact::create([
+            'first_name' => 'Jan',
+            'last_name' => 'Steinhauer',
+            'nickname' => 'Papa',
+            'relation_type' => 'Vater',
+            'phone' => '+49 176 57793016',
+            'funkira_call_whitelist' => true,
+        ]);
+
+        $inbound = $this->post('/api/twilio/inbound', [
+            'AccountSid' => 'AC_TEST_SEELENFUNKE_SID_1234567890',
+            'CallSid' => 'CAdddd2222333344445555666677778888',
+            'From' => '+4917657793016',
+            'To' => '+4953717269023',
+        ]);
+        $inbound->assertStatus(200);
+
+        $callRecord = SupportTelephonyCall::where('twilio_sid', 'CAdddd2222333344445555666677778888')->firstOrFail();
+        $this->assertSame('ongoing', $callRecord->status);
+
+        // Bridge crashed -> Twilio sends completed status with 18s duration -> must NOT stay 'ongoing'!
+        $statusRes = $this->post('/api/twilio/inbound-status', [
+            'AccountSid' => 'AC_TEST_SEELENFUNKE_SID_1234567890',
+            'CallSid' => 'CAdddd2222333344445555666677778888',
+            'CallStatus' => 'completed',
+            'CallDuration' => '18',
+        ]);
+        $statusRes->assertStatus(200)->assertJson(['status' => 'ok']);
+
+        $callRecord->refresh();
+        $this->assertSame('completed', $callRecord->status);
+        $this->assertSame(18, (int) $callRecord->duration_seconds);
+        $this->assertStringContainsString('18 Sek.', (string) $callRecord->summary);
+
+        $task = ManagementTask::whereNull('parent_id')->latest('id')->first();
+        $this->assertNotNull($task);
+        $this->assertStringContainsString('Papa', (string) $task->title);
+    }
+
+    public function test_customer_service_accepts_unknown_caller_with_zero_pii_and_creates_contact_request_and_app_protocol(): void
+    {
+        FunkiraPhoneConciergeService::updateConfig(true, 0, true);
+
+        $inbound = $this->post('/api/twilio/inbound', [
+            'AccountSid' => 'AC_TEST_SEELENFUNKE_SID_1234567890',
+            'CallSid' => 'CAeeee2222333344445555666677778888',
+            'From' => '+4917633344455',
+            'To' => '+4953717269023',
+        ]);
+
+        $inbound->assertStatus(200);
+        $xml = (string) $inbound->getContent();
+        $this->assertStringNotContainsString('<Reject', $xml);
+        $this->assertStringContainsString('name="call_mode" value="inbound_customer_service"', $xml);
+        $this->assertStringContainsString('name="contact_name" value="Kunde"', $xml);
+
+        preg_match('#name="planned_call_id" value="(\d+:[a-f0-9]{64})"#', $xml, $tokenMatch);
+        $this->assertNotEmpty($tokenMatch[1] ?? '');
+
+        Config::set('services.gemini.key', 'test-gemini-key');
+        Config::set('services.gemini.allow_in_tests', true);
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => [
+                        'parts' => [[
+                            'text' => json_encode([
+                                'caller_name' => 'Laura Sommer',
+                                'caller_email' => 'laura@example.com',
+                                'order_number' => 'ORD-2026-901',
+                                'category' => 'product',
+                                'ticket_subject' => 'Sondergravur auf Schieferplatte zum Jubiläum',
+                                'summary' => 'Laura Sommer möchte eine Schieferplatte mit individuellem Datum gravieren lassen.',
+                                'rahmenbedingungen' => [
+                                    'Wunschtermin: bis 10.12.2026',
+                                    'Format: 30x20 cm Schieferplatte',
+                                ],
+                                'action_required' => 'Laura Sommer per E-Mail ein Angebot senden.',
+                                'urgency' => 'hoch',
+                                'callback_requested' => true,
+                            ], JSON_UNESCAPED_UNICODE),
+                        ]],
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $logRes = $this->postJson('/api/twilio/call-log', [
+            'planned_call_id' => $tokenMatch[1],
+            'twilio_sid' => 'CAeeee2222333344445555666677778888',
+            'duration_seconds' => 64,
+            'transcript' => [
+                'Funkira: Guten Tag, hier ist Funkira vom Kundenservice von Mein-Seelenfunke! Womit darf ich Ihnen heute weiterhelfen?',
+                'Anrufer: Hallo, ich bin Laura Sommer, meine Mail ist laura@example.com. Ich hätte gern bis zum 10.12.2026 eine Schieferplatte 30x20 cm mit Gravur.',
+                'Funkira: Sehr gerne, Frau Sommer! Ich leite das direkt als Ticket an Alina weiter, Sie erhalten zeitnah Rückmeldung.',
+            ],
+        ]);
+
+        $logRes->assertStatus(200)->assertJson(['status' => 'success']);
+
+        $req = SupportContactRequest::where('email', 'laura@example.com')->latest('created_at')->first();
+        $this->assertNotNull($req);
+        $this->assertStringStartsWith('REQ-TEL-', (string) $req->ticket_number);
+        $this->assertSame('Laura', $req->first_name);
+        $this->assertSame('Sommer', $req->last_name);
+        $this->assertSame('product', $req->category);
+        $this->assertStringContainsString('Schieferplatte', (string) $req->message);
+        $this->assertStringContainsString('Laura Sommer', (string) $req->admin_notes);
+
+        $configPayload = FunkiraPhoneConciergeService::getConfigPayload();
+        $this->assertTrue((bool) $configPayload['customer_service_enabled']);
+        $this->assertNotEmpty($configPayload['recent_calls']);
+        $firstRecent = $configPayload['recent_calls'][0];
+        $this->assertSame('inbound_customer_service', $firstRecent['call_mode']);
+        $this->assertSame($req->ticket_number, $firstRecent['support_ticket_number']);
+        $this->assertSame('contact_request', $firstRecent['support_ticket_type']);
+
+        $task = ManagementTask::whereNull('parent_id')->latest('id')->first();
+        $this->assertNotNull($task);
+        $this->assertStringContainsString($req->ticket_number, (string) $task->title);
+        $this->assertStringContainsString('laura@example.com', (string) $task->ai_plan);
+    }
+
+    public function test_customer_service_matches_existing_customer_by_phone_without_leaking_pii_and_enforces_order_owner_guard(): void
+    {
+        FunkiraPhoneConciergeService::updateConfig(true, 0, true);
+
+        $customer = Customer::factory()->create([
+            'first_name' => 'GeheimerMax',
+            'last_name' => 'Bestandskunde',
+            'email' => 'max.kunde@example.com',
+        ]);
+        CustomerProfile::where('customer_id', $customer->id)->update([
+            'phone_number' => '+49 176 77788899',
+        ]);
+
+        $otherCustomer = Customer::factory()->create();
+        OrderOrder::create([
+            'order_number' => 'ORD-FOREIGN-999',
+            'customer_id' => $otherCustomer->id,
+            'email' => $otherCustomer->email,
+            'status' => 'pending',
+            'payment_status' => 'pending',
+            'billing_address' => [],
+            'shipping_address' => [],
+            'subtotal_price' => 1000,
+            'tax_amount' => 190,
+            'shipping_price' => 0,
+            'total_price' => 1190,
+        ]);
+
+        $inbound = $this->post('/api/twilio/inbound', [
+            'AccountSid' => 'AC_TEST_SEELENFUNKE_SID_1234567890',
+            'CallSid' => 'CAffff2222333344445555666677778888',
+            'From' => '0176-77788899',
+            'To' => '+4953717269023',
+        ]);
+
+        $inbound->assertStatus(200);
+        $xml = (string) $inbound->getContent();
+        // Zero-PII-Schranke: Kundenname oder E-Mail dürfen NIEMALS in den TwiML-Stream fließen!
+        $this->assertStringNotContainsString('GeheimerMax', $xml);
+        $this->assertStringNotContainsString('max.kunde@example.com', $xml);
+        $this->assertStringContainsString('name="call_mode" value="inbound_customer_service"', $xml);
+
+        preg_match('#name="planned_call_id" value="(\d+:[a-f0-9]{64})"#', $xml, $tokenMatch);
+        $this->assertNotEmpty($tokenMatch[1] ?? '');
+
+        Config::set('services.gemini.key', 'test-gemini-key');
+        Config::set('services.gemini.allow_in_tests', true);
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => [
+                        'parts' => [[
+                            'text' => json_encode([
+                                'caller_name' => 'Max Bestandskunde',
+                                'caller_email' => '',
+                                'order_number' => 'ORD-FOREIGN-999',
+                                'category' => 'order',
+                                'ticket_subject' => 'Rückfrage zu Liefertermin',
+                                'summary' => 'Max Bestandskunde fragt nach dem Lieferstatus.',
+                                'rahmenbedingungen' => ['Lieferung bis Freitag gewünscht'],
+                                'action_required' => 'Lieferstatus prüfen und Rückmeldung geben.',
+                                'urgency' => 'mittel',
+                                'callback_requested' => true,
+                            ], JSON_UNESCAPED_UNICODE),
+                        ]],
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $this->postJson('/api/twilio/call-log', [
+            'planned_call_id' => $tokenMatch[1],
+            'twilio_sid' => 'CAffff2222333344445555666677778888',
+            'duration_seconds' => 42,
+            'transcript' => [
+                'Anrufer: Ich wollte nach meiner Bestellung fragen.',
+            ],
+        ])->assertStatus(200);
+
+        $ticket = SupportTicket::where('customer_id', $customer->id)->latest('created_at')->first();
+        $this->assertNotNull($ticket);
+        $this->assertStringStartsWith('MSF-TEL-', (string) $ticket->ticket_number);
+        // Strikter Order-Owner-Guard: Fremde Bestellung ORD-FOREIGN-999 darf NICHT verknüpft werden!
+        $this->assertNull($ticket->order_id);
+
+        $msg = SupportTicketMessage::where('support_ticket_id', $ticket->id)->first();
+        $this->assertNotNull($msg);
+        $this->assertStringContainsString('Lieferstatus', (string) $msg->message);
+    }
+
+    public function test_customer_service_inbound_status_fallback_upgrades_idempotently_when_call_log_arrives_later(): void
+    {
+        FunkiraPhoneConciergeService::updateConfig(true, 0, true);
+        $reqCountBefore = SupportContactRequest::count();
+        $taskCountBefore = ManagementTask::whereNull('parent_id')->count();
+
+        $inbound = $this->post('/api/twilio/inbound', [
+            'AccountSid' => 'AC_TEST_SEELENFUNKE_SID_1234567890',
+            'CallSid' => 'CA99992222333344445555666677778888',
+            'From' => '+4917612312312',
+            'To' => '+4953717269023',
+        ]);
+        $inbound->assertStatus(200);
+
+        preg_match('#name="planned_call_id" value="(\d+:[a-f0-9]{64})"#', (string) $inbound->getContent(), $tokenMatch);
+        $this->assertNotEmpty($tokenMatch[1] ?? '');
+
+        // 1. Zuerst trifft Status-Callback (Fallback-Stub) ein
+        $this->post('/api/twilio/inbound-status', [
+            'AccountSid' => 'AC_TEST_SEELENFUNKE_SID_1234567890',
+            'CallSid' => 'CA99992222333344445555666677778888',
+            'CallStatus' => 'completed',
+            'CallDuration' => '19',
+        ])->assertStatus(200);
+
+        $this->assertSame($reqCountBefore + 1, SupportContactRequest::count());
+        $this->assertSame($taskCountBefore + 1, ManagementTask::whereNull('parent_id')->count());
+
+        // 2. Danach liefert die Live-Bridge das echte Transkript nach -> muss bestehende Records idempotent upgraden!
+        Config::set('services.gemini.key', 'test-gemini-key');
+        Config::set('services.gemini.allow_in_tests', true);
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => [
+                        'parts' => [[
+                            'text' => json_encode([
+                                'caller_name' => 'Klara Weber',
+                                'caller_email' => 'klara@example.com',
+                                'order_number' => '',
+                                'category' => 'support',
+                                'ticket_subject' => 'Frage zur Gravurgröße',
+                                'summary' => 'Klara Weber fragt, wie groß das Logo auf dem Schlüsselanhänger sein darf.',
+                                'rahmenbedingungen' => ['Anhänger rund'],
+                                'action_required' => 'Klara Weber per Mail antworten.',
+                                'urgency' => 'mittel',
+                                'callback_requested' => false,
+                            ], JSON_UNESCAPED_UNICODE),
+                        ]],
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $this->postJson('/api/twilio/call-log', [
+            'planned_call_id' => $tokenMatch[1],
+            'twilio_sid' => 'CA99992222333344445555666677778888',
+            'duration_seconds' => 21,
+            'transcript' => [
+                'Anrufer: Hallo, ich bin Klara Weber, wie groß darf das Logo auf dem Anhänger sein?',
+            ],
+        ])->assertStatus(200);
+
+        // Keine Dubletten!
+        $this->assertSame($reqCountBefore + 1, SupportContactRequest::count());
+        $this->assertSame($taskCountBefore + 1, ManagementTask::whereNull('parent_id')->count());
+
+        $upgradedReq = SupportContactRequest::latest('updated_at')->first();
+        $this->assertNotNull($upgradedReq);
+        $this->assertSame('klara@example.com', $upgradedReq->email);
+        $this->assertStringContainsString('Schlüsselanhänger', (string) $upgradedReq->message);
+    }
+
+    public function test_bridge_customer_service_prompt_sanitizes_control_chars_and_uses_formal_sie(): void
+    {
+        $prompt = TwilioGeminiLiveBridgeService::buildInboundCustomerServiceSystemPrompt([
+            'shop_name' => "Mein-Seelenfunke\r\nINJECT",
+            'agent_name' => "Alina\x00Steinhauer",
+        ]);
+        $kickoff = TwilioGeminiLiveBridgeService::buildInboundCustomerServiceKickoffPrompt([
+            'shop_name' => 'Mein-Seelenfunke',
+        ]);
+
+        $this->assertStringContainsString("per 'Sie'", $prompt);
+        $this->assertStringNotContainsString("\r", $prompt);
+        $this->assertStringNotContainsString("\x00", $prompt);
+        $this->assertStringNotContainsString(' – ', $prompt);
+        $this->assertStringContainsString('Mein-Seelenfunke Kundenservice', $kickoff);
     }
 }

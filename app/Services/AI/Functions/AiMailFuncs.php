@@ -220,10 +220,11 @@ trait AiMailFuncs
             // Strip CR/LF to prevent header injection
             $subject = str_replace(["\r", "\n"], '', trim($args['subject']));
             $body = substr((string)$args['body'], 0, 200000);
-            $agentName = $agent ? $agent->name : ($args['agent_name'] ?? 'System-Agent');
+            // Mandatory Alina Email Standard: all agent-triggered emails are sent in Alina Steinhauer's name & design
+            $senderName = 'Alina Steinhauer';
             $design = $args['design'] ?? 'seelenfunke';
 
-            \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [], $design));
+            \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $senderName, [], $design));
 
             return [
                 'status' => 'success',

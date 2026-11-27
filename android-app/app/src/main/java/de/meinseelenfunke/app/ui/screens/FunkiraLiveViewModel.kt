@@ -91,9 +91,10 @@ class FunkiraLiveViewModel : ViewModel() {
     private var webSocket: WebSocket? = null
     private val client = OkHttpClient.Builder()
         .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
-        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
-        .pingInterval(15, java.util.concurrent.TimeUnit.SECONDS)
+        .pingInterval(35, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .dns(object : okhttp3.Dns {
             override fun lookup(hostname: String): List<java.net.InetAddress> {
                 return okhttp3.Dns.SYSTEM.lookup(hostname).sortedBy { if (it is java.net.Inet4Address) 0 else 1 }
@@ -129,6 +130,8 @@ class FunkiraLiveViewModel : ViewModel() {
     @Volatile private var userInitiatedHangup = false
     @Volatile private var userMutedMic = false
     @Volatile private var midCallReconnectCount = 0
+    private val consecutiveAudioSendFailures = java.util.concurrent.atomic.AtomicInteger(0)
+    private var previousRecordingJobToAwait: Job? = null
     private val activeToolCallCount = java.util.concurrent.atomic.AtomicInteger(0)
     private val processedToolCallIds = java.util.Collections.synchronizedSet(java.util.LinkedHashSet<String>())
     private val inactivityTracker = de.meinseelenfunke.app.util.FalconInactivityTracker()
@@ -137,6 +140,9 @@ class FunkiraLiveViewModel : ViewModel() {
     @Volatile private var fallbackDirectBearerToken: String? = null
     private var fallbackOriginUrl: String = "https://mein-seelenfunke.de"
     private var activeLiveModel: String = de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL
+    @Volatile private var activeSetupModelForCurrentSocket: String = de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL
+    @Volatile private var activeSocketIsDirectGoogle: Boolean = false
+    @Volatile private var isMidCallReconnectSocket: Boolean = false
     private var activeSysInstruction: String = ""
     private var activeVoiceName: String = "Aoede"
     private var activeToolsJson: String? = null
@@ -144,6 +150,23 @@ class FunkiraLiveViewModel : ViewModel() {
     @Volatile private var lastSyncedAttachmentKeyForSocket: String? = null
     @Volatile private var hasOutputTranscriptionInTurn: Boolean = false
     @Volatile private var includeThinkingConfigInSetup: Boolean = true
+    @Volatile private var sessionResumptionHandle: String? = null
+    @Volatile private var sessionResumptionIsDirect: Boolean? = null
+    @Volatile private var sessionResumptionModel: String? = null
+    @Volatile private var sentResumptionHandleForCurrentSocket: Boolean = false
+    @Volatile private var currentSocketIsDirectGoogle: Boolean = false
+    @Volatile private var lastPersistedServerUserText: String = ""
+    @Volatile private var lastPersistedServerAiText: String = ""
+    @Volatile private var latestRealtimeAgStatusLine: String? = null
+    @Volatile private var lastActiveSessionAgentKey: String? = null
+    @Volatile private var lastSessionDisconnectedAtUptimeMs: Long = 0L
+    @Volatile private var lastDisconnectWasUserHangup: Boolean = false
+    @Volatile private var pendingUnansweredUserTurnForReconnect: String? = null
+    private val activeSessionTurnsLock = Any()
+    private val activeSessionTurns = ArrayList<Pair<String, String>>(MAX_SESSION_CONTEXT_TURNS)
+    private val reconnectLock = Any()
+    private var liveCpuWakeLock: android.os.PowerManager.WakeLock? = null
+    private var liveWifiLock: android.net.wifi.WifiManager.WifiLock? = null
     private var reflexPreTriggerJob: Job? = null
     @Volatile private var reflexTriggeredInCurrentUserTurn: String? = null
 
@@ -167,15 +190,9 @@ class FunkiraLiveViewModel : ViewModel() {
         viewModelScope.launch {
             de.meinseelenfunke.app.util.AgDirectInboxManager.statusTransitionEvents.collect { ev ->
                 val line = ev.toHumanEventLine()
+                latestRealtimeAgStatusLine = line
                 addLog("[Antigravity Live]: $line")
-                if (_isConnected.value && setupCompletedForCurrentSocket) {
-                    try {
-                        val pkt = de.meinseelenfunke.app.util.FalconClientTools.buildSilentClientContextPacket(
-                            "[SYSTEM-ECHTZEIT-STATUS ANTIGRAVITY: $line]"
-                        )
-                        webSocket?.send(gson.toJson(pkt))
-                    } catch (_: Throwable) {}
-                }
+                // Kein clientContent mid-stream auf Gemini 3.1 senden (verhindert spontane 1007/1008 Socket-Abbrueche!).
             }
         }
     }
@@ -334,55 +351,91 @@ class FunkiraLiveViewModel : ViewModel() {
 
     private var chatSessionId: String = ""
 
-    @Synchronized
     fun startLiveChat() {
-        if (_isConnected.value || _isConnecting.value) return
+        synchronized(reconnectLock) {
+            if (_isConnected.value || _isConnecting.value) return
 
-        reconnectJob?.cancel()
-        reconnectJob = null
-        userInitiatedHangup = false
-        userMutedMic = false
-        midCallReconnectCount = 0
-        sessionEverSetupComplete = false
-        proactiveKickSentInSession = false
-        includeThinkingConfigInSetup = true
-        reflexPreTriggerJob?.cancel()
-        reflexPreTriggerJob = null
-        reflexTriggeredInCurrentUserTurn = null
-        de.meinseelenfunke.app.util.FalconClientTools.clearDeviceReflexCacheForTests()
-        currentSocketSetupAtUptimeMs = 0L
-        lastAiServerPacketUptimeMs = 0L
-        lastAiSpeechActiveUptimeMs = 0L
-        lastUserVoiceDetectedUptimeMs = 0L
-        lastUserTranscriptDeltaUptimeMs = 0L
-        totalFramesWrittenToTrack = 0L
-        processedToolCallIds.clear()
-        _isConnecting.value = true
-        _error.value = null
-        shouldEndCall = false
-        shouldEnterStandbyAfterTurn = false
-        musicStandbyFallbackJob?.cancel()
-        musicStandbyFallbackJob = null
-        setAiSpeakingState(false)
-        _falconEmotion.value = "idle"
-        _shouldCloseScreen.value = false
-        _liveSubtitle.value = null
-        _liveFeedbackState.value = null
-        lastCompletedAssistantTurnText = ""
-        activeVoiceName = "Aoede"
-        aiTurnTranscript.clear()
-        userTurnTranscript.clear()
-        // Set live call active immediately to yield microphone from background service
-        de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = true
-        try {
-            de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.hydrate(ServiceLocator.context)
-            de.meinseelenfunke.app.util.FunkiraPackageStore.hydrate(ServiceLocator.context)
-        } catch (_: Throwable) {
+            reconnectJob?.cancel()
+            reconnectJob = null
+            userInitiatedHangup = false
+            userMutedMic = false
+            midCallReconnectCount = 0
+            sessionEverSetupComplete = false
+            proactiveKickSentInSession = false
+            includeThinkingConfigInSetup = true
+            isMidCallReconnectSocket = false
+            pendingUnansweredUserTurnForReconnect = null
+            sessionResumptionHandle = null
+            sessionResumptionIsDirect = null
+            sessionResumptionModel = null
+            sentResumptionHandleForCurrentSocket = false
+            currentSocketIsDirectGoogle = false
+            lastPersistedServerUserText = ""
+            lastPersistedServerAiText = ""
+            reflexPreTriggerJob?.cancel()
+            reflexPreTriggerJob = null
+            reflexTriggeredInCurrentUserTurn = null
+            de.meinseelenfunke.app.util.FalconClientTools.clearDeviceReflexCacheForTests()
+            currentSocketSetupAtUptimeMs = 0L
+            lastAiServerPacketUptimeMs = 0L
+            lastAiSpeechActiveUptimeMs = 0L
+            lastUserVoiceDetectedUptimeMs = 0L
+            lastUserTranscriptDeltaUptimeMs = 0L
+            totalFramesWrittenToTrack = 0L
+            processedToolCallIds.clear()
+            _isConnecting.value = true
+            _error.value = null
+            shouldEndCall = false
+            shouldEnterStandbyAfterTurn = false
+            musicStandbyFallbackJob?.cancel()
+            musicStandbyFallbackJob = null
+            setAiSpeakingState(false)
+            _falconEmotion.value = "idle"
+            _shouldCloseScreen.value = false
+            _liveSubtitle.value = null
+            _liveFeedbackState.value = null
+            lastCompletedAssistantTurnText = ""
+            activeVoiceName = "Aoede"
+            aiTurnTranscript.clear()
+            userTurnTranscript.clear()
+            // Set live call active immediately to yield microphone from background service
+            de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = true
+            acquireLiveCallLocks()
+            try {
+                de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.hydrate(ServiceLocator.context)
+                de.meinseelenfunke.app.util.FunkiraPackageStore.hydrate(ServiceLocator.context)
+            } catch (_: Throwable) {
+            }
+
+            val nowUptime = android.os.SystemClock.uptimeMillis()
+            val currentAgentKey = _selectedAgent.value?.id ?: displayAgentName()
+            val reuseSession = shouldReuseRecentSessionContext(
+                previousAgentKey = lastActiveSessionAgentKey,
+                currentAgentKey = currentAgentKey,
+                previousSessionId = chatSessionId,
+                lastDisconnectAtUptimeMs = lastSessionDisconnectedAtUptimeMs,
+                nowUptimeMs = nowUptime,
+                lastDisconnectWasUserHangup = lastDisconnectWasUserHangup
+            )
+            if (reuseSession) {
+                addLog("[Auto-Fortsetzung]: Nahtlose Wiederaufnahme der letzten Live-Sitzung.")
+            } else {
+                chatSessionId = "android_live_${java.util.UUID.randomUUID()}"
+                val withinMemoryWindow = lastActiveSessionAgentKey == currentAgentKey &&
+                    lastSessionDisconnectedAtUptimeMs > 0L &&
+                    (nowUptime - lastSessionDisconnectedAtUptimeMs) in 0L..RECENT_SESSION_RESUME_WINDOW_MS
+                if (!withinMemoryWindow) {
+                    synchronized(activeSessionTurnsLock) {
+                        activeSessionTurns.clear()
+                    }
+                }
+            }
+            lastActiveSessionAgentKey = currentAgentKey
+            lastDisconnectWasUserHangup = false
+            addLog("Sitzungsdaten werden geladen...")
+
+            launchCredentialAndSocketConnect(isMidCallReconnect = false)
         }
-        addLog("Sitzungsdaten werden geladen...")
-        chatSessionId = "android_live_${java.util.UUID.randomUUID()}"
-
-        launchCredentialAndSocketConnect(isMidCallReconnect = false)
     }
 
     private fun launchCredentialAndSocketConnect(isMidCallReconnect: Boolean) {
@@ -666,6 +719,8 @@ class FunkiraLiveViewModel : ViewModel() {
     ) {
         setupCompletedForCurrentSocket = false
         lastSyncedAttachmentKeyForSocket = null
+        currentSocketIsDirectGoogle = isDirectGoogle
+        sentResumptionHandleForCurrentSocket = false
         val encodedToken = android.net.Uri.encode(token)
         val resolvedDirectBearer = if (isDirectGoogle) {
             directBearerToken?.takeIf { it.isNotBlank() }
@@ -699,6 +754,7 @@ class FunkiraLiveViewModel : ViewModel() {
         // Init AudioTrack for 24kHz speaker playback
         initAudioTrack()
 
+        activeSocketIsDirectGoogle = isDirectGoogle
         val previousSocket = webSocket
         webSocket = null
         try { previousSocket?.cancel() } catch (_: Throwable) {}
@@ -712,11 +768,12 @@ class FunkiraLiveViewModel : ViewModel() {
                 addLog("[WS-Setup]: URL: $maskedUrl")
 
                 // Send Setup configuration payload
-                val resolvedSetupModel = if (url.contains("aiplatform.googleapis.com", ignoreCase = true) && activeLiveModel.startsWith("projects/")) {
-                    activeLiveModel
-                } else {
-                    "models/gemini-3.1-flash-live-preview"
-                }
+                val resolvedSetupModel = de.meinseelenfunke.app.util.FalconClientTools.resolveEffectiveSetupModel(
+                    wsUrl = url,
+                    activeLiveModel = activeLiveModel,
+                    isDirectGoogle = isDirectGoogle
+                )
+                activeSetupModelForCurrentSocket = resolvedSetupModel
                 val setup = JsonObject().apply {
                     add("setup", JsonObject().apply {
                         addProperty("model", resolvedSetupModel)
@@ -749,7 +806,7 @@ class FunkiraLiveViewModel : ViewModel() {
                             add("parts", JsonArray().apply {
                                 add(JsonObject().apply {
                                     val walkRule = "WETTER & SPAZIERGANG-REGEL: Wenn es um das Wetter oder einen Spaziergang geht, sage nur kurz auf Basis des Wetters, ob ein Spaziergang machbar ist und wie man sich für die Temperatur anziehen sollte. Schlage NIEMALS Orte, Seen, Parks oder Routen für einen Spaziergang vor, außer Alina fragt ausdrücklich danach."
-                                    val brevityRule = "SPRACHSTIL & TOKEN-SPAR-DISZIPLIN: Bleibe genauso herzlich, freundlich, sympathisch und cool wie immer, aber sprich KURZ, ZACKIG und KNACKIG auf den Punkt (1 bis maximal 3 kurze Sätze ohne Füllwörter oder lange Einleitungen). Antworte NIEMALS mit Floskeln wie 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen', sondern nenne bei Einschränkungen oder Fehlern immer ehrlich den exakten konkreten Grund (z. B. Login abgelaufen, Server nicht erreichbar, Berechtigung oder Werkzeug fehlt) samt Lösung! Strategische 'Was tun wir als Nächstes?'-Tipps (master_get_next_best_actions) gibst du ausschließlich auf Nachfrage von Alina."
+                                    val brevityRule = "SPRACHSTIL & TOKEN-SPAR-DISZIPLIN: Antworte herzlich-loyal, aber militärisch-knackig auf den Punkt: maximal 1 bis 3 kurze Sätze, null Füllwörter, null Floskeln, null lange Einleitungen. Antworte NIEMALS mit 'Ich bin nur ein Sprachmodell und kann dabei nicht helfen', sondern nenne bei Einschränkungen oder Fehlern immer ehrlich den exakten konkreten Grund samt Lösung! Strategische Tipps (master_get_next_best_actions) gibst du ausschließlich auf Nachfrage von Alina."
                                     var strictPrompt = if (!systemInstruction.contains("STRIKTE SPRACHREGEL")) {
                                         "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Gib NIEMALS englische Statusmeldungen, Bestätigungen oder Floskeln wie 'Confirming Operational Context' oder 'I acknowledge...' aus. Antworte sofort direkt und natürlich auf Deutsch.\n\n" + systemInstruction
                                     } else {
@@ -761,7 +818,7 @@ class FunkiraLiveViewModel : ViewModel() {
                                     if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
                                         strictPrompt = "$strictPrompt\n\n$brevityRule"
                                     }
-                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS (SOFORT-AUSFÜHRUNG OHNE DENKZEIT: Rufe bei Smart-Home-, Kamera-, Musik- und Navigationsbefehlen im selben Moment ohne Vorrede direkt das lokale falcon_*-Tool auf!): Nutze bei Musikwünschen sofort falcon_music_control (intelligente Kontext-/Routine-Auswahl per action='play_smart' oder 'play_query', Sport per 'play_sport', 1-Song-Playlists per Name/Song/Vibe oder Analyse per 'analyze_playlist' - spiele NICHT pauschal nur Favoriten!) und bestätige bei Musikstart danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für ALLE Smart-Home-Geräte (Lichterketten, Steckdosen, Connexoon Window Somfy Rollläden UND alle SmartHome-Gruppen) immer sofort lokal falcon_smarthome_control (Lichterketten/Steckdosen: 'turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off' inkl. 'alle Lichterketten'; Rollläden: 'shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' mit position_percent 0..100; Gruppen & Kombi-Befehle wie 'Wohnzimmer und Terrassentür': 'group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off', 'group_toggle' oder Gruppenname in device_name; Bestand: 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), zum Bündeln mehrerer Ideen/Konzepte/Fotos vor dem Versand falcon_stage_to_package, falcon_list_draft_packages und auf Alinas Freigabe falcon_release_package (SAMMELPAKET-GESETZ: Bündle mehrteilige Gedanken oder Konzepte zuerst per falcon_stage_to_package statt Einzel-Aufträge zu spammen; nutze falcon_send_to_antigravity nur bei ausdrücklichem Sofort-Einzelauftrag), für Kurzzeitgedächtnis falcon_get_recent_memory, für Statusabfragen falcon_check_antigravity_status und zum Öffnen von App-Bereichen falcon_app_navigate. ANTI-DOPPELANTWORT-REGEL: Beantworte jede Aussage oder Frage von Alina immer exakt EINMAL knapp und vollständig; wiederhole oder paraphrasiere deine eigene Antwort niemals ein zweites Mal."
+                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS (SOFORT-AUSFÜHRUNG OHNE DENKZEIT: Rufe bei Smart-Home-, Kamera-, Musik- und Navigationsbefehlen im selben Moment ohne Vorrede direkt das lokale falcon_*-Tool auf!): Nutze bei Musikwünschen sofort falcon_music_control (intelligente Kontext-/Routine-Auswahl per action='play_smart' oder 'play_query', Sport per 'play_sport', 1-Song-Playlists per Name/Song/Vibe oder Analyse per 'analyze_playlist' - spiele NICHT pauschal nur Favoriten!) und bestätige bei Musikstart danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für ALLE Smart-Home-Geräte (Lichterketten, Steckdosen, Connexoon Window Somfy Rollläden UND alle SmartHome-Gruppen) immer sofort lokal falcon_smarthome_control (Lichterketten/Steckdosen: 'turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off' inkl. 'alle Lichterketten'; Rollläden: 'shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' mit position_percent 0..100; Gruppen & Kombi-Befehle wie 'Wohnzimmer und Terrassentür': 'group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off', 'group_toggle' oder Gruppenname in device_name; Bestand: 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), zum priorisierten Schnüren von Anforderungen inkl. optionalem Fotoanhang vor dem Versand falcon_stage_to_package (priority='urgent'|'high'|'normal', attach_captured_photo=true bei hinterlegtem Foto), falcon_list_draft_packages und auf Alinas Freigabe falcon_release_package (SAMMELPAKET-GESETZ: Bündle mehrere technische Gedanken, Bugs oder Konzepte zuerst priorisiert per falcon_stage_to_package statt Einzel-Aufträge zu spammen; nutze falcon_send_to_antigravity nur bei ausdrücklichem Sofort-Einzelauftrag), für Kurzzeitgedächtnis falcon_get_recent_memory, für Statusabfragen falcon_check_antigravity_status und zum Öffnen von App-Bereichen falcon_app_navigate. ANTI-DOPPELANTWORT-REGEL: Beantworte jede Aussage oder Frage von Alina immer exakt EINMAL knapp und vollständig; wiederhole oder paraphrasiere deine eigene Antwort niemals ein zweites Mal."
                                     if (!strictPrompt.contains("LOKALE SMARTPHONE-SUPERTOOLS")) {
                                         strictPrompt = "$strictPrompt\n\n$falconDeviceToolsRule"
                                     }
@@ -770,6 +827,10 @@ class FunkiraLiveViewModel : ViewModel() {
                                         val memDirective = de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.buildMemoryContextPromptDirective(appCtx, 14)
                                         if (memDirective.isNotBlank() && !strictPrompt.contains("LOKALES KURZZEITGEDAECHTNIS")) {
                                             strictPrompt = "$strictPrompt\n\n$memDirective"
+                                        }
+                                        val sessionContextDirective = buildActiveSessionContextDirective(displayAgentName())
+                                        if (sessionContextDirective.isNotBlank() && !strictPrompt.contains("AKTUELLES LAUFENDES GESPRAECH")) {
+                                            strictPrompt = "$strictPrompt\n\n$sessionContextDirective"
                                         }
                                         val pkgDirective = de.meinseelenfunke.app.util.FunkiraPackageStore.buildPackagesPromptDirective(appCtx)
                                         if (pkgDirective.isNotBlank() && !strictPrompt.contains("OFFENE SAMMELPAKETE")) {
@@ -785,8 +846,8 @@ class FunkiraLiveViewModel : ViewModel() {
                                         }
                                     } catch (_: Throwable) {
                                     }
-                                    if (sessionEverSetupComplete) {
-                                        strictPrompt = "$strictPrompt\n\nNAHTLOSER RECONNECT-HINWEIS: Die Verbindung wurde mitten im laufenden Gespräch kurz erneuert. Begrüße Alina NICHT erneut und wiederhole NICHT deine vorherige Antwort, sondern warte ruhig auf ihre nächste Aussage."
+                                    if (sessionEverSetupComplete || isMidCallReconnectSocket) {
+                                        strictPrompt = "$strictPrompt\n\nNAHTLOSER RECONNECT-HINWEIS: Die Verbindung wurde mitten im laufenden Gespräch kurz erneuert. Begrüße Alina NICHT erneut und wiederhole NICHT deine vorherige Antwort, sondern führe das Gespräch nahtlos mit vollem Kontext fort."
                                     }
                                     try {
                                         val appCtx = ServiceLocator.context.applicationContext
@@ -844,6 +905,23 @@ class FunkiraLiveViewModel : ViewModel() {
                         add("tools", toolsElement)
                         add("inputAudioTranscription", JsonObject())
                         add("outputAudioTranscription", JsonObject())
+                        add("sessionResumption", JsonObject().apply {
+                            val handle = sessionResumptionHandle
+                            val canReuseHandle = shouldReuseSessionResumptionHandle(
+                                handle = handle,
+                                issuedIsDirect = sessionResumptionIsDirect,
+                                targetIsDirect = isDirectGoogle,
+                                issuedModel = sessionResumptionModel,
+                                targetModel = resolvedSetupModel
+                            )
+                            sentResumptionHandleForCurrentSocket = canReuseHandle
+                            if (canReuseHandle) {
+                                addProperty("handle", handle!!.trim())
+                            }
+                        })
+                        add("contextWindowCompression", JsonObject().apply {
+                            add("slidingWindow", JsonObject())
+                        })
                     })
                 }
 
@@ -870,11 +948,15 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 val httpCode = response?.code
                 val wasSetupComplete = setupCompletedForCurrentSocket
+                if (isDirectGoogle && (httpCode == 401 || httpCode == 403)) {
+                    clearCachedVertexTokenSafe()
+                }
                 val disconnectMsg = formatWebSocketFailureMessage(
                     t = t,
                     httpStatusCode = httpCode,
                     setupWasComplete = wasSetupComplete
                 )
+                invalidateResumptionHandleIfPreSetupFailure(wasSetupComplete, disconnectMsg)
                 if (!wasSetupComplete && !isDirectGoogle && tryFailoverToDirectGemini(disconnectMsg, t)) {
                     return
                 }
@@ -886,9 +968,11 @@ class FunkiraLiveViewModel : ViewModel() {
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
-                    tryScheduleMidCallReconnect(disconnectMsg)
-                    return
+                    if (tryScheduleMidCallReconnect(disconnectMsg)) {
+                        return
+                    }
                 }
+                webSocket = null
                 val isTransient = de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(t, httpCode)
                 if (!isTransient) {
                     _error.value = disconnectMsg
@@ -902,8 +986,14 @@ class FunkiraLiveViewModel : ViewModel() {
                             "http_status" to (httpCode?.toString() ?: "0")
                         )
                     )
-                } else if (!shouldEndCall && !shouldEnterStandbyAfterTurn && !(wasSetupComplete && t is java.io.EOFException)) {
-                    _error.value = disconnectMsg
+                } else if (!shouldEndCall && !shouldEnterStandbyAfterTurn &&
+                    (!(wasSetupComplete && t is java.io.EOFException) || midCallReconnectCount >= RECONNECT_BACKOFF_MS.size)
+                ) {
+                    _error.value = if (midCallReconnectCount >= RECONNECT_BACKOFF_MS.size) {
+                        "Verbindung unterbrochen. Tippe auf das Mikrofon, um nahtlos fortzusetzen."
+                    } else {
+                        disconnectMsg
+                    }
                 }
                 handleDisconnect(disconnectMsg)
             }
@@ -911,6 +1001,10 @@ class FunkiraLiveViewModel : ViewModel() {
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 val wasSetupComplete = setupCompletedForCurrentSocket
+                if (isDirectGoogle && code == 1008) {
+                    clearCachedVertexTokenSafe()
+                }
+                invalidateResumptionHandleIfPreSetupFailure(wasSetupComplete, "Close $code: $reason")
                 if (!wasSetupComplete && (code == 1007 || reason.contains("thinking", ignoreCase = true)) && tryFallbackWithoutThinkingConfig("Close $code: $reason")) {
                     return
                 }
@@ -927,9 +1021,11 @@ class FunkiraLiveViewModel : ViewModel() {
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
-                    tryScheduleMidCallReconnect("Socket schließt ($code)")
-                    return
+                    if (tryScheduleMidCallReconnect("Socket schließt ($code)")) {
+                        return
+                    }
                 }
+                webSocket = null
                 if (code != 1000 && code != 1001) {
                     de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
                         context = ServiceLocator.context,
@@ -944,6 +1040,10 @@ class FunkiraLiveViewModel : ViewModel() {
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 val wasSetupComplete = setupCompletedForCurrentSocket
+                if (isDirectGoogle && code == 1008) {
+                    clearCachedVertexTokenSafe()
+                }
+                invalidateResumptionHandleIfPreSetupFailure(wasSetupComplete, "Closed $code: $reason")
                 if (!wasSetupComplete && (code == 1007 || reason.contains("thinking", ignoreCase = true)) && tryFallbackWithoutThinkingConfig("Closed $code: $reason")) {
                     return
                 }
@@ -955,12 +1055,31 @@ class FunkiraLiveViewModel : ViewModel() {
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
-                    tryScheduleMidCallReconnect("Socket beendet ($code)")
-                    return
+                    if (tryScheduleMidCallReconnect("Socket beendet ($code)")) {
+                        return
+                    }
                 }
+                webSocket = null
                 handleDisconnect("Verbindung beendet: $reason ($code)")
             }
         })
+    }
+
+    private fun invalidateResumptionHandleIfPreSetupFailure(wasSetupComplete: Boolean, reason: String) {
+        if (!wasSetupComplete && (!sessionResumptionHandle.isNullOrBlank() || sentResumptionHandleForCurrentSocket)) {
+            sessionResumptionHandle = null
+            sessionResumptionIsDirect = null
+            sessionResumptionModel = null
+            sentResumptionHandleForCurrentSocket = false
+            addLog("[Auto-Heilung]: Session-Handle nach Vorab-Abbruch verworfen ($reason); nutze lokales Gesprächsgedächtnis.")
+        }
+    }
+
+    private fun clearCachedVertexTokenSafe() {
+        try {
+            de.meinseelenfunke.app.util.VertexClientTokenCache.clear(null)
+        } catch (_: Throwable) {
+        }
     }
 
     private fun refreshReconnectBudgetIfStable(wasSetupComplete: Boolean) {
@@ -973,84 +1092,102 @@ class FunkiraLiveViewModel : ViewModel() {
     }
 
     private fun tryScheduleMidCallReconnect(triggerReason: String): Boolean {
-        if (userInitiatedHangup || shouldEndCall) return false
-        val attemptIdx = midCallReconnectCount
-        if (attemptIdx >= RECONNECT_BACKOFF_MS.size) return false
-        midCallReconnectCount = attemptIdx + 1
-        val delayMs = RECONNECT_BACKOFF_MS[attemptIdx]
+        synchronized(reconnectLock) {
+            if (userInitiatedHangup || shouldEndCall || shouldEnterStandbyAfterTurn) return false
+            val attemptIdx = midCallReconnectCount
+            if (attemptIdx >= RECONNECT_BACKOFF_MS.size) return false
+            midCallReconnectCount = attemptIdx + 1
+            val delayMs = RECONNECT_BACKOFF_MS[attemptIdx]
 
-        val staleWs = webSocket
-        webSocket = null
-        setupCompletedForCurrentSocket = false
-        try { staleWs?.cancel() } catch (_: Exception) {}
+            flushPendingTranscriptsToMemory(isMidCallDrop = true)
+            isMidCallReconnectSocket = true
 
-        stopInactivityWatchdog()
-        stopVisionStreamLoop()
-        stopRecording()
-        setAiSpeakingState(false)
-        _isConnected.value = false
-        _isConnecting.value = true
-        _error.value = null
-        de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = true
+            val staleWs = webSocket
+            webSocket = null
+            setupCompletedForCurrentSocket = false
+            try { staleWs?.cancel() } catch (_: Exception) {}
 
-        addLog("[Auto-Reconnect]: Kurze Unterbrechung ($triggerReason). Verbinde nahtlos neu (#${attemptIdx + 1})...")
-        reconnectJob?.cancel()
-        reconnectJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(delayMs)
-            if (userInitiatedHangup || shouldEndCall) return@launch
-            launchCredentialAndSocketConnect(isMidCallReconnect = true)
+            stopInactivityWatchdog()
+            stopVisionStreamLoop()
+            stopRecording()
+            setAiSpeakingState(false)
+            _isConnected.value = false
+            _isConnecting.value = true
+            _error.value = null
+            de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = true
+
+            addLog("[Auto-Reconnect]: Kurze Unterbrechung ($triggerReason). Verbinde nahtlos neu (#${attemptIdx + 1})...")
+            reconnectJob?.cancel()
+            reconnectJob = viewModelScope.launch(Dispatchers.IO) {
+                delay(delayMs)
+                if (userInitiatedHangup || shouldEndCall) return@launch
+                launchCredentialAndSocketConnect(isMidCallReconnect = true)
+            }
+            return true
         }
-        return true
     }
 
     private fun tryFallbackWithoutThinkingConfig(triggerReason: String): Boolean {
-        if (!includeThinkingConfigInSetup || userInitiatedHangup || shouldEndCall) return false
-        includeThinkingConfigInSetup = false
-        val staleWs = webSocket
-        webSocket = null
-        setupCompletedForCurrentSocket = false
-        try { staleWs?.cancel() } catch (_: Exception) {}
-        _isConnected.value = false
-        _isConnecting.value = true
-        _error.value = null
-        addLog("[Auto-Heilung]: ThinkingConfig-Fallback aktiv ($triggerReason). Verbinde sofort neu...")
-        reconnectJob?.cancel()
-        reconnectJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(150L)
-            if (userInitiatedHangup || shouldEndCall) return@launch
-            launchCredentialAndSocketConnect(isMidCallReconnect = true)
+        synchronized(reconnectLock) {
+            if (!includeThinkingConfigInSetup || userInitiatedHangup || shouldEndCall) return false
+            includeThinkingConfigInSetup = false
+            flushPendingTranscriptsToMemory(isMidCallDrop = true)
+            isMidCallReconnectSocket = sessionEverSetupComplete
+            val staleWs = webSocket
+            webSocket = null
+            setupCompletedForCurrentSocket = false
+            try { staleWs?.cancel() } catch (_: Exception) {}
+            _isConnected.value = false
+            _isConnecting.value = true
+            _error.value = null
+            addLog("[Auto-Heilung]: ThinkingConfig-Fallback aktiv ($triggerReason). Verbinde sofort neu...")
+            reconnectJob?.cancel()
+            reconnectJob = viewModelScope.launch(Dispatchers.IO) {
+                delay(150L)
+                if (userInitiatedHangup || shouldEndCall) return@launch
+                launchCredentialAndSocketConnect(isMidCallReconnect = sessionEverSetupComplete)
+            }
+            return true
         }
-        return true
     }
 
     private fun tryFailoverToDirectGemini(triggerReason: String, throwable: Throwable?): Boolean {
-        val directUrl = fallbackDirectUrl?.takeIf { it.isNotBlank() } ?: return false
-        val directBearer = fallbackDirectBearerToken
-        fallbackDirectUrl = null
-        fallbackDirectBearerToken = null
-        try { webSocket?.cancel() } catch (_: Exception) { }
-        webSocket = null
-        addLog("[Auto-Heilung]: Bridge gestört ($triggerReason). Wechsle sofort auf Vertex-AI-Direktverbindung...")
-        de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
-            context = ServiceLocator.context,
-            component = "funkira_live_ws",
-            title = "Bridge-Fehler automatisch per Vertex-Direkt-WebSocket geheilt",
-            message = triggerReason + (throwable?.message?.let { " | $it" } ?: ""),
-            healSummary = "Automatischer Failover von der WebSocket-Bridge auf die direkte EU-Vertex-AI-Live-Verbindung erfolgreich ausgelöst.",
-            extraContext = mapOf("trigger" to triggerReason.take(140))
-        )
-        _isConnecting.value = true
-        _error.value = null
-        establishWebSocket(
-            token = "",
-            wsUrl = directUrl,
-            systemInstruction = activeSysInstruction,
-            voiceName = activeVoiceName,
-            toolsJson = activeToolsJson,
-            isDirectGoogle = true,
-            directBearerToken = directBearer
-        )
-        return true
+        synchronized(reconnectLock) {
+            val directUrl = fallbackDirectUrl?.takeIf { it.isNotBlank() } ?: return false
+            val directBearer = fallbackDirectBearerToken
+            fallbackDirectUrl = null
+            fallbackDirectBearerToken = null
+            sessionResumptionHandle = null
+            sessionResumptionIsDirect = null
+            sessionResumptionModel = null
+            sentResumptionHandleForCurrentSocket = false
+            flushPendingTranscriptsToMemory(isMidCallDrop = true)
+            isMidCallReconnectSocket = sessionEverSetupComplete
+            val staleWs = webSocket
+            webSocket = null
+            try { staleWs?.cancel() } catch (_: Exception) { }
+            addLog("[Auto-Heilung]: Bridge gestört ($triggerReason). Wechsle sofort auf Vertex-AI-Direktverbindung...")
+            de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
+                context = ServiceLocator.context,
+                component = "funkira_live_ws",
+                title = "Bridge-Fehler automatisch per Vertex-Direkt-WebSocket geheilt",
+                message = triggerReason + (throwable?.message?.let { " | $it" } ?: ""),
+                healSummary = "Automatischer Failover von der WebSocket-Bridge auf die direkte EU-Vertex-AI-Live-Verbindung erfolgreich ausgelöst.",
+                extraContext = mapOf("trigger" to triggerReason.take(140))
+            )
+            _isConnecting.value = true
+            _error.value = null
+            establishWebSocket(
+                token = "",
+                wsUrl = directUrl,
+                systemInstruction = activeSysInstruction,
+                voiceName = activeVoiceName,
+                toolsJson = activeToolsJson,
+                isDirectGoogle = true,
+                directBearerToken = directBearer
+            )
+            return true
+        }
     }
 
     private fun handleServerMessage(jsonText: String) {
@@ -1074,6 +1211,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 val errMsg = parsedErr.second
                 addLog("[System-Fehler]: Server-Fehler ($errCode): $errMsg")
                 val wasSetupComplete = setupCompletedForCurrentSocket
+                invalidateResumptionHandleIfPreSetupFailure(wasSetupComplete, "Server-Fehler $errCode: $errMsg")
                 if (!wasSetupComplete && errMsg.contains("thinking", ignoreCase = true) && tryFallbackWithoutThinkingConfig(errMsg)) {
                     return
                 }
@@ -1088,11 +1226,24 @@ class FunkiraLiveViewModel : ViewModel() {
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
-                    tryScheduleMidCallReconnect("Server-Fehler: $errMsg")
-                    return
+                    if (tryScheduleMidCallReconnect("Server-Fehler: $errMsg")) {
+                        return
+                    }
                 }
                 handleDisconnect("Server-Fehler: $errMsg")
                 return
+            }
+
+            if (root.has("sessionResumptionUpdate") && root.get("sessionResumptionUpdate").isJsonObject) {
+                val upd = root.getAsJsonObject("sessionResumptionUpdate")
+                val hasResumable = upd.has("resumable") && upd.get("resumable").isJsonPrimitive
+                val resumable = if (hasResumable) upd.get("resumable").asBoolean else true
+                val newHandle = upd.get("newHandle")?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+                if (resumable && newHandle.isNotBlank()) {
+                    sessionResumptionHandle = newHandle
+                    sessionResumptionIsDirect = currentSocketIsDirectGoogle
+                    sessionResumptionModel = activeSetupModelForCurrentSocket
+                }
             }
 
             // Check Gemini Live goAway worker-rotation signal -> seamless reconnect with same chatSessionId!
@@ -1105,8 +1256,9 @@ class FunkiraLiveViewModel : ViewModel() {
                         reconnectAttemptCount = midCallReconnectCount
                     )
                 ) {
-                    tryScheduleMidCallReconnect("Gemini goAway")
-                    return
+                    if (tryScheduleMidCallReconnect("Gemini goAway")) {
+                        return
+                    }
                 }
             }
 
@@ -1114,7 +1266,8 @@ class FunkiraLiveViewModel : ViewModel() {
             if (root.has("setupComplete")) {
                 setupCompletedForCurrentSocket = true
                 sessionEverSetupComplete = true
-                val wasReconnect = currentSocketSetupAtUptimeMs > 0L
+                val wasReconnect = isMidCallReconnectSocket || currentSocketSetupAtUptimeMs > 0L
+                isMidCallReconnectSocket = false
                 currentSocketSetupAtUptimeMs = android.os.SystemClock.uptimeMillis()
                 _error.value = null
                 activeToolCallCount.set(0)
@@ -1130,12 +1283,25 @@ class FunkiraLiveViewModel : ViewModel() {
                 }
                 val kickPrompt = pendingProactiveKickPrompt?.trim()?.takeIf { it.isNotEmpty() }
                 pendingProactiveKickPrompt = null
+                val unansweredUserTurn = pendingUnansweredUserTurnForReconnect?.trim()?.takeIf { it.isNotEmpty() }
+                pendingUnansweredUserTurnForReconnect = null
                 if (kickPrompt != null && !proactiveKickSentInSession && !wasReconnect) {
                     proactiveKickSentInSession = true
                     try {
-                        val kickPacket = de.meinseelenfunke.app.util.FalconClientTools.buildClientContentKickPacket(kickPrompt)
+                        val kickPacket = de.meinseelenfunke.app.util.FalconClientTools.buildClientContentKickPacket(
+                            prompt = kickPrompt,
+                            modelName = activeSetupModelForCurrentSocket
+                        )
                         webSocket?.send(gson.toJson(kickPacket))
                         addLog("[Proaktiv]: Funkira spricht offene Antigravity-Freigabe ab Sekunde 0 an.")
+                    } catch (_: Throwable) {
+                    }
+                } else if (wasReconnect && unansweredUserTurn != null && sessionResumptionHandle.isNullOrBlank()) {
+                    try {
+                        sendRealtimeSystemPrompt(
+                            "[SYSTEM-FORTSETZUNG NACH KURZER NETZUNTERBRECHUNG]: Alina sagte unmittelbar vor dem Reconnect: \"$unansweredUserTurn\". Antworte ihr jetzt direkt und herzlich auf Deutsch ohne erneute Begrüßung."
+                        )
+                        addLog("[Auto-Fortsetzung]: Offene Aussage aus Unterbrechung direkt an Funkira übergeben.")
                     } catch (_: Throwable) {
                     }
                 }
@@ -1571,12 +1737,26 @@ class FunkiraLiveViewModel : ViewModel() {
     private fun sendBatchedToolResponses(
         responses: List<Triple<String, String, com.google.gson.JsonElement>>
     ) {
-        if (responses.isEmpty()) return
+        if (responses.isEmpty() || !setupCompletedForCurrentSocket) return
+        val ws = webSocket ?: return
         val packet = de.meinseelenfunke.app.util.FalconClientTools.buildBatchedToolResponsePacket(responses)
-        webSocket?.send(gson.toJson(packet))
+        val sent = ws.send(gson.toJson(packet))
+        if (!sent) {
+            android.util.Log.e("FunkiraLive", "WebSocket send failed for toolResponse")
+            if (shouldAutoReconnectMidCall(
+                    wasSetupComplete = true,
+                    userInitiatedHangup = userInitiatedHangup,
+                    shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
+                    reconnectAttemptCount = midCallReconnectCount
+                )
+            ) {
+                tryScheduleMidCallReconnect("Tool-Antwort-Kanal blockiert")
+            }
+        }
     }
 
     private fun sendAudioMessage(base64Data: String) {
+        if (!setupCompletedForCurrentSocket || base64Data.isBlank()) return
         val ws = webSocket
         if (ws == null) {
             android.util.Log.w("FunkiraLive", "WebSocket is null, cannot send audio")
@@ -1592,7 +1772,21 @@ class FunkiraLiveViewModel : ViewModel() {
         }
         val sent = ws.send(gson.toJson(audioMsg))
         if (!sent) {
-            android.util.Log.e("FunkiraLive", "WebSocket send failed for audio chunk")
+            val fails = consecutiveAudioSendFailures.incrementAndGet()
+            android.util.Log.e("FunkiraLive", "WebSocket send failed for audio chunk (streak=$fails)")
+            if (isAudioSendStallThresholdReached(fails) &&
+                shouldAutoReconnectMidCall(
+                    wasSetupComplete = setupCompletedForCurrentSocket || sessionEverSetupComplete,
+                    userInitiatedHangup = userInitiatedHangup,
+                    shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
+                    reconnectAttemptCount = midCallReconnectCount
+                )
+            ) {
+                consecutiveAudioSendFailures.set(0)
+                tryScheduleMidCallReconnect("Audio-Sendekanal blockiert")
+            }
+        } else {
+            consecutiveAudioSendFailures.set(0)
         }
     }
 
@@ -1852,172 +2046,221 @@ class FunkiraLiveViewModel : ViewModel() {
 
         isRecordingActive = true
         _isRecording.value = true
+        consecutiveAudioSendFailures.set(0)
         de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = true
+        val prevJobToJoin = previousRecordingJobToAwait
+        previousRecordingJobToAwait = null
 
         recordingJob = viewModelScope.launch(Dispatchers.IO) {
-            var audioRecord: AudioRecord? = null
-            var hardwareAec: AcousticEchoCanceler? = null
-            var hardwareNs: NoiseSuppressor? = null
-            try {
-                val sampleRate = 16000
-                val channelConfig = AudioFormat.CHANNEL_IN_MONO
-                val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-                val bufferSize = maxOf(AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat), 4096)
-
-                audioRecord = try {
-                    AudioRecord(
-                        MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                        sampleRate,
-                        channelConfig,
-                        audioFormat,
-                        bufferSize
-                    )
-                } catch (e: Exception) {
-                    AudioRecord(
-                        MediaRecorder.AudioSource.MIC,
-                        sampleRate,
-                        channelConfig,
-                        audioFormat,
-                        bufferSize
-                    )
-                }
-
-                if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
-                    addLog("[System]: Fehler beim Initialisieren des Mikrofons (State: ${audioRecord.state})")
-                    return@launch
-                }
-
+            if (prevJobToJoin != null && prevJobToJoin.isActive) {
                 try {
-                    if (AcousticEchoCanceler.isAvailable()) {
-                        hardwareAec = AcousticEchoCanceler.create(audioRecord.audioSessionId)?.apply { enabled = true }
-                    }
+                    kotlinx.coroutines.withTimeoutOrNull(450L) { prevJobToJoin.join() }
                 } catch (_: Throwable) {}
-                try {
-                    if (NoiseSuppressor.isAvailable()) {
-                        hardwareNs = NoiseSuppressor.create(audioRecord.audioSessionId)?.apply { enabled = true }
-                    }
-                } catch (_: Throwable) {}
-
-                try {
-                    audioRecord.startRecording()
-                } catch (e: Exception) {
-                    addLog("[System]: Fehler beim Starten des Mikrofons: ${e.message}")
-                    return@launch
-                }
-
-                if (audioRecord.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
-                    addLog("[System]: Mikrofon konnte nicht gestartet werden (State: ${audioRecord.recordingState})")
-                    return@launch
-                }
-
-                val buffer = ShortArray(1024)
-                val userSpeechGate = de.meinseelenfunke.app.services.WakeWordService.Companion.SpeechCadenceGate(
-                    requiredVoicedFrames = 3,
-                    windowSize = 8
-                )
-                var voicedWindowMask = 0
-                var consecutiveBargeInFrames = 0
-
-                while (isRecordingActive) {
-                    if (webSocket == null) {
-                        break
-                    }
-                    val read = audioRecord.read(buffer, 0, buffer.size)
-                    if (read > 0) {
-                        var maxVal = 0
-                        var sumSquares = 0.0
-                        for (i in 0 until read) {
-                            val v = Math.abs(buffer[i].toInt())
-                            if (v > maxVal) maxVal = v
-                            sumSquares += (v.toDouble() * v.toDouble())
-                        }
-                        val rms = kotlin.math.sqrt(sumSquares / read.toDouble())
-                        val nowUp = android.os.SystemClock.uptimeMillis()
-                        val aiSpeakingNow = isAiEffectivelySpeaking()
-                        if (aiSpeakingNow) {
-                            lastAiSpeechActiveUptimeMs = maxOf(lastAiSpeechActiveUptimeMs, nowUp)
-                        }
-
-                        // Echo-Schutz & Nachhall-Sperre (450ms Lautsprecher / 150ms Headset):
-                        // Verhindert, dass Funkiras eigene Stimme oder deren Raum-Nachhall nach Satzende
-                        // in Geminis VAD gelangt und sofort eine zweite Antwort auslöst!
-                        val suppressForAiOrEchoTail = de.meinseelenfunke.app.util.FalconClientTools
-                            .shouldSuppressMicForAiPlaybackOrEchoTail(
-                                isAiSpeakingNow = aiSpeakingNow,
-                                nowUptimeMs = nowUp,
-                                lastAiSpeechActiveUptimeMs = lastAiSpeechActiveUptimeMs,
-                                isHeadsetRouted = isHeadsetRouted
-                            )
-
-                        if (suppressForAiOrEchoTail) {
-                            userSpeechGate.reset()
-                            voicedWindowMask = 0
-                            val isBargeCandidate = de.meinseelenfunke.app.util.FalconClientTools
-                                .isSustainedHumanBargeInFrame(rms = rms, peak = maxVal, isHeadsetRouted = isHeadsetRouted)
-                            consecutiveBargeInFrames = if (isBargeCandidate) consecutiveBargeInFrames + 1 else 0
-                            val requiredFrames = de.meinseelenfunke.app.util.FalconClientTools
-                                .requiredBargeInConsecutiveFrames(isHeadsetRouted)
-
-                            if (consecutiveBargeInFrames >= requiredFrames) {
-                                consecutiveBargeInFrames = 0
-                                android.util.Log.d("FunkiraLive", "Sustained user interruption detected (rms=$rms, peak=$maxVal). Flushing audio playback.")
-                                turnCompleteSettleJob?.cancel()
-                                setAiSpeakingState(false)
-                                flushAudioPlayback()
-                                lastUserVoiceDetectedUptimeMs = nowUp
-                                inactivityTracker.onUserSpeech(nowUp)
-                            } else {
-                                _voiceAmplitude.value = 0f
-                                delay(20)
-                                continue
-                            }
-                        } else {
-                            consecutiveBargeInFrames = 0
-                            // Calibrated for Android VOICE_COMMUNICATION AGC/AEC (normal speech RMS ~800..2800)
-                            val isVoicedAecFrame = rms >= 820.0 || maxVal >= 2400
-                            voicedWindowMask = ((voicedWindowMask shl 1) or (if (isVoicedAecFrame) 1 else 0)) and 0xFF
-                            if (Integer.bitCount(voicedWindowMask) >= 2 || userSpeechGate.onFrame(buffer, read)) {
-                                lastUserVoiceDetectedUptimeMs = nowUp
-                                inactivityTracker.onUserSpeech(nowUp)
-                            }
-                        }
-
-                        _voiceAmplitude.value = maxVal.toFloat() / 32768f
-
-                        // convert ShortArray to ByteArray (little-endian)
-                        val bytes = ByteArray(read * 2)
-                        for (i in 0 until read) {
-                            val sh = buffer[i]
-                            bytes[i * 2] = (sh.toInt() and 0xFF).toByte()
-                            bytes[i * 2 + 1] = ((sh.toInt() shr 8) and 0xFF).toByte()
-                        }
-
-                        // Send base64 pcm packet to server
-                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                        sendAudioMessage(base64)
-                    } else if (read < 0) {
-                        android.util.Log.e("FunkiraLive", "AudioRecord read error: $read")
-                    }
-                    delay(20)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                try { hardwareAec?.release() } catch (_: Throwable) {}
-                try { hardwareNs?.release() } catch (_: Throwable) {}
-                try {
-                    if (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                        audioRecord.stop()
-                    }
-                } catch (_: Exception) {
-                }
-                try {
-                    audioRecord?.release()
-                } catch (_: Exception) {
-                }
-                isRecordingActive = false
-                _isRecording.value = false
             }
+            try {
+                de.meinseelenfunke.app.services.WakeWordService.releaseMicrophoneForCall(700L)
+            } catch (_: Throwable) {}
+            var micRecoveryAttempts = 0
+            while (isRecordingActive && micRecoveryAttempts <= 3) {
+                var audioRecord: AudioRecord? = null
+                var hardwareAec: AcousticEchoCanceler? = null
+                var hardwareNs: NoiseSuppressor? = null
+                var shouldRecoverMic = false
+                try {
+                    val sampleRate = 16000
+                    val channelConfig = AudioFormat.CHANNEL_IN_MONO
+                    val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+                    val bufferSize = maxOf(AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat), 4096)
+
+                    audioRecord = try {
+                        AudioRecord(
+                            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                            sampleRate,
+                            channelConfig,
+                            audioFormat,
+                            bufferSize
+                        )
+                    } catch (e: Exception) {
+                        AudioRecord(
+                            MediaRecorder.AudioSource.MIC,
+                            sampleRate,
+                            channelConfig,
+                            audioFormat,
+                            bufferSize
+                        )
+                    }
+
+                    if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
+                        addLog("[System]: Fehler beim Initialisieren des Mikrofons (State: ${audioRecord.state})")
+                        if (micRecoveryAttempts < 3) {
+                            shouldRecoverMic = true
+                            micRecoveryAttempts++
+                        } else {
+                            return@launch
+                        }
+                    }
+
+                    if (!shouldRecoverMic) {
+                        try {
+                            if (AcousticEchoCanceler.isAvailable()) {
+                                hardwareAec = AcousticEchoCanceler.create(audioRecord.audioSessionId)?.apply { enabled = true }
+                            }
+                        } catch (_: Throwable) {}
+                        try {
+                            if (NoiseSuppressor.isAvailable()) {
+                                hardwareNs = NoiseSuppressor.create(audioRecord.audioSessionId)?.apply { enabled = true }
+                            }
+                        } catch (_: Throwable) {}
+
+                        try {
+                            audioRecord.startRecording()
+                        } catch (e: Exception) {
+                            addLog("[System]: Fehler beim Starten des Mikrofons: ${e.message}")
+                            if (micRecoveryAttempts < 3) {
+                                shouldRecoverMic = true
+                                micRecoveryAttempts++
+                            } else {
+                                return@launch
+                            }
+                        }
+                    }
+
+                    if (!shouldRecoverMic && audioRecord.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                        addLog("[System]: Mikrofon konnte nicht gestartet werden (State: ${audioRecord.recordingState})")
+                        if (micRecoveryAttempts < 3) {
+                            shouldRecoverMic = true
+                            micRecoveryAttempts++
+                        } else {
+                            return@launch
+                        }
+                    }
+
+                    if (!shouldRecoverMic) {
+                        val buffer = ShortArray(1024)
+                        val userSpeechGate = de.meinseelenfunke.app.services.WakeWordService.Companion.SpeechCadenceGate(
+                            requiredVoicedFrames = 3,
+                            windowSize = 8
+                        )
+                        var voicedWindowMask = 0
+                        var consecutiveBargeInFrames = 0
+                        var consecutiveReadErrors = 0
+
+                        while (isRecordingActive) {
+                            if (webSocket == null) {
+                                break
+                            }
+                            val read = audioRecord.read(buffer, 0, buffer.size)
+                            if (read > 0) {
+                                consecutiveReadErrors = 0
+                                micRecoveryAttempts = 0
+                                var maxVal = 0
+                                var sumSquares = 0.0
+                                for (i in 0 until read) {
+                                    val v = Math.abs(buffer[i].toInt())
+                                    if (v > maxVal) maxVal = v
+                                    sumSquares += (v.toDouble() * v.toDouble())
+                                }
+                                val rms = kotlin.math.sqrt(sumSquares / read.toDouble())
+                                val nowUp = android.os.SystemClock.uptimeMillis()
+                                val aiSpeakingNow = isAiEffectivelySpeaking()
+                                if (aiSpeakingNow) {
+                                    lastAiSpeechActiveUptimeMs = maxOf(lastAiSpeechActiveUptimeMs, nowUp)
+                                }
+
+                                // Echo-Schutz & Nachhall-Sperre (450ms Lautsprecher / 150ms Headset):
+                                // Verhindert, dass Funkiras eigene Stimme oder deren Raum-Nachhall nach Satzende
+                                // in Geminis VAD gelangt und sofort eine zweite Antwort auslöst!
+                                val suppressForAiOrEchoTail = de.meinseelenfunke.app.util.FalconClientTools
+                                    .shouldSuppressMicForAiPlaybackOrEchoTail(
+                                        isAiSpeakingNow = aiSpeakingNow,
+                                        nowUptimeMs = nowUp,
+                                        lastAiSpeechActiveUptimeMs = lastAiSpeechActiveUptimeMs,
+                                        isHeadsetRouted = isHeadsetRouted
+                                    )
+
+                                if (suppressForAiOrEchoTail) {
+                                    userSpeechGate.reset()
+                                    voicedWindowMask = 0
+                                    val isBargeCandidate = de.meinseelenfunke.app.util.FalconClientTools
+                                        .isSustainedHumanBargeInFrame(rms = rms, peak = maxVal, isHeadsetRouted = isHeadsetRouted)
+                                    consecutiveBargeInFrames = if (isBargeCandidate) consecutiveBargeInFrames + 1 else 0
+                                    val requiredFrames = de.meinseelenfunke.app.util.FalconClientTools
+                                        .requiredBargeInConsecutiveFrames(isHeadsetRouted)
+
+                                    if (consecutiveBargeInFrames >= requiredFrames) {
+                                        consecutiveBargeInFrames = 0
+                                        android.util.Log.d("FunkiraLive", "Sustained user interruption detected (rms=$rms, peak=$maxVal). Flushing audio playback.")
+                                        turnCompleteSettleJob?.cancel()
+                                        setAiSpeakingState(false)
+                                        flushAudioPlayback()
+                                        lastUserVoiceDetectedUptimeMs = nowUp
+                                        inactivityTracker.onUserSpeech(nowUp)
+                                    } else {
+                                        _voiceAmplitude.value = 0f
+                                        delay(20)
+                                        continue
+                                    }
+                                } else {
+                                    consecutiveBargeInFrames = 0
+                                    // Calibrated for Android VOICE_COMMUNICATION AGC/AEC (normal speech RMS ~800..2800)
+                                    val isVoicedAecFrame = rms >= 820.0 || maxVal >= 2400
+                                    voicedWindowMask = ((voicedWindowMask shl 1) or (if (isVoicedAecFrame) 1 else 0)) and 0xFF
+                                    if (Integer.bitCount(voicedWindowMask) >= 2 || userSpeechGate.onFrame(buffer, read)) {
+                                        lastUserVoiceDetectedUptimeMs = nowUp
+                                        inactivityTracker.onUserSpeech(nowUp)
+                                    }
+                                }
+
+                                _voiceAmplitude.value = maxVal.toFloat() / 32768f
+
+                                // convert ShortArray to ByteArray (little-endian)
+                                val bytes = ByteArray(read * 2)
+                                for (i in 0 until read) {
+                                    val sh = buffer[i]
+                                    bytes[i * 2] = (sh.toInt() and 0xFF).toByte()
+                                    bytes[i * 2 + 1] = ((sh.toInt() shr 8) and 0xFF).toByte()
+                                }
+
+                                // Send base64 pcm packet to server
+                                val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                                sendAudioMessage(base64)
+                            } else if (read < 0) {
+                                consecutiveReadErrors++
+                                android.util.Log.e("FunkiraLive", "AudioRecord read error: $read (streak=$consecutiveReadErrors)")
+                                if (consecutiveReadErrors >= 15 && micRecoveryAttempts < 3) {
+                                    micRecoveryAttempts++
+                                    shouldRecoverMic = true
+                                    addLog("[Audio-Heilung]: Mikrofon-Stream unterbrochen ($read), starte neu (#$micRecoveryAttempts)...")
+                                    break
+                                }
+                            }
+                            delay(20)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    try { hardwareAec?.release() } catch (_: Throwable) {}
+                    try { hardwareNs?.release() } catch (_: Throwable) {}
+                    try {
+                        if (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                            audioRecord.stop()
+                        }
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        audioRecord?.release()
+                    } catch (_: Exception) {
+                    }
+                }
+                if (shouldRecoverMic && isRecordingActive && webSocket != null) {
+                    delay(180L)
+                } else {
+                    break
+                }
+            }
+            isRecordingActive = false
+            _isRecording.value = false
         }
     }
 
@@ -2025,13 +2268,22 @@ class FunkiraLiveViewModel : ViewModel() {
         isRecordingActive = false
         _isRecording.value = false
         _voiceAmplitude.value = 0f
-        recordingJob?.cancel()
+        consecutiveAudioSendFailures.set(0)
+        val running = recordingJob
         recordingJob = null
+        if (running != null && running.isActive) {
+            previousRecordingJobToAwait = running
+            running.cancel()
+        }
     }
 
     private fun sendRealtimeSystemPrompt(prompt: String) {
+        if (!setupCompletedForCurrentSocket || prompt.isBlank()) return
         val ws = webSocket ?: return
-        val packet = de.meinseelenfunke.app.util.FalconClientTools.buildRealtimeTextPromptPacket(prompt)
+        val packet = de.meinseelenfunke.app.util.FalconClientTools.buildRealtimePromptPacketForModel(
+            prompt = prompt,
+            modelName = activeSetupModelForCurrentSocket
+        )
         ws.send(gson.toJson(packet))
     }
 
@@ -2051,11 +2303,14 @@ class FunkiraLiveViewModel : ViewModel() {
                 ws.send(gson.toJson(framePacket))
             }
             // Beim initialen setupComplete steht die Anhang-Direktive bereits im setup.systemInstruction;
-            // nur bei nachträglicher Auswahl mitten im Call senden wir ein clientContent-Update (verhindert Doppel-Turns).
+            // nur bei nachträglicher Auswahl mitten im Call senden wir ein kontextuelles Update.
             if (isMidSessionSelection) {
                 val directive = de.meinseelenfunke.app.util.FalconClientTools.buildAttachedMediaSystemDirective(staged)
                 if (!directive.isNullOrBlank()) {
-                    val contextPacket = de.meinseelenfunke.app.util.FalconClientTools.buildSilentClientContextPacket(directive)
+                    val contextPacket = de.meinseelenfunke.app.util.FalconClientTools.buildSilentClientContextPacket(
+                        prompt = directive,
+                        modelName = activeSetupModelForCurrentSocket
+                    )
                     ws.send(gson.toJson(contextPacket))
                 }
             }
@@ -2224,13 +2479,148 @@ class FunkiraLiveViewModel : ViewModel() {
         }
     }
 
+    private fun acquireLiveCallLocks() {
+        try {
+            val appCtx = ServiceLocator.context.applicationContext
+            if (liveCpuWakeLock == null) {
+                val pm = appCtx.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                liveCpuWakeLock = pm?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Funkenwerk::LiveCallCpuWakeLock")?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (liveCpuWakeLock?.isHeld == false) {
+                liveCpuWakeLock?.acquire(60 * 60 * 1000L)
+            }
+            if (liveWifiLock == null) {
+                val wm = appCtx.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                @Suppress("DEPRECATION")
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                } else {
+                    android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                }
+                liveWifiLock = wm?.createWifiLock(mode, "Funkenwerk::LiveCallWifiLock")?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (liveWifiLock?.isHeld == false) {
+                liveWifiLock?.acquire()
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun releaseLiveCallLocks() {
+        try {
+            if (liveCpuWakeLock?.isHeld == true) {
+                liveCpuWakeLock?.release()
+            }
+        } catch (_: Throwable) {}
+        try {
+            if (liveWifiLock?.isHeld == true) {
+                liveWifiLock?.release()
+            }
+        } catch (_: Throwable) {}
+    }
+
+    private fun recordActiveSessionTurn(role: String, rawText: String) {
+        val clean = rawText.replace(Regex("\\s+"), " ").trim()
+        if (clean.isBlank()) return
+        val normRole = if (role.equals("user", ignoreCase = true) || role.equals("alina", ignoreCase = true)) {
+            "user"
+        } else {
+            "funkira"
+        }
+        synchronized(activeSessionTurnsLock) {
+            val last = activeSessionTurns.lastOrNull()
+            if (last != null && last.first == normRole && last.second == clean) {
+                return
+            }
+            activeSessionTurns.add(normRole to clean.take(600))
+            while (activeSessionTurns.size > MAX_SESSION_CONTEXT_TURNS) {
+                activeSessionTurns.removeAt(0)
+            }
+        }
+    }
+
+    private fun buildActiveSessionContextDirective(agentName: String): String {
+        val snapshot = synchronized(activeSessionTurnsLock) { activeSessionTurns.toList() }
+        if (snapshot.isEmpty()) return ""
+        val header = "--- AKTUELLES LAUFENDES GESPRAECH (NAHTLOS-WIEDERHERSTELLUNG) ---\n"
+        val footer = "--- ENDE AKTUELLES LAUFENDES GESPRAECH ---"
+        val budget = (2400 - header.length - footer.length).coerceAtLeast(200)
+        val lines = ArrayList<String>(snapshot.size)
+        var used = 0
+        for ((role, body) in snapshot.asReversed()) {
+            val speaker = if (role == "user") "Alina" else agentName
+            val line = "$speaker: $body\n"
+            if (used + line.length <= budget) {
+                lines.add(line)
+                used += line.length
+            } else if (lines.isEmpty()) {
+                lines.add("$speaker: ${body.take((budget - speaker.length - 4).coerceAtLeast(32))}\n")
+                break
+            } else {
+                break
+            }
+        }
+        lines.reverse()
+        return buildString {
+            append(header)
+            lines.forEach { append(it) }
+            append(footer)
+        }
+    }
+
+    private fun flushPendingTranscriptsToMemory(isMidCallDrop: Boolean) {
+        val agentName = displayAgentName()
+        var flushedUserText: String? = null
+        var flushedAiText: String? = null
+        synchronized(userTurnTranscript) {
+            if (userTurnTranscript.isNotBlank()) {
+                flushedUserText = userTurnTranscript.toString().trim()
+                userTurnTranscript.clear()
+                lastUserTranscriptDeltaUptimeMs = 0L
+            }
+        }
+        synchronized(aiTurnTranscript) {
+            if (aiTurnTranscript.isNotBlank()) {
+                flushedAiText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
+                aiTurnTranscript.clear()
+            }
+        }
+        reflexPreTriggerJob?.cancel()
+        reflexPreTriggerJob = null
+        reflexTriggeredInCurrentUserTurn = null
+
+        val cleanUser = flushedUserText?.takeIf { it.isNotBlank() }
+        val cleanAi = flushedAiText?.takeIf { it.isNotBlank() }
+        if (cleanUser != null) {
+            addLog("Du: $cleanUser")
+            persistTurnToLocalMemory(role = "user", text = cleanUser)
+            forwardImplicitVoiceFeedbackAsync(cleanUser, lastCompletedAssistantTurnText)
+        }
+        if (cleanAi != null) {
+            addLog("$agentName: $cleanAi")
+            persistTurnToLocalMemory(role = "funkira", text = cleanAi)
+            lastCompletedAssistantTurnText = cleanAi
+        }
+        if (isMidCallDrop) {
+            pendingUnansweredUserTurnForReconnect = if (cleanUser != null && cleanAi == null) {
+                cleanUser
+            } else if (cleanAi != null) {
+                null
+            } else {
+                pendingUnansweredUserTurnForReconnect
+            }
+        }
+    }
+
     private fun handleDisconnect(reason: String) {
         shouldEnterStandbyAfterTurn = false
         musicStandbyFallbackJob?.cancel()
         musicStandbyFallbackJob = null
-        reflexPreTriggerJob?.cancel()
-        reflexPreTriggerJob = null
-        reflexTriggeredInCurrentUserTurn = null
+        isMidCallReconnectSocket = false
         _isConnected.value = false
         _isConnecting.value = false
         setupCompletedForCurrentSocket = false
@@ -2247,25 +2637,13 @@ class FunkiraLiveViewModel : ViewModel() {
         connectJob?.cancel()
         connectJob = null
         stopRecording()
+        releaseLiveCallLocks()
         // Immediately yield microphone back to "Hey Falcone" WakeWordService!
         de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = false
         releaseAudioTrack()
-        if (aiTurnTranscript.isNotBlank()) {
-            val agentName = displayAgentName()
-            val cleanAi = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
-            if (cleanAi.isNotBlank()) {
-                addLog("$agentName: $cleanAi")
-                persistTurnToLocalMemory(role = "funkira", text = cleanAi)
-            }
-            aiTurnTranscript.clear()
-        }
-        if (userTurnTranscript.isNotBlank()) {
-            val cleanUser = userTurnTranscript.toString().trim()
-            addLog("Du: $cleanUser")
-            persistTurnToLocalMemory(role = "user", text = cleanUser)
-            forwardImplicitVoiceFeedbackAsync(cleanUser, lastCompletedAssistantTurnText)
-            userTurnTranscript.clear()
-        }
+        flushPendingTranscriptsToMemory(isMidCallDrop = false)
+        lastSessionDisconnectedAtUptimeMs = android.os.SystemClock.uptimeMillis()
+        lastDisconnectWasUserHangup = userInitiatedHangup
         _liveSubtitle.value = null
         addLog("[System]: Getrennt ($reason)")
     }
@@ -2327,6 +2705,7 @@ class FunkiraLiveViewModel : ViewModel() {
 
     private fun persistTurnToLocalMemory(role: String, text: String) {
         if (text.isBlank()) return
+        recordActiveSessionTurn(role, text)
         try {
             de.meinseelenfunke.app.util.FunkiraLocalMemoryStore.recordTurn(
                 context = ServiceLocator.context,
@@ -2335,6 +2714,24 @@ class FunkiraLiveViewModel : ViewModel() {
                 mode = "live_call"
             )
         } catch (_: Throwable) {
+        }
+        val activeSid = chatSessionId.trim()
+        if (activeSid.isNotBlank()) {
+            val agentId = _selectedAgent.value?.id
+            val agentName = displayAgentName()
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    aiRepository.saveLiveTranscript(
+                        sessionId = activeSid,
+                        role = role,
+                        content = text,
+                        agentId = agentId,
+                        agentName = agentName,
+                        channel = "android_live_call"
+                    )
+                } catch (_: Throwable) {
+                }
+            }
         }
     }
 
@@ -2353,21 +2750,24 @@ class FunkiraLiveViewModel : ViewModel() {
     }
 
     fun disconnectLiveChat() {
-        userInitiatedHangup = true
-        reconnectJob?.cancel()
-        reconnectJob = null
-        val ws = webSocket
-        webSocket = null
-        try {
-            ws?.close(1000, "User quit")
-        } catch (_: Exception) {
+        synchronized(reconnectLock) {
+            userInitiatedHangup = true
+            reconnectJob?.cancel()
+            reconnectJob = null
+            val ws = webSocket
+            webSocket = null
+            try {
+                ws?.close(1000, "User quit")
+            } catch (_: Exception) {
+            }
+            handleDisconnect("Vom Benutzer getrennt")
         }
-        handleDisconnect("Vom Benutzer getrennt")
     }
 
     override fun onCleared() {
         super.onCleared()
         disconnectLiveChat()
+        releaseLiveCallLocks()
         setCommunicationMode(false)
     }
 
@@ -2477,8 +2877,27 @@ class FunkiraLiveViewModel : ViewModel() {
     }
 
     companion object {
-        val RECONNECT_BACKOFF_MS = longArrayOf(350L, 800L, 1500L, 2500L)
+        val RECONNECT_BACKOFF_MS = longArrayOf(300L, 700L, 1400L, 2500L, 4000L)
         const val STABLE_CONNECTION_RESET_MS = 10_000L
+        const val RECENT_SESSION_RESUME_WINDOW_MS = 15 * 60_000L
+        const val MAX_SESSION_CONTEXT_TURNS = 24
+
+        fun shouldReuseRecentSessionContext(
+            previousAgentKey: String?,
+            currentAgentKey: String?,
+            previousSessionId: String?,
+            lastDisconnectAtUptimeMs: Long,
+            nowUptimeMs: Long,
+            lastDisconnectWasUserHangup: Boolean,
+            windowMs: Long = RECENT_SESSION_RESUME_WINDOW_MS
+        ): Boolean {
+            if (lastDisconnectWasUserHangup) return false
+            if (previousSessionId.isNullOrBlank()) return false
+            if (previousAgentKey.isNullOrBlank() || previousAgentKey != currentAgentKey) return false
+            if (lastDisconnectAtUptimeMs <= 0L) return false
+            val elapsed = nowUptimeMs - lastDisconnectAtUptimeMs
+            return elapsed in 0L..windowMs
+        }
 
         private val MALE_VOICE_NAMES = setOf(
             "orus", "charon", "puck", "fenrir", "iapetus", "umbriel",
@@ -2532,6 +2951,20 @@ class FunkiraLiveViewModel : ViewModel() {
             return Pair(0, errEl.toString())
         }
 
+        fun shouldReuseSessionResumptionHandle(
+            handle: String?,
+            issuedIsDirect: Boolean?,
+            targetIsDirect: Boolean,
+            issuedModel: String?,
+            targetModel: String
+        ): Boolean {
+            if (handle.isNullOrBlank()) return false
+            if (issuedIsDirect == null || issuedIsDirect != targetIsDirect) return false
+            val cleanIssued = issuedModel?.trim().orEmpty()
+            val cleanTarget = targetModel.trim()
+            return cleanIssued.isNotEmpty() && cleanIssued == cleanTarget
+        }
+
         fun shouldAutoReconnectMidCall(
             wasSetupComplete: Boolean,
             userInitiatedHangup: Boolean,
@@ -2543,6 +2976,22 @@ class FunkiraLiveViewModel : ViewModel() {
                 !userInitiatedHangup &&
                 !shouldEndCall &&
                 reconnectAttemptCount in 0 until maxAttempts
+        }
+
+        const val CALL_BUTTON_DEBOUNCE_MS = 650L
+        const val AUDIO_SEND_STALL_THRESHOLD = 15
+
+        fun shouldAllowCallButtonTap(
+            lastTapUptimeMs: Long,
+            nowUptimeMs: Long,
+            debounceMs: Long = CALL_BUTTON_DEBOUNCE_MS
+        ): Boolean {
+            if (lastTapUptimeMs <= 0L) return true
+            return (nowUptimeMs - lastTapUptimeMs) >= debounceMs
+        }
+
+        fun isAudioSendStallThresholdReached(consecutiveFailures: Int): Boolean {
+            return consecutiveFailures >= AUDIO_SEND_STALL_THRESHOLD
         }
 
         fun isTrustedLiveWebSocketHost(

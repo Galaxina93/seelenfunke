@@ -414,6 +414,9 @@
             audioContext: null,
             localAudioStream: null,
             sessionResumptionHandle: null,
+            sessionResumptionMode: null,
+            sentSessionResumptionHandle: false,
+            canUseDirectFallback: false,
             reconnectAttempts: 0,
             maxReconnectAttempts: 5,
             useDirectFallback: false,
@@ -437,19 +440,34 @@
                 this.liveInactivityStageStartedAt = 0;
             },
 
-            sendLiveSystemPrompt(promptText) {
-                if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN || !this.isSetupComplete) return false;
+            liveEffectiveModel: 'models/gemini-3.1-flash-live-preview',
+
+            sendLiveTextTurn(promptText, turnComplete = true) {
+                if (!this.isLiveMode || !this.liveWs || this.liveWs.readyState !== WebSocket.OPEN || !this.isSetupComplete) return false;
+                const clean = (typeof promptText === 'string') ? promptText.trim() : '';
+                if (clean === '') return false;
                 try {
+                    const modelStr = String(this.liveEffectiveModel || '');
+                    const is3xDirect = this.liveWsMode === 'direct_gemini' && (modelStr.includes('3.') || modelStr.includes('gemini-3'));
+                    if (is3xDirect) {
+                        if (!turnComplete) return false;
+                        this.liveWs.send(JSON.stringify({ realtimeInput: { text: clean } }));
+                        return true;
+                    }
                     this.liveWs.send(JSON.stringify({
                         clientContent: {
-                            turns: [{ role: 'user', parts: [{ text: promptText }] }],
-                            turnComplete: true
+                            turns: [{ role: 'user', parts: [{ text: clean }] }],
+                            turnComplete: Boolean(turnComplete)
                         }
                     }));
                     return true;
                 } catch (e) {
                     return false;
                 }
+            },
+
+            sendLiveSystemPrompt(promptText) {
+                return this.sendLiveTextTurn(promptText, true);
             },
 
             evaluateLiveBedtimeSchedule() {
@@ -667,21 +685,33 @@
                             const blob = await item.getType(imageType);
                             const reader = new FileReader();
                             reader.onloadend = () => {
-                                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                                    const base64 = reader.result.split(',')[1];
-                                    const clipMsg = {
-                                        clientContent: {
-                                            turns: [{
-                                                role: "user",
-                                                parts: [
-                                                    { inlineData: { mimeType: imageType, data: base64 } },
-                                                    { text: "*(System: Das Bild aus dem Zwischenspeicher wurde erfolgreich übermittelt. Bitte verarbeite es jetzt wie vom Nutzer gefordert.)*" }
-                                                ]
-                                            }],
-                                            turnComplete: true
-                                        }
-                                    };
-                                    this.liveWs.send(JSON.stringify(clipMsg));
+                                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete) {
+                                    const base64 = typeof reader.result === 'string' ? (reader.result.split(',')[1] || '') : '';
+                                    if (!base64) return;
+                                    const modelStr = String(this.liveEffectiveModel || '');
+                                    const is3xDirect = this.liveWsMode === 'direct_gemini' && (modelStr.includes('3.') || modelStr.includes('gemini-3'));
+                                    if (is3xDirect) {
+                                        this.liveWs.send(JSON.stringify({
+                                            realtimeInput: { video: { mimeType: imageType, data: base64 } }
+                                        }));
+                                        this.liveWs.send(JSON.stringify({
+                                            realtimeInput: { text: "*(System: Das Bild aus dem Zwischenspeicher wurde erfolgreich übermittelt. Bitte verarbeite es jetzt wie vom Nutzer gefordert.)*" }
+                                        }));
+                                    } else {
+                                        const clipMsg = {
+                                            clientContent: {
+                                                turns: [{
+                                                    role: "user",
+                                                    parts: [
+                                                        { inlineData: { mimeType: imageType, data: base64 } },
+                                                        { text: "*(System: Das Bild aus dem Zwischenspeicher wurde erfolgreich übermittelt. Bitte verarbeite es jetzt wie vom Nutzer gefordert.)*" }
+                                                    ]
+                                                }],
+                                                turnComplete: true
+                                            }
+                                        };
+                                        this.liveWs.send(JSON.stringify(clipMsg));
+                                    }
                                     console.log("Clipboard Image sent to Live WS.");
                                 } else {
                                     this.$wire.call('submitClipboardImage', reader.result, 'clipboard_image.png', imageType);
@@ -695,19 +725,8 @@
                     // Fallback for text
                     const text = await navigator.clipboard.readText();
                     if (text && text.trim().length > 0) {
-                        if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                            const clipMsg = {
-                                clientContent: {
-                                    turns: [{
-                                        role: "user",
-                                        parts: [
-                                            { text: "*(System: Der Text aus dem Zwischenspeicher wurde übermittelt:*\n" + text + "\n*Bitte verarbeite diesen Text jetzt wie vom Nutzer gefordert.)*" }
-                                        ]
-                                    }],
-                                    turnComplete: true
-                                }
-                            };
-                            this.liveWs.send(JSON.stringify(clipMsg));
+                        if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete) {
+                            this.sendLiveTextTurn("*(System: Der Text aus dem Zwischenspeicher wurde übermittelt:*\n" + text + "\n*Bitte verarbeite diesen Text jetzt wie vom Nutzer gefordert.)*", true);
                             console.log("Clipboard Text sent to Live WS.");
                         } else {
                             const timeStr = this.getCurrentFormattedDateTime();
@@ -734,11 +753,8 @@
             },
 
             notifyClipboardError(msg) {
-                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                    const clipMsg = {
-                        clientContent: { turns: [{ role: "user", parts: [{ text: `*(${msg})*` }] }], turnComplete: true }
-                    };
-                    this.liveWs.send(JSON.stringify(clipMsg));
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete) {
+                    this.sendLiveTextTurn(`*(${msg})*`, true);
                 } else {
                     const timeStr = this.getCurrentFormattedDateTime();
                     this.chatHistory.push({ role: 'user', content: `*(${msg})*`, time: timeStr, created_at: timeStr });
@@ -760,6 +776,47 @@
             stripSpeak(msg) {
                 if (!msg) return '';
                 return msg.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '');
+            },
+
+            async submitWidgetFeedback(msg, index, polarity, reasonKey) {
+                if (!msg) return;
+                msg.showFeedbackChips = false;
+                let prevUserText = '';
+                for (let j = index - 1; j >= 0; j--) {
+                    if (this.chatHistory[j] && this.chatHistory[j].role === 'user') {
+                        prevUserText = this.chatHistory[j].content || '';
+                        break;
+                    }
+                }
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                try {
+                    const res = await fetch('/api/ai/behavior-feedback', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrf
+                        },
+                        body: JSON.stringify({
+                            polarity: polarity,
+                            channel: 'live_widget',
+                            reason_key: reasonKey || null,
+                            agent_id: this.activeAgentId || null,
+                            agent_name: msg.name || this.activeAgentName || 'Funkira',
+                            session_id: this.currentChatSessionId || null,
+                            ai_chat_memory_id: msg.memory_id || null,
+                            user_excerpt: prevUserText,
+                            agent_excerpt: this.stripSpeak(msg.content || '')
+                        })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        msg.feedbackPolarity = data.polarity || polarity;
+                        msg.feedbackReason = data.reason_note || (polarity === 'praise' ? '' : 'Erfasst');
+                    }
+                } catch (e) {
+                    console.warn('Widget feedback failed:', e);
+                }
             },
 
             getCurrentFormattedDateTime() {
@@ -840,18 +897,7 @@
 
                 if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete && this.lastInformedLiveSessionId !== detail.sessionId) {
                     this.lastInformedLiveSessionId = detail.sessionId;
-                    const newChatMsg = {
-                        clientContent: {
-                            turns: [{
-                                role: 'user',
-                                parts: [{
-                                    text: `*(System-Kontext: Der Benutzer hat soeben einen neuen, leeren Chat gestartet [Session-ID: ${detail.sessionId}]. Der vorherige Chat-Verlauf ist abgeschlossen.)*`
-                                }]
-                            }],
-                            turnComplete: false
-                        }
-                    };
-                    this.liveWs.send(JSON.stringify(newChatMsg));
+                    this.sendLiveTextTurn(`*(System-Kontext: Der Benutzer hat soeben einen neuen, leeren Chat gestartet [Session-ID: ${detail.sessionId}]. Der vorherige Chat-Verlauf ist abgeschlossen.)*`, false);
                 }
             },
 
@@ -881,18 +927,7 @@
                     } else {
                         recentSummary = "\n(Dieser Chat hat noch keine bisherigen Nachrichten.)";
                     }
-                    const switchContextMsg = {
-                        clientContent: {
-                            turns: [{
-                                role: 'user',
-                                parts: [{
-                                    text: `*(System-Kontext: Der Benutzer hat soeben im UI den Chat-Verlauf gewechselt [Session-ID: ${detail.sessionId}].${recentSummary}\nDu hast jetzt vollen Einblick in diese aktuell ausgewählten Nachrichten. Beziehe dich bei Fragen zum Chat ab jetzt direkt auf diesen Verlauf.)*`
-                                }]
-                            }],
-                            turnComplete: false
-                        }
-                    };
-                    this.liveWs.send(JSON.stringify(switchContextMsg));
+                    this.sendLiveTextTurn(`*(System-Kontext: Der Benutzer hat soeben im UI den Chat-Verlauf gewechselt [Session-ID: ${detail.sessionId}].${recentSummary}\nDu hast jetzt vollen Einblick in diese aktuell ausgewählten Nachrichten. Beziehe dich bei Fragen zum Chat ab jetzt direkt auf diesen Verlauf.)*`, false);
                 }
             },
 
@@ -1193,19 +1228,8 @@
                 const taskId = task.id || task.task_id || '';
 
                 // 1. Wenn aktuell im Gemini Live Audio WebSocket Modus:
-                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                    const promptMsg = {
-                        clientContent: {
-                            turns: [{
-                                role: 'user',
-                                parts: [{
-                                    text: `*(System-Hinweis: Die Hintergrund-Aufgabe "${taskPrompt}" [ID: ${taskId}] wurde soeben abgeschlossen! Status: ${taskStatus}. Ergebnis: ${taskResponse}. Informiere den Nutzer kurz, sympathisch und natürlich darüber, sobald es ins Gespräch passt.)*`
-                                }]
-                            }],
-                            turnComplete: true
-                        }
-                    };
-                    this.liveWs.send(JSON.stringify(promptMsg));
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete) {
+                    this.sendLiveTextTurn(`*(System-Hinweis: Die Hintergrund-Aufgabe "${taskPrompt}" [ID: ${taskId}] wurde soeben abgeschlossen! Status: ${taskStatus}. Ergebnis: ${taskResponse}. Informiere den Nutzer kurz, sympathisch und natürlich darüber, sobald es ins Gespräch passt.)*`, true);
                 }
 
                 // 2. Chat-Verlauf visuell aktualisieren
@@ -1383,16 +1407,10 @@
 
             async sendToAI(promptText, isSpontaneous = false) {
                 if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                    const msg = {
-                        clientContent: {
-                            turns: [{
-                                role: 'user',
-                                parts: [{ text: promptText }]
-                            }],
-                            turnComplete: true
-                        }
-                    };
-                    this.liveWs.send(JSON.stringify(msg));
+                    if (!this.isSetupComplete || typeof promptText !== 'string' || promptText.trim() === '') {
+                        return;
+                    }
+                    this.sendLiveTextTurn(promptText, true);
                     
                     if (!isSpontaneous) {
                         const timeStr = this.getCurrentFormattedDateTime();
@@ -1508,7 +1526,7 @@
                         if (data.response) {
                             const timeStr = this.getCurrentFormattedDateTime();
                             this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: data.response.replace(/\[.*?\]/s, '') });
-                            this.chatHistory.push({ role: 'assistant', content: data.response, name: data.agent_name || this.activeAgentName, time: timeStr, created_at: timeStr });
+                            this.chatHistory.push({ role: 'assistant', memory_id: data.memory_id || null, content: data.response, name: data.agent_name || this.activeAgentName, time: timeStr, created_at: timeStr, showFeedbackChips: false, feedbackPolarity: null, feedbackReason: '' });
                         }
 
                         if (this.funkiLogs.length > 15) this.funkiLogs = this.funkiLogs.slice(-15);
@@ -2066,6 +2084,7 @@
                         this.currentChatSessionId = creds.chat_session_id;
                         this.lastInformedLiveSessionId = creds.chat_session_id;
                     }
+                    this.canUseDirectFallback = Boolean(creds.direct_ws_url);
 
                     // 2. Setup WebSocket (Bridge primary -> Direct-Gemini self-heal fallback if bridge is unavailable)
                     let wsUrl = '';
@@ -2089,6 +2108,7 @@
                         const setupModelName = (this.liveWsMode === 'direct_gemini' && creds.live_model)
                             ? creds.live_model
                             : "models/gemini-3.1-flash-live-preview";
+                        this.liveEffectiveModel = setupModelName;
                         const genCfg = {
                             responseModalities: ["AUDIO"],
                             speechConfig: {
@@ -2099,32 +2119,48 @@
                                 }
                             }
                         };
+                        const isDirectAiStudio = this.liveWsMode === 'direct_gemini'
+                            && !String(wsUrl || '').includes('aiplatform.googleapis.com')
+                            && !String(setupModelName).startsWith('projects/');
                         if (String(setupModelName).includes('2.5')) {
                             genCfg.thinkingConfig = { thinkingBudget: 0 };
-                        } else if (String(setupModelName).includes('3.1') || String(setupModelName).includes('gemini-3')) {
+                        } else if (isDirectAiStudio && (String(setupModelName).includes('3.1') || String(setupModelName).includes('gemini-3'))) {
                             genCfg.thinkingConfig = { thinkingLevel: 'minimal' };
                         }
-                        const setupMsg = {
-                            setup: {
-                                model: setupModelName,
-                                systemInstruction: {
-                                    parts: [{ text: creds.system_instruction }]
-                                },
-                                generationConfig: genCfg,
-                                realtimeInputConfig: {
-                                    automaticActivityDetection: {
-                                        disabled: false,
-                                        startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-                                        endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
-                                        prefixPaddingMs: 100,
-                                        silenceDurationMs: 420
-                                    }
-                                },
-                                tools: creds.tools || [],
-                                inputAudioTranscription: {},
-                                outputAudioTranscription: {}
-                            }
+                        const cleanTools = Array.isArray(creds.tools)
+                            ? creds.tools.filter(t => t && (!Array.isArray(t.functionDeclarations) || t.functionDeclarations.length > 0))
+                            : [];
+                        const canReuseResumption = Boolean(
+                            this.sessionResumptionHandle
+                            && typeof this.sessionResumptionHandle === 'string'
+                            && this.sessionResumptionHandle.trim() !== ''
+                            && this.sessionResumptionMode === this.liveWsMode
+                        );
+                        this.sentSessionResumptionHandle = canReuseResumption;
+                        const setupPayload = {
+                            model: setupModelName,
+                            systemInstruction: {
+                                parts: [{ text: creds.system_instruction || 'Du bist Funkira.' }]
+                            },
+                            generationConfig: genCfg,
+                            realtimeInputConfig: {
+                                automaticActivityDetection: {
+                                    disabled: false,
+                                    startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+                                    endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+                                    prefixPaddingMs: 100,
+                                    silenceDurationMs: 420
+                                }
+                            },
+                            inputAudioTranscription: {},
+                            outputAudioTranscription: {},
+                            contextWindowCompression: { slidingWindow: {} },
+                            sessionResumption: canReuseResumption ? { handle: this.sessionResumptionHandle.trim() } : {}
                         };
+                        if (cleanTools.length > 0) {
+                            setupPayload.tools = cleanTools;
+                        }
+                        const setupMsg = { setup: setupPayload };
                         this.liveWs.send(JSON.stringify(setupMsg));
 
                         this.thinking = false;
@@ -2165,14 +2201,21 @@
                         if (event.code !== 1000 && event.code !== 1005) {
                             console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + closeReason);
                         }
+                        if (!hadSetup && this.sentSessionResumptionHandle) {
+                            this.sessionResumptionHandle = null;
+                            this.sessionResumptionMode = null;
+                        }
+                        this.flushPendingLiveTranscripts(this.liveWsMode !== 'bridge');
                         
                         // Bei aktivem Live-Modus AudioContext & gepufferte Sprachausgabe NICHT abwürgen (keepAudioAlive = true)
                         this.cleanupLiveConnection(this.isLiveMode);
 
                         // Self-Healing: Falls die Node.js-Bridge beim Handshake ausfällt (z.B. Code 4003 / 1006 / 1005 / 1012 / 502 vor setupComplete),
                         // schalten wir für authentifizierte Admins nahtlos auf Direct-Gemini-Live um!
-                        if (this.isLiveMode && !hadSetup && !this.useDirectFallback && event.code !== 1000) {
+                        if (this.isLiveMode && !hadSetup && !this.useDirectFallback && this.canUseDirectFallback && event.code !== 1000) {
                             this.useDirectFallback = true;
+                            this.sessionResumptionHandle = null;
+                            this.sessionResumptionMode = null;
                             this.reportLiveClientDiagnostic(
                                 'warning',
                                 'portal_live_ws',
@@ -2430,6 +2473,7 @@
                             binary += String.fromCharCode(bytes[i]);
                         }
                         const base64Audio = btoa(binary);
+                        if (!base64Audio) return;
 
                         const msg = {
                             realtimeInput: {
@@ -2439,7 +2483,13 @@
                                 }
                             }
                         };
-                        this.liveWs.send(JSON.stringify(msg));
+                        try {
+                            if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete) {
+                                this.liveWs.send(JSON.stringify(msg));
+                            }
+                        } catch (sendErr) {
+                            console.warn('Live Audio Send Warnung:', sendErr);
+                        }
                     };
 
                     this.audioInput.connect(processor);
@@ -2555,8 +2605,9 @@
                     return;
                 }
                 if (data.sessionResumptionUpdate) {
-                    if (data.sessionResumptionUpdate.newHandle) {
-                        this.sessionResumptionHandle = data.sessionResumptionUpdate.newHandle;
+                    if (data.sessionResumptionUpdate.newHandle && typeof data.sessionResumptionUpdate.newHandle === 'string' && data.sessionResumptionUpdate.newHandle.trim() !== '') {
+                        this.sessionResumptionHandle = data.sessionResumptionUpdate.newHandle.trim();
+                        this.sessionResumptionMode = this.liveWsMode;
                     }
                     if (!data.serverContent && !data.toolCall && !data.setupComplete) {
                         return;
@@ -2566,8 +2617,11 @@
                     console.log('Gemini Live goAway signal received - scheduling seamless reconnect');
                     if (this.isLiveMode && this.liveWs) {
                         this.reconnectAttempts = 0;
+                        this.flushPendingLiveTranscripts(true);
                         const stale = this.liveWs;
                         this.liveWs = null;
+                        stale.onclose = null;
+                        stale.onerror = null;
                         try { stale.close(1000, 'goAway_reconnect'); } catch (e) {}
                         this.cleanupLiveConnection(true);
                         setTimeout(() => {
@@ -2583,11 +2637,20 @@
                         ? data.error
                         : (data.error.message || 'Unbekannter Live-Serverfehler');
                     console.warn('Gemini Live error frame received:', errMsg);
+                    if (!this.isSetupComplete && this.sentSessionResumptionHandle) {
+                        this.sessionResumptionHandle = null;
+                        this.sessionResumptionMode = null;
+                    }
                     if (this.isLiveMode && this.reconnectAttempts < this.maxReconnectAttempts) {
                         this.reconnectAttempts++;
+                        this.flushPendingLiveTranscripts(true);
                         const stale = this.liveWs;
                         this.liveWs = null;
-                        try { if (stale) stale.close(); } catch (e) {}
+                        if (stale) {
+                            stale.onclose = null;
+                            stale.onerror = null;
+                            try { stale.close(); } catch (e) {}
+                        }
                         this.cleanupLiveConnection(true);
                         setTimeout(() => {
                             if (this.isLiveMode) {
@@ -2952,8 +3015,40 @@
                 };
             },
 
+            flushPendingLiveTranscripts(persistToServer = true) {
+                if (this.currentUserLiveTranscript && this.currentUserLiveTranscript.trim() !== '') {
+                    const remainingUserTxt = this.currentUserLiveTranscript.trim();
+                    this.currentUserLiveTranscript = "";
+                    const alreadyUser = this.chatHistory.some(m => m.role === 'user' && m.content && m.content.trim() === remainingUserTxt);
+                    if (!alreadyUser) {
+                        const timeStr = this.getCurrentFormattedDateTime();
+                        this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: remainingUserTxt });
+                        this.chatHistory.push({ role: 'user', content: remainingUserTxt, time: timeStr, created_at: timeStr });
+                    }
+                    if (persistToServer && this.$wire) {
+                        this.$wire.call('saveUserLiveMessage', remainingUserTxt, this.currentChatSessionId || null);
+                    }
+                }
+                if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
+                    const remainingAiTxt = this.currentLiveTranscript.trim();
+                    this.currentLiveTranscript = "";
+                    const agentName = this.activeAgentName || 'Funkira';
+                    const alreadyAi = this.chatHistory.some(m => m.role === 'assistant' && m.content && m.content.trim() === remainingAiTxt);
+                    if (!alreadyAi) {
+                        const timeStr = this.getCurrentFormattedDateTime();
+                        this.chatHistory.push({ role: 'assistant', content: remainingAiTxt, name: agentName, time: timeStr, created_at: timeStr });
+                        this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: remainingAiTxt.replace(/\[.*?\]/s, '') });
+                    }
+                    if (persistToServer && this.$wire) {
+                        this.$wire.call('saveAssistantLiveMessage', remainingAiTxt, this.activeAgentId || null, this.currentChatSessionId || null);
+                    }
+                }
+            },
+
             stopLiveMode() {
                 this.sessionResumptionHandle = null;
+                this.sessionResumptionMode = null;
+                this.sentSessionResumptionHandle = false;
                 this.reconnectAttempts = 0;
                 this.isToolCallPending = false;
                 if (this.turnDrainTimeout) {
@@ -3002,27 +3097,7 @@
                     try { this.liveRecognition.stop(); } catch(e) {}
                     this.liveRecognition = null;
                 }
-                if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
-                    let remainingAiTxt = this.currentLiveTranscript.trim();
-                    let agentName = this.activeAgentName || 'Funkira';
-                    const timeStr = this.getCurrentFormattedDateTime();
-                    this.chatHistory.push({ role: 'assistant', content: remainingAiTxt, name: agentName, time: timeStr, created_at: timeStr });
-                    this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: remainingAiTxt.replace(/\[.*?\]/s, '') });
-                    if (this.$wire) {
-                        this.$wire.call('saveAssistantLiveMessage', remainingAiTxt, this.activeAgentId || null, this.currentChatSessionId || null);
-                    }
-                    this.currentLiveTranscript = "";
-                }
-                if (this.currentUserLiveTranscript && this.currentUserLiveTranscript.trim() !== '') {
-                    let remainingUserTxt = this.currentUserLiveTranscript.trim();
-                    this.currentUserLiveTranscript = "";
-                    const timeStr = this.getCurrentFormattedDateTime();
-                    this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: remainingUserTxt });
-                    this.chatHistory.push({ role: 'user', content: remainingUserTxt, time: timeStr, created_at: timeStr });
-                    if (this.$wire) {
-                        this.$wire.call('saveUserLiveMessage', remainingUserTxt, this.currentChatSessionId || null);
-                    }
-                }
+                this.flushPendingLiveTranscripts(true);
                 this.nextPlayTime = 0;
                 this.isSpeaking = false;
                 this.isAiSpeakingTurn = false;
@@ -3126,8 +3201,8 @@
                         this.cameraFps = '30.00';
                     }
 
-                    // Only send if Live Mode is active and WebSocket is open
-                    if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                    // Only send if Live Mode is active, WebSocket is open and setupComplete arrived
+                    if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete) {
                         if (video.videoWidth > 0 && video.videoHeight > 0) {
                             const MAX_WIDTH = 640;
                             let width = video.videoWidth;
@@ -3144,17 +3219,24 @@
                             
                             // Get base64 JPEG
                             const dataUrl = this.cameraCanvas.toDataURL('image/jpeg', 0.6);
-                            const base64Data = dataUrl.split(',')[1];
-                            
-                            const msg = {
-                                realtimeInput: {
-                                    video: {
-                                        mimeType: "image/jpeg",
-                                        data: base64Data
+                            const base64Data = typeof dataUrl === 'string' ? (dataUrl.split(',')[1] || '') : '';
+                            if (base64Data) {
+                                const msg = {
+                                    realtimeInput: {
+                                        video: {
+                                            mimeType: "image/jpeg",
+                                            data: base64Data
+                                        }
                                     }
-                                }
-                            };
-                            this.liveWs.send(JSON.stringify(msg));
+                                };
+                                try {
+                            if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete) {
+                                this.liveWs.send(JSON.stringify(msg));
+                            }
+                        } catch (sendErr) {
+                            console.warn('Live Audio Send Warnung:', sendErr);
+                        }
+                            }
                         }
                     }
                 }, 1000);

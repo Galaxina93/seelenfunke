@@ -3,11 +3,16 @@
 namespace App\Livewire\Shop\Ai;
 
 use App\Livewire\Traits\WithDepartmentTheming;
+use App\Models\Ai\AiAgent;
+use App\Models\Ai\AiBehaviorFeedback;
+use App\Models\Ai\AiLearnedPreference;
 use App\Models\Ai\AiMetric;
 use App\Models\Ai\AiToolUsage;
 use App\Models\System\SystemAiHostingPlan;
 use App\Services\AI\AiAuthHelper;
+use App\Services\AI\AiBehaviorAnalysisService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -20,9 +25,25 @@ class AiAnalytics extends Component
     public string $themingDepartment = 'Agenten';
 
     private const ALLOWED_DATE_RANGES = ['7', '30', '90', '365'];
+    private const ALLOWED_TABS = ['telemetry', 'behavior'];
 
     #[Url]
     public string $dateRange = '30';
+
+    #[Url(as: 'tab')]
+    public string $activeTab = 'telemetry';
+
+    #[Url(as: 'channel')]
+    public string $behaviorChannel = 'all';
+
+    #[Url(as: 'agent')]
+    public string $behaviorAgentId = 'all';
+
+    #[Url(as: 'polarity')]
+    public string $behaviorPolarity = 'all';
+
+    public ?string $selectedFeedbackId = null;
+    public ?string $behaviorNotice = null;
 
     public function boot(): void
     {
@@ -33,6 +54,123 @@ class AiAnalytics extends Component
         if (!in_array($this->dateRange, self::ALLOWED_DATE_RANGES, true)) {
             $this->dateRange = '30';
         }
+        if (!in_array($this->activeTab, self::ALLOWED_TABS, true)) {
+            $this->activeTab = 'telemetry';
+        }
+        if ($this->behaviorChannel !== 'all' && !in_array($this->behaviorChannel, AiBehaviorAnalysisService::ALLOWED_CHANNELS, true)) {
+            $this->behaviorChannel = 'all';
+        }
+        if (!in_array($this->behaviorPolarity, ['all', 'praise', 'criticism', 'correction'], true)) {
+            $this->behaviorPolarity = 'all';
+        }
+    }
+
+    public function setActiveTab(string $tab): void
+    {
+        if (in_array($tab, self::ALLOWED_TABS, true)) {
+            $this->activeTab = $tab;
+            if ($tab === 'telemetry') {
+                $this->dispatch('ai-analytics-updated');
+            }
+        }
+    }
+
+    public function selectBehaviorChannel(string $channel): void
+    {
+        if ($channel === 'all' || in_array($channel, AiBehaviorAnalysisService::ALLOWED_CHANNELS, true)) {
+            $this->behaviorChannel = $channel;
+        }
+    }
+
+    public function openFeedbackDetail(string $feedbackId): void
+    {
+        $this->selectedFeedbackId = $feedbackId;
+    }
+
+    public function closeFeedbackDetail(): void
+    {
+        $this->selectedFeedbackId = null;
+    }
+
+    public function updateFeedbackStatus(string $feedbackId, string $status): void
+    {
+        if (!AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Verhaltens-Signale bearbeiten.');
+        }
+        if (!in_array($status, ['new', 'reviewed', 'dismissed'], true) || !AiBehaviorAnalysisService::tablesReady()) {
+            return;
+        }
+
+        $fb = AiBehaviorFeedback::find($feedbackId);
+        if (!$fb) {
+            return;
+        }
+
+        $fb->update(['status' => $status]);
+        AiBehaviorAnalysisService::rebuildProfile(null, 'all', (int) $this->dateRange);
+        $this->behaviorNotice = 'Signal-Status aktualisiert.';
+    }
+
+    public function activateProposal(string $channel, string $category, string $directive, ?string $agentId = null): void
+    {
+        if (!AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Verhaltensregeln aktivieren.');
+        }
+
+        $pref = AiBehaviorAnalysisService::activateRuleProposal(
+            $channel,
+            $category,
+            $directive,
+            ($agentId && $agentId !== 'all') ? $agentId : null
+        );
+        $this->behaviorNotice = 'Dauer-Regel aktiviert: ' . $pref->subject_label;
+    }
+
+    public function escalateProposal(string $channel, string $category, string $directive, ?string $agentId = null): void
+    {
+        if (!AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Tickets aus Verhaltens-Clustern erstellen.');
+        }
+
+        $ticket = AiBehaviorAnalysisService::escalateProposalToTicket(
+            $channel,
+            $category,
+            $directive,
+            ($agentId && $agentId !== 'all') ? $agentId : null
+        );
+        $this->behaviorNotice = "Entwicklungs-Ticket {$ticket->ticket_number} erstellt.";
+    }
+
+    public function dismissProposal(string $channel, string $category, ?string $agentId = null): void
+    {
+        if (!AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Vorschläge verwerfen.');
+        }
+
+        AiBehaviorAnalysisService::dismissProposal(
+            $channel,
+            $category,
+            ($agentId && $agentId !== 'all') ? $agentId : null
+        );
+        $this->behaviorNotice = 'Cluster verworfen.';
+    }
+
+    public function toggleBehaviorRule(string $preferenceId): void
+    {
+        if (!AiAuthHelper::isAdmin() || !Schema::hasTable('ai_learned_preferences')) {
+            return;
+        }
+
+        $pref = AiLearnedPreference::where('id', $preferenceId)
+            ->where('scope_key', 'like', AiBehaviorAnalysisService::RULE_SCOPE_PREFIX . '%')
+            ->first();
+        if (!$pref) {
+            return;
+        }
+
+        $pref->update(['is_active' => !$pref->is_active]);
+        AiBehaviorAnalysisService::clearDirectivesCache();
+        $this->behaviorNotice = $pref->is_active ? 'Verhaltensregel reaktiviert.' : 'Verhaltensregel pausiert.';
     }
 
     public function updatedDateRange(): void
@@ -217,6 +355,48 @@ class AiAnalytics extends Component
             ->take(10)
             ->get();
 
+        // 9. Verhaltensprofil (Lob / Kritik / Closed-Loop Regeln)
+        $filterAgentId = ($this->behaviorAgentId !== 'all' && $this->behaviorAgentId !== '') ? $this->behaviorAgentId : null;
+        $behaviorProfile = null;
+        $channelMatrix = [];
+        $behaviorSignals = collect();
+        $selectedFeedback = null;
+        $allBehaviorRules = collect();
+        $openProposalsCount = 0;
+
+        if (AiBehaviorAnalysisService::tablesReady()) {
+            $behaviorProfile = AiBehaviorAnalysisService::rebuildProfile($filterAgentId, $this->behaviorChannel, $days);
+            $channelMatrix = AiBehaviorAnalysisService::buildChannelMatrix($days, $filterAgentId);
+            $openProposalsCount = count($behaviorProfile->pending_rule_proposals ?? []);
+
+            $behaviorSignals = AiBehaviorFeedback::with(['agent', 'learnedPreference'])
+                ->where('created_at', '>=', $periodStart)
+                ->when($filterAgentId, fn ($q) => $q->where('ai_agent_id', $filterAgentId))
+                ->when($this->behaviorChannel !== 'all', fn ($q) => $q->where('channel', $this->behaviorChannel))
+                ->when($this->behaviorPolarity !== 'all', fn ($q) => $q->where('polarity', $this->behaviorPolarity))
+                ->latest('created_at')
+                ->limit(40)
+                ->get();
+
+            if ($this->selectedFeedbackId) {
+                $selectedFeedback = AiBehaviorFeedback::with(['agent', 'learnedPreference'])->find($this->selectedFeedbackId);
+            }
+        }
+
+        if (Schema::hasTable('ai_learned_preferences')) {
+            $allBehaviorRules = AiLearnedPreference::query()
+                ->where('scope_key', 'like', AiBehaviorAnalysisService::RULE_SCOPE_PREFIX . '%')
+                ->orderByDesc('is_active')
+                ->orderByDesc('updated_at')
+                ->limit(20)
+                ->get();
+        }
+
+        $internalAgents = AiAgent::query()
+            ->whereRaw('LOWER(name) != ?', ['funki'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'color']);
+
         return view('livewire.shop.ai.ai-analytics', [
             'tokensToday' => $tokensToday,
             'avgLatency' => $avgLatency,
@@ -233,6 +413,14 @@ class AiAnalytics extends Component
             'dailyTokens' => $dailyTokens,
             'agentUsage' => $agentUsage,
             'topTools' => $topTools,
+            'behaviorProfile' => $behaviorProfile,
+            'channelMatrix' => $channelMatrix,
+            'behaviorSignals' => $behaviorSignals,
+            'selectedFeedback' => $selectedFeedback,
+            'allBehaviorRules' => $allBehaviorRules,
+            'openProposalsCount' => $openProposalsCount,
+            'internalAgents' => $internalAgents,
+            'isAdminViewer' => AiAuthHelper::isAdmin(),
         ]);
     }
 }

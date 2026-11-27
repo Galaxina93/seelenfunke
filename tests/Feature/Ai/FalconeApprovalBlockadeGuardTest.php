@@ -116,6 +116,29 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
         $this->assertSame($questionDirectId, $blockades[1]['id']);
     }
 
+    public function test_technical_compound_words_do_not_trigger_false_awaiting_go_or_nested_go_prefix(): void
+    {
+        $concept = $this->inboxService->createItem([
+            'channel' => 'shop',
+            'title' => 'GO & Antwort zu: Konzept: Stabilitaets-Tacho',
+            'execution_mode' => 'concept',
+        ]);
+        $conceptId = (string) $concept['item']['id'];
+        $this->inboxService->completeItem($conceptId, 'Konzept ausgearbeitet, bitte pruefen.');
+
+        $resolved = $this->inboxService->resolveBlockadeItem($conceptId, 'approved', 'Go erteilt', 'Alina');
+        $this->assertNotNull($resolved);
+        $followup = $resolved['followup_item'];
+        $this->assertSame('GO & Antwort zu: Konzept: Stabilitaets-Tacho', $followup['title']);
+
+        $completed = $this->inboxService->completeItem(
+            (string) $followup['id'],
+            'Stabilitaets-Tacho umgesetzt inkl. Wartet-auf-mich Rueckfragen-Sync und Entscheidungs-Matrix (Tests gruen).'
+        );
+        $this->assertNotNull($completed);
+        $this->assertSame('completed', $completed['status']);
+    }
+
     public function test_live_credentials_for_falcone_injects_persistent_blockade_directive_and_declares_resolver_tool(): void
     {
         config([

@@ -994,13 +994,15 @@ Route::middleware('auth:sanctum')->group(function () {
             $authorizePhoneConcierge($request);
             $validated = $request->validate([
                 'enabled' => 'nullable|boolean',
+                'customer_service_enabled' => 'nullable|boolean',
                 'ring_delay_seconds' => 'nullable|integer|min:0|max:30',
             ]);
             $enabled = array_key_exists('enabled', $validated) ? (bool) $validated['enabled'] : null;
+            $customerServiceEnabled = array_key_exists('customer_service_enabled', $validated) ? (bool) $validated['customer_service_enabled'] : null;
             $delay = array_key_exists('ring_delay_seconds', $validated) ? (int) $validated['ring_delay_seconds'] : null;
             return response()->json([
                 'success' => true,
-                'data' => \App\Services\System\FunkiraPhoneConciergeService::updateConfig($enabled, $delay),
+                'data' => \App\Services\System\FunkiraPhoneConciergeService::updateConfig($enabled, $delay, $customerServiceEnabled),
             ], 200, ['Cache-Control' => 'no-store, private']);
         });
 
@@ -1037,15 +1039,29 @@ Route::middleware('auth:sanctum')->group(function () {
             $authorizePhoneConcierge($request);
             $validated = $request->validate([
                 'call_id' => 'nullable|string|max:100',
+                'call_mode' => 'nullable|string|in:inbound_secretary,inbound_customer_service',
                 'is_simulation' => 'nullable|boolean',
+                'is_fallback_stub' => 'nullable|boolean',
                 'contact_id' => 'nullable|string|max:64',
+                'customer_id' => 'nullable|string|max:64',
                 'caller_name' => 'nullable|string|max:160',
                 'greeting_name' => 'nullable|string|max:120',
                 'caller_phone' => 'nullable|string|max:80',
+                'caller_email' => 'nullable|email|max:180',
+                'order_number' => 'nullable|string|max:40',
+                'category' => 'nullable|string|in:support,return,order,product,general',
+                'ticket_subject' => 'nullable|string|max:180',
                 'handled_by' => 'nullable|string|max:40',
-                'summary' => 'required|string|max:1000',
+                'summary' => 'required|string|max:2000',
+                'rahmenbedingungen' => 'nullable|array|max:30',
+                'rahmenbedingungen.*' => 'string|max:300',
+                'action_required' => 'nullable|string|max:500',
                 'urgency' => 'nullable|string|in:hoch,mittel,niedrig',
                 'callback_requested' => 'nullable|boolean',
+                'duration_seconds' => 'nullable|integer|min:0|max:86400',
+                'transcript' => 'nullable|array|max:120',
+                'transcript.*' => 'string|max:2000',
+                'verification' => 'nullable|array',
             ]);
             $result = \App\Services\System\FunkiraPhoneConciergeService::completeCall($validated);
             return response()->json([

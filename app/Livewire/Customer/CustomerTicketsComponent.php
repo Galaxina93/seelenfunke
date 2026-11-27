@@ -356,13 +356,15 @@ class CustomerTicketsComponent extends Component
             \Illuminate\Support\Facades\Log::error('Mail Error: ' . $e->getMessage());
         }
 
-        try {
-            broadcast(new TicketMessageSent($message, $ticket->id, $this->customerId));
-            // Optional: Broadcast welcome message to self just so the chat updates instantly on the client side
-            broadcast(new TicketMessageSent($welcomeMessage, $ticket->id, $this->customerId));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Websocket Offline: ' . $e->getMessage());
-        }
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new TicketMessageSent($message, $ticket->id, $this->customerId),
+            'CustomerTicketsComponent::createTicket'
+        );
+        // Optional: Broadcast welcome message to self just so the chat updates instantly on the client side
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new TicketMessageSent($welcomeMessage, $ticket->id, $this->customerId),
+            'CustomerTicketsComponent::createTicketWelcome'
+        );
 
         if ($this->newCategory === 'bug' && $customerUser && $gameService->isGameModeActive($customerUser)) {
             $rewarded = \Illuminate\Support\Facades\DB::transaction(function () use ($ticket) {
@@ -442,11 +444,10 @@ class CustomerTicketsComponent extends Component
 
         $ticket->update(['status' => 'open']);
 
-        try {
-            broadcast(new TicketMessageSent($message, $ticket->id, $this->customerId));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Websocket Offline: ' . $e->getMessage());
-        }
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new TicketMessageSent($message, $ticket->id, $this->customerId),
+            'CustomerTicketsComponent::sendReply'
+        );
 
         $this->reset(['chatMessage', 'chatAttachments', 'chatNewAttachments', 'uploadError']);
         $this->dispatch('ticket-message-received');

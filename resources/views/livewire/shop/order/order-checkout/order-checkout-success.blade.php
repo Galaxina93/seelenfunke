@@ -461,6 +461,12 @@
                         </div>
                     </div>
 
+                    {{-- Kundenfeedback-Hinweis --}}
+                    <div class="mt-4 transition-all duration-700 delay-275"
+                         :class="showSuccessDetails ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'">
+                        <x-shop.customer-feedback-banner :compact="true" />
+                    </div>
+
                     {{-- Action Buttons --}}
                     <div class="mt-6 flex flex-col sm:flex-row flex-wrap gap-2.5 justify-center transition-all duration-700 delay-300"
                          :class="showSuccessDetails ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'">

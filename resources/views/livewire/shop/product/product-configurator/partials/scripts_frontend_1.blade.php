@@ -31,6 +31,7 @@
             activeSide: params.wireModels.activeSide !== undefined ? params.wireModels.activeSide : 'front',
             backgroundTheme: params.wireModels.backgroundTheme !== undefined ? params.wireModels.backgroundTheme : 'standard',
             videoEnabled: (params.config && params.config.enableBgVideo !== undefined) ? Boolean(params.config.enableBgVideo) : true,
+            resolvedBgVideoSrc: '',
             isDarkSurface: Boolean(params.config && params.config.isDarkSurface),
             hasTransparentOverlay: Boolean(params.config && params.config.hasTransparentOverlay),
 
@@ -497,7 +498,21 @@
                 if (this.config && this.config.customBgVideo && (!this.backgroundTheme || this.backgroundTheme === 'standard')) {
                     return this.config.customBgVideo;
                 }
-                return (this.activeThemeObj && this.activeThemeObj.videoUrl) ? this.activeThemeObj.videoUrl : '';
+                if (!this.activeThemeObj) return '';
+                if (this.activeThemeObj.videoWebmUrl) {
+                    if (typeof window._sfSupportsVp8Webm === 'undefined') {
+                        try {
+                            const probe = document.createElement('video');
+                            window._sfSupportsVp8Webm = Boolean(probe && typeof probe.canPlayType === 'function' && probe.canPlayType('video/webm; codecs="vp8"') !== '');
+                        } catch (e) {
+                            window._sfSupportsVp8Webm = false;
+                        }
+                    }
+                    if (window._sfSupportsVp8Webm) {
+                        return this.activeThemeObj.videoWebmUrl;
+                    }
+                }
+                return this.activeThemeObj.videoUrl || '';
             },
             get activeBgImage() {
                 if (this.activeThemeObj && this.activeThemeObj.imageUrl && this.backgroundTheme && this.backgroundTheme !== 'standard') {
@@ -514,17 +529,104 @@
             setBackgroundTheme(themeKey) {
                 this.backgroundTheme = themeKey;
                 this.$nextTick(() => {
-                    const vid = this.$refs.bgVideo;
-                    if (vid && this.activeBgVideo) {
-                        vid.load();
-                        vid.play().catch(() => {});
-                    }
+                    this.ensureBgVideoPlaying();
                     const engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
                     if (engine && typeof engine.updateBackground === 'function' && this.activeBgImage) {
                         engine.updateBackground(this.activeBgImage);
                     }
                     this.analyzeOverlayContrast(this.activeOverlayImg);
                 });
+            },
+
+            mountBgVideoElement(el) {
+                if (!el) return;
+                el.muted = true;
+                el.defaultMuted = true;
+                el.playsInline = true;
+                this.syncBgVideoBlobAndPlay(el);
+            },
+
+            resumeBgVideoIfNeeded(el = null) {
+                const vid = el || (this.$refs ? this.$refs.bgVideo : null);
+                if (!vid || !this.videoEnabled || !this.activeBgVideo || document.hidden) return;
+                vid.muted = true;
+                if (vid.paused || vid.ended) {
+                    if (vid.ended) vid.currentTime = 0;
+                    const p = vid.play();
+                    if (p && typeof p.catch === 'function') p.catch(() => {});
+                }
+            },
+
+            ensureBgVideoPlaying() {
+                if (!this.videoEnabled || !this.activeBgVideo) {
+                    this.resolvedBgVideoSrc = '';
+                    return;
+                }
+                const targetUrl = this.activeBgVideo;
+                const cache = window._sfBgVideoBlobCache = window._sfBgVideoBlobCache || new Map();
+                const inflight = window._sfBgVideoBlobInflight = window._sfBgVideoBlobInflight || new Map();
+
+                if (cache.has(targetUrl)) {
+                    const cachedBlobUrl = cache.get(targetUrl);
+                    if (this.resolvedBgVideoSrc !== cachedBlobUrl) {
+                        this.resolvedBgVideoSrc = cachedBlobUrl;
+                    }
+                    this.$nextTick(() => this.resumeBgVideoIfNeeded());
+                    return;
+                }
+
+                if (this.resolvedBgVideoSrc !== targetUrl) {
+                    this.resolvedBgVideoSrc = targetUrl;
+                }
+                this.$nextTick(() => this.resumeBgVideoIfNeeded());
+
+                if (!window.fetch || !window.URL || typeof window.URL.createObjectURL !== 'function') return;
+
+                let fetchPromise = inflight.get(targetUrl);
+                if (!fetchPromise) {
+                    fetchPromise = fetch(targetUrl, { credentials: 'same-origin', cache: 'force-cache' })
+                        .then(res => (res.ok ? res.blob() : null))
+                        .then(blob => {
+                            inflight.delete(targetUrl);
+                            if (!blob || blob.size < 1024) return null;
+                            const blobUrl = URL.createObjectURL(blob);
+                            cache.set(targetUrl, blobUrl);
+                            return blobUrl;
+                        })
+                        .catch(() => {
+                            inflight.delete(targetUrl);
+                            return null;
+                        });
+                    inflight.set(targetUrl, fetchPromise);
+                }
+
+                fetchPromise.then((blobUrl) => {
+                    if (!blobUrl || !this.videoEnabled || this.activeBgVideo !== targetUrl) return;
+                    const vid = this.$refs ? this.$refs.bgVideo : null;
+                    // Nahtlos am Loop-Übergang oder falls das Video steht auf die RAM-Blob-URL umschalten (vermeidet sichtbaren Sprung mitten im Abspielen)
+                    if (!vid || vid.paused || vid.ended || vid.readyState < 3) {
+                        this.resolvedBgVideoSrc = blobUrl;
+                        this.$nextTick(() => this.resumeBgVideoIfNeeded());
+                    } else if (!vid._sfPendingBlobSwap) {
+                        vid._sfPendingBlobSwap = true;
+                        const onLoopBoundary = () => {
+                            if (vid.currentTime < 0.25 || vid.duration - vid.currentTime < 0.18) {
+                                vid.removeEventListener('timeupdate', onLoopBoundary);
+                                vid._sfPendingBlobSwap = false;
+                                if (this.videoEnabled && this.activeBgVideo === targetUrl) {
+                                    this.resolvedBgVideoSrc = blobUrl;
+                                    this.$nextTick(() => this.resumeBgVideoIfNeeded());
+                                }
+                            }
+                        };
+                        vid.addEventListener('timeupdate', onLoopBoundary);
+                    }
+                });
+            },
+
+            syncBgVideoBlobAndPlay(vidEl) {
+                this.ensureBgVideoPlaying();
+                this.resumeBgVideoIfNeeded(vidEl);
             },
 
             analyzeOverlayContrast(overrideUrl = null) {
@@ -692,13 +794,9 @@
                     detail: { showNotice: this.showNotice, videoEnabled: this.videoEnabled }
                 }));
                 if (this.videoEnabled) {
-                    this.$nextTick(() => {
-                        const vid = this.$refs.bgVideo;
-                        if (vid && this.activeBgVideo) {
-                            vid.load();
-                            vid.play().catch(() => {});
-                        }
-                    });
+                    this.ensureBgVideoPlaying();
+                } else {
+                    this.resolvedBgVideoSrc = '';
                 }
             },
 
@@ -721,6 +819,17 @@
                 window.dispatchEvent(new CustomEvent('configurator-prefs-synced', {
                     detail: { showNotice: this.showNotice, videoEnabled: this.videoEnabled }
                 }));
+
+                if (this.videoEnabled && this.activeBgVideo) {
+                    this.ensureBgVideoPlaying();
+                }
+
+                this._onVisibilityResumeVideo = () => {
+                    if (!document.hidden && this.videoEnabled) {
+                        this.resumeBgVideoIfNeeded();
+                    }
+                };
+                document.addEventListener('visibilitychange', this._onVisibilityResumeVideo);
 
                 this._onCartUpdated = () => {
                     this.hasAddedToCart = true;
@@ -844,10 +953,10 @@
                                 }
                             };
 
-                            // Auf Smartphones (width < 768) die WebGL-3D-Engine im 2D-Modus nicht ungefragt im Hintergrund starten,
-                            // damit Mobile-Browser (Android/iOS) nicht den 2D-Layer / GPU-Speicher verwerfen.
-                            // Sobald der Nutzer auf "3D Ansicht" tippt oder speichert, startet _forceStart3D() sofort bedarfsgesteuert.
-                            if (window.innerWidth >= 768 || !this.showDrawingBoard) {
+                            // Sowohl auf Desktop als auch auf Smartphones die schwere WebGL-3D-Engine im 2D-Modus NICHT ungefragt nach 1.5s im Hintergrund kompilieren,
+                            // da die Shader-Kompilierung (5 Lichter + PBR + EnvMap) sonst mitten in der 2D-Animation einen 300-800ms Ruckler verursacht!
+                            // Sobald der Kunde oben auf "3D" klickt oder in den Warenkorb legt, startet _forceStart3D() sofort bedarfsgesteuert.
+                            if (!this.showDrawingBoard) {
                                 requestStart();
                             }
 
@@ -941,11 +1050,7 @@
 
                     this.$watch('backgroundTheme', () => {
                         this.$nextTick(() => {
-                            const vid = this.$refs.bgVideo;
-                            if (vid && this.activeBgVideo) {
-                                vid.load();
-                                vid.play().catch(() => {});
-                            }
+                            this.ensureBgVideoPlaying();
                             let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
                             if (engine && typeof engine.updateBackground === 'function' && this.activeBgImage) {
                                 engine.updateBackground(this.activeBgImage);
@@ -1065,6 +1170,7 @@
                 if (this._onCartUpdated) window.removeEventListener('cart-updated', this._onCartUpdated);
                 if (this._onToggleHints) window.removeEventListener('toggle-configurator-hints', this._onToggleHints);
                 if (this._onToggleAnim) window.removeEventListener('toggle-configurator-animation', this._onToggleAnim);
+                if (this._onVisibilityResumeVideo) document.removeEventListener('visibilitychange', this._onVisibilityResumeVideo);
                 if (this._onResize) window.removeEventListener('resize', this._onResize);
                 if (this._cleanupFullscreen) {
                     this._cleanupFullscreen();

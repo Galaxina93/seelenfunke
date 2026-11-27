@@ -26,7 +26,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
         #Log::info("Processing AI Workspace Task: {$this->task->id}");
 
         $this->task->update(['status' => 'processing']);
-        \App\Events\TaskUpdated::dispatch($this->task);
+        \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
 
         $agent = $this->task->agent;
         if (!$agent) {
@@ -45,7 +45,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
         if (!$agent) {
              Log::error("No agent assigned to Workspace Task: {$this->task->id}");
              $this->task->update(['status' => 'failed', 'response_content' => 'Error: No agent assigned.']);
-             \App\Events\TaskUpdated::dispatch($this->task);
+             \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
              return;
         }
 
@@ -195,13 +195,13 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 $metadata['execution_plan'] = $plan;
                 $metadata['llm_history'] = $history;
                 $this->task->update(['ui_metadata' => $metadata]);
-                \App\Events\TaskUpdated::dispatch($this->task);
+                \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
 
                 $settings = \App\Models\Ai\AiUserWorkspaceSetting::first();
                 $autoApprove = ($metadata['auto_approve'] ?? false) || ($settings->auto_approve_execution_plan ?? false);
                 if (!$autoApprove) {
                     $this->task->update(['status' => 'awaiting_approval']);
-                    \App\Events\TaskUpdated::dispatch($this->task);
+                    \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
                     return; // Pause the queue job
                 }
             }
@@ -223,7 +223,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 $step['status'] = 'processing';
                 $metadata['execution_plan'] = $plan;
                 $this->task->update(['ui_metadata' => $metadata]);
-                \App\Events\TaskUpdated::dispatch($this->task);
+                \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
 
                 // Ask AI to execute this step exclusively
                 $history[] = [
@@ -236,7 +236,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 }
                 $metadata['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'info', 'message' => "Thinking...", 'color' => 'yellow'];
                 $this->task->update(['ui_metadata' => $metadata]);
-                \App\Events\TaskUpdated::dispatch($this->task);
+                \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
 
                 $startTime = microtime(true);
                 $lastActionTime = microtime(true);
@@ -274,7 +274,10 @@ class ProcessAiWorkspaceTask implements ShouldQueue
 
                         // Broadcast the event so the active widget can read it out loud
                         if (class_exists(\App\Events\AiWidgetSpeechEvent::class)) {
-                            broadcast(new \App\Events\AiWidgetSpeechEvent($this->task->assigned_agent_id ?? 'system', $speechText));
+                            \App\Services\System\RealtimeBroadcastService::dispatch(
+                                new \App\Events\AiWidgetSpeechEvent($this->task->assigned_agent_id ?? 'system', $speechText),
+                                'ProcessAiWorkspaceTask'
+                            );
                         }
 
                         $thinkDuration = round(microtime(true) - $lastActionTime, 1);
@@ -283,14 +286,14 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                             $md = $t->ui_metadata ?? [];
                             $md['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'success', 'message' => "Thought for {$thinkDuration} seconds.", 'color' => 'emerald'];
                             $t->update(['ui_metadata' => $md]);
-                            \App\Events\TaskUpdated::dispatch($t);
+                            \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($t), 'ProcessAiWorkspaceTask');
                         }
 
                         $t = $this->task->fresh();
                         $md = $t->ui_metadata ?? [];
                         $md['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'tool', 'message' => $friendlyName, 'color' => 'cyan'];
                         $t->update(['ui_metadata' => $md]);
-                        \App\Events\TaskUpdated::dispatch($t);
+                        \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($t), 'ProcessAiWorkspaceTask');
 
                         $lastActionTime = microtime(true);
                     }
@@ -306,7 +309,10 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                             $name = $eventMsg['name'] ?? 'ai-global-event';
                             $detail = $eventMsg['detail'] ?? [];
                             if (class_exists(\App\Events\AiFrontendEvent::class)) {
-                                broadcast(new \App\Events\AiFrontendEvent($name, $detail));
+                                \App\Services\System\RealtimeBroadcastService::dispatch(
+                                    new \App\Events\AiFrontendEvent($name, $detail),
+                                    'ProcessAiWorkspaceTask'
+                                );
                             }
                         }
                     }
@@ -318,7 +324,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                     $md = $t->ui_metadata ?? [];
                     $md['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'success', 'message' => "Thought for {$thinkDuration} seconds.", 'color' => 'emerald'];
                     $t->update(['ui_metadata' => $md]);
-                    \App\Events\TaskUpdated::dispatch($t);
+                    \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($t), 'ProcessAiWorkspaceTask');
                 }
 
                 if (str_contains(strtoupper($stepResult), '[SKIP]')) {
@@ -352,7 +358,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 }
 
                 $this->task->update(['ui_metadata' => $freshMd]);
-                \App\Events\TaskUpdated::dispatch($this->task);
+                \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
             }
 
             // -------------------------------------------------------------
@@ -390,17 +396,20 @@ class ProcessAiWorkspaceTask implements ShouldQueue
             $this->task->update(['status' => 'failed', 'response_content' => 'Systemfehler beim Ausführen des Plans: ' . $e->getMessage()]);
         }
 
-        \App\Events\TaskUpdated::dispatch($this->task);
+        \App\Services\System\RealtimeBroadcastService::dispatch(new \App\Events\TaskUpdated($this->task), 'ProcessAiWorkspaceTask');
 
         if (class_exists(\App\Events\AiFrontendEvent::class) && in_array($this->task->status, ['completed', 'failed'])) {
-            broadcast(new \App\Events\AiFrontendEvent('ai-background-task-completed', [
-                'task_id' => $this->task->id,
-                'prompt' => $this->task->prompt,
-                'status' => $this->task->status,
-                'response' => $this->task->response_content,
-                'agent_id' => $agent?->id,
-                'agent_name' => $agent?->name ?? 'System',
-            ]));
+            \App\Services\System\RealtimeBroadcastService::dispatch(
+                new \App\Events\AiFrontendEvent('ai-background-task-completed', [
+                    'task_id' => $this->task->id,
+                    'prompt' => $this->task->prompt,
+                    'status' => $this->task->status,
+                    'response' => $this->task->response_content,
+                    'agent_id' => $agent?->id,
+                    'agent_name' => $agent?->name ?? 'System',
+                ]),
+                'ProcessAiWorkspaceTask'
+            );
         }
     }
 }

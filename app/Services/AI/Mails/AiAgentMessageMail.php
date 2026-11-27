@@ -4,6 +4,7 @@ namespace App\Services\AI\Mails;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -20,12 +21,13 @@ class AiAgentMessageMail extends Mailable
 
     /**
      * Create a new message instance.
+     * Mandatory Alina Email Standard: always sent under Alina Steinhauer's name & clean design.
      */
-    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'System-Agent', array $attachmentPaths = [], string $design = 'seelenfunke')
+    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'Alina Steinhauer', array $attachmentPaths = [], string $design = 'seelenfunke')
     {
         $this->messageSubject = $messageSubject;
         $this->messageContent = $messageContent;
-        $this->agentName = $agentName;
+        $this->agentName = 'Alina Steinhauer';
         $this->attachmentPaths = $attachmentPaths;
         $this->design = $design;
     }
@@ -35,7 +37,11 @@ class AiAgentMessageMail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $fromAddr = (string) (config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de');
+        $fromName = $this->design === 'generic' ? 'Alina Steinhauer' : 'Alina Steinhauer · Mein-Seelenfunke';
+
         return new Envelope(
+            from: new Address($fromAddr, $fromName),
             subject: str_replace(["\r", "\n"], ' ', trim((string) $this->messageSubject)),
         );
     }

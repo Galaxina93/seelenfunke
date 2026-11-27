@@ -15,6 +15,10 @@
     $adminVidRel = !empty($configSettings['background_video_path'])
         ? $configSettings['background_video_path']
         : ('produkte/configurator-presets/videos/' . ($configSettings['default_background_theme'] ?? 'standard') . '.mp4');
+    $adminVidWebmRel = preg_replace('/\.mp4$/i', '.webm', (string) $adminVidRel);
+    if ($adminVidWebmRel && $adminVidWebmRel !== $adminVidRel && is_file(storage_path('app/public/' . ltrim($adminVidWebmRel, '/')))) {
+        $adminVidRel = $adminVidWebmRel;
+    }
     $adminVidDisk = storage_path('app/public/' . ltrim($adminVidRel, '/'));
     $adminResolvedVidUrl = is_file($adminVidDisk)
         ? asset('storage/' . ltrim($adminVidRel, '/')) . '?v=' . filemtime($adminVidDisk)

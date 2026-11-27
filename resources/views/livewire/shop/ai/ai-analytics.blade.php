@@ -22,6 +22,22 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
+                <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                    <button type="button"
+                            wire:click="setActiveTab('telemetry')"
+                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer {{ $activeTab === 'telemetry' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                        Telemetrie
+                    </button>
+                    <button type="button"
+                            wire:click="setActiveTab('behavior')"
+                            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer {{ $activeTab === 'behavior' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                        <span>Verhaltensprofil</span>
+                        @if(($openProposalsCount ?? 0) > 0)
+                            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-[#C5A059] text-gray-950 leading-none">{{ $openProposalsCount }}</span>
+                        @endif
+                    </button>
+                </div>
+
                 <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     Vertex AI Aktiv
@@ -37,6 +53,9 @@
             </div>
         </div>
 
+        @if($activeTab === 'behavior')
+            @include('livewire.shop.ai.partials.ai-behavior-profile')
+        @else
         {{-- Top 4 KPI Cards --}}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
@@ -276,6 +295,7 @@
             </div>
 
         </div>
+        @endif
 
     </div>
 

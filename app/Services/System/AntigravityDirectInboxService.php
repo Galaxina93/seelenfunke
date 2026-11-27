@@ -22,8 +22,11 @@ class AntigravityDirectInboxService
     public const MAX_BODY_LENGTH = 15000;
 
     public const ALLOWED_EXECUTION_MODES = ['concept', 'direct'];
-    public const ALLOWED_CHANNELS = ['leitung', 'tickets', 'shop', 'android', 'minipc', 'buchhaltung', 'new'];
+    public const ALLOWED_CHANNELS = ['leitung', 'tickets', 'shop', 'android', 'minipc', 'buchhaltung', 'invest', 'new'];
     public const ALLOWED_STATUSES = ['draft', 'pending', 'delivered', 'awaiting_go', 'completed'];
+    public const DEFAULT_STALE_DELIVERED_MINUTES = 45;
+    public const DEFAULT_STALE_PENDING_MINUTES = 10;
+    public const MAX_STALE_REQUEUES = 2;
     public const ALLOWED_DECISIONS = ['approved', 'info_provided', 'dismissed', 'deferred'];
     public const ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
     public const ALLOWED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -141,11 +144,49 @@ class AntigravityDirectInboxService
 
     public function normalizeChannel(mixed $rawChannel): string
     {
-        if (!is_scalar($rawChannel) || $rawChannel === null) {
+        if (!is_scalar($rawChannel)) {
             return 'leitung';
         }
 
         $normalized = strtolower(trim((string) $rawChannel));
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+
+        if (in_array($normalized, [
+            'invest',
+            'steinhauer',
+            'steinhauer-invest',
+            'steinhauer_invest',
+            'steinhauer invest',
+            'steinhauer-invest.de',
+            'steinauer',
+            'steinauer-invest',
+            'steinauer_invest',
+            'steinauer invest',
+            'steinauer-invest.de',
+            'steini',
+            'steini-app',
+            'steini_app',
+            'steini app',
+            'android-steini',
+            'steini-command',
+            'invest-chat',
+            'invest_chat',
+            'invest chat',
+        ], true)) {
+            return 'invest';
+        }
+
+        if (in_array($normalized, ['mini-pc', 'mini_pc'], true)) {
+            return 'minipc';
+        }
+
+        if ($normalized === 'ticket') {
+            return 'tickets';
+        }
+
+        if ($normalized === 'neu') {
+            return 'new';
+        }
 
         return in_array($normalized, self::ALLOWED_CHANNELS, true)
             ? $normalized
@@ -153,9 +194,12 @@ class AntigravityDirectInboxService
     }
 
     /**
-     * Stellt sicher, dass 3D-Modell-, 3D-Druck-, Konstruktions-, Regal-, Halterungs- und
-     * Produkt-Konfigurator-Aufträge automatisch dem Webportal/Shop-Kanal ('shop') zugeordnet werden
-     * statt dem eingefrorenen Werkstatt-Mini-PC-Kanal ('minipc').
+     * Stellt automatisches Fach- und Projekt-Routing sicher:
+     * 1. Steinhauer-Invest-Aufträge ('steinhauer-invest', 'steinauer-invest', 'steini', 'invest-chat') -> 'invest'
+     * 2. Reine Seelenfunke-Aufträge ohne Steinhauer-Invest-Bezug -> niemals in 'invest' (Fallback 'leitung')
+     * 3. Meta-Routing-Aufträge (beide Scopes + Routing/Anträge/Aufträge) -> bleiben in 'leitung'
+     * 4. 3D-Modell-, 3D-Druck-, Konstruktions-, Regal-, Halterungs- und Produkt-Konfigurator-Aufträge -> 'shop'
+     *    statt des eingefrorenen Werkstatt-Mini-PC-Kanals ('minipc').
      */
     public function resolveEffectiveChannel(mixed $rawChannel, string $title = '', string $body = ''): string
     {
@@ -163,6 +207,33 @@ class AntigravityDirectInboxService
         $combined = mb_strtolower(trim($title . ' ' . $body), 'UTF-8');
         if ($combined === '') {
             return $channel;
+        }
+
+        $isSteinhauerInvest = (bool) preg_match(
+            '/(?:\bsteinh?auer[\s\-_]*invest(?:\.de)?\b|\bsteini(?:[\s\-_]*(?:app|chat|command|portal|android|apk|ota))?\b|android[\s\-_]*steini|\bjan\s+steinh?auer\b|\binvest[\s\-_]*(?:chat|portal|app|projekt|br(?:ü|ue)cke)\b)/iu',
+            $combined
+        );
+
+        $isSeelenfunkeScope = (bool) preg_match(
+            '/\b(seelenfunke|mein[\s\-_]*seelenfunke|funkenwerk|funkira|falcone|xtool|konfigurator|laser[\s\-]*manufaktur|funkenreich)\b/iu',
+            $combined
+        );
+
+        $isMetaRoutingTask = $isSeelenfunkeScope && $isSteinhauerInvest && (bool) preg_match(
+            '/\b(routing|weiterleit\w*|pipeline|kanal\w*|channel\w*|sidecar|br(?:ü|ue)cke|antr(?:ä|ae)ge|auftr(?:ä|ae)ge)\b/iu',
+            $combined
+        );
+
+        if ($isMetaRoutingTask) {
+            return $channel === 'invest' ? 'leitung' : $channel;
+        }
+
+        if ($isSteinhauerInvest && in_array($channel, ['leitung', 'invest', 'buchhaltung', 'shop', 'android', 'minipc'], true)) {
+            return 'invest';
+        }
+
+        if ($channel === 'invest' && $isSeelenfunkeScope && !$isSteinhauerInvest) {
+            return 'leitung';
         }
 
         $is3dConstructionOrShopModel = (bool) preg_match(
@@ -670,11 +741,17 @@ class AntigravityDirectInboxService
 
     /**
      * Liest alle offenen (pending) Einträge chronologisch (älteste zuerst) ohne Statusänderung (2-Phasen-Commit).
+     * Optional (z. B. beim Sidecar-Poll) werden echte liegengebliebene Direkt-Aufträge nach Notebook-/Server-Neustart
+     * (> 45 Min. auf delivered ohne Antwort, max. 2x Requeue) vorher atomar wieder auf pending gehoben.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function peekPending(bool $includeAttachmentBase64 = true): array
+    public function peekPending(bool $includeAttachmentBase64 = true, bool $autoRequeueStale = false): array
     {
+        if ($autoRequeueStale && $this->hasStaleDeliveredCandidates()) {
+            $this->requeueStaleDelivered();
+        }
+
         return $this->withSharedLock(function (array $items) use ($includeAttachmentBase64): array {
             $pending = array_values(array_filter(
                 $this->sortOldestFirst($items),
@@ -686,6 +763,191 @@ class AntigravityDirectInboxService
                 $pending
             );
         });
+    }
+
+    /**
+     * Schneller Read-Only-Check (O(n) im Shared Lock, 0 Schreibzugriffe im Normalbetrieb),
+     * ob überhaupt ein überfälliger delivered-Direktauftrag auf Requeue wartet.
+     */
+    public function hasStaleDeliveredCandidates(
+        int $staleAfterMinutes = self::DEFAULT_STALE_DELIVERED_MINUTES,
+        int $maxRequeues = self::MAX_STALE_REQUEUES
+    ): bool {
+        $minAge = max(5, $staleAfterMinutes);
+        $maxCap = max(1, $maxRequeues);
+
+        return $this->withSharedLock(function (array $items) use ($minAge, $maxCap): bool {
+            $now = now('Europe/Berlin');
+            foreach ($items as $item) {
+                if ($this->isStaleDeliveredCandidate($item, $now, $minAge, $maxCap)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    }
+
+    /**
+     * Hebt liegengebliebene Direct-Aufträge nach Notebook-Offline/Restart (delivered ohne Antwort >= $staleAfterMinutes)
+     * mit strikter Schutzbremse (max. $maxRequeues) atomar zurück auf pending.
+     * Konzepte (concept), awaiting_go, tickets (eigener 180s-Watchdog) und beantwortete Aufträge bleiben unangetastet.
+     *
+     * @return array{requeued_count: int, requeued_ids: array<int, string>, exhausted_ids: array<int, string>}
+     */
+    public function requeueStaleDelivered(
+        int $staleAfterMinutes = self::DEFAULT_STALE_DELIVERED_MINUTES,
+        int $maxRequeues = self::MAX_STALE_REQUEUES
+    ): array {
+        $minAge = max(5, $staleAfterMinutes);
+        $maxCap = max(1, $maxRequeues);
+
+        return $this->withExclusiveLock(function (array $items) use ($minAge, $maxCap): array {
+            $now = now('Europe/Berlin');
+            $nowIso = $now->toIso8601String();
+            $requeuedIds = [];
+            $exhaustedIds = [];
+
+            foreach ($items as &$item) {
+                if (!$this->isStaleDeliveredBase($item, $now, $minAge)) {
+                    continue;
+                }
+
+                $count = max(0, (int) ($item['requeue_count'] ?? 0));
+                $id = (string) ($item['id'] ?? '');
+                if ($count >= $maxCap) {
+                    if ($id !== '') {
+                        $exhaustedIds[] = $id;
+                    }
+                    continue;
+                }
+
+                $item['status'] = 'pending';
+                $item['delivered_at'] = null;
+                $item['requeue_count'] = $count + 1;
+                $item['last_requeued_at'] = $nowIso;
+                $item = $this->formatItemSchema($item);
+                if ($id !== '') {
+                    $requeuedIds[] = $id;
+                }
+            }
+            unset($item);
+
+            return [
+                [
+                    'requeued_count' => count($requeuedIds),
+                    'requeued_ids' => $requeuedIds,
+                    'exhausted_ids' => $exhaustedIds,
+                ],
+                $items,
+                count($requeuedIds) > 0,
+            ];
+        });
+    }
+
+    /**
+     * Liefert kompakte Pipeline-Gesundheitskennzahlen für Funkira & Monitoring (Stau-/Offline-Erkennung).
+     *
+     * @return array{pending: int, delivered: int, awaiting_go: int, stale_pending_count: int, stale_delivered_count: int, oldest_pending_minutes: int|null, oldest_delivered_minutes: int|null, healthy: bool}
+     */
+    public function getPipelineHealth(
+        int $stalePendingMinutes = self::DEFAULT_STALE_PENDING_MINUTES,
+        int $staleDeliveredMinutes = self::DEFAULT_STALE_DELIVERED_MINUTES
+    ): array {
+        $pendingThresh = max(1, $stalePendingMinutes);
+        $deliveredThresh = max(5, $staleDeliveredMinutes);
+
+        return $this->withSharedLock(function (array $items) use ($pendingThresh, $deliveredThresh): array {
+            $now = now('Europe/Berlin');
+            $counts = $this->computeCounts($items);
+            $stalePending = 0;
+            $staleDelivered = 0;
+            $oldestPending = null;
+            $oldestDelivered = null;
+
+            foreach ($items as $item) {
+                $status = (string) ($item['status'] ?? '');
+                if ($status === 'pending') {
+                    $mins = $this->ageMinutes((string) ($item['created_at'] ?? ''), $now);
+                    if ($mins !== null) {
+                        $oldestPending = $oldestPending === null ? $mins : max($oldestPending, $mins);
+                        if ($mins >= $pendingThresh) {
+                            $stalePending++;
+                        }
+                    }
+                } elseif ($this->isStaleDeliveredBase($item, $now, $deliveredThresh)) {
+                    $mins = $this->ageMinutes((string) ($item['delivered_at'] ?? ''), $now);
+                    if ($mins !== null) {
+                        $oldestDelivered = $oldestDelivered === null ? $mins : max($oldestDelivered, $mins);
+                    }
+                    $staleDelivered++;
+                }
+            }
+
+            return [
+                'pending' => $counts['pending'],
+                'delivered' => $counts['delivered'],
+                'awaiting_go' => $counts['awaiting_go'],
+                'stale_pending_count' => $stalePending,
+                'stale_delivered_count' => $staleDelivered,
+                'oldest_pending_minutes' => $oldestPending,
+                'oldest_delivered_minutes' => $oldestDelivered,
+                'healthy' => ($stalePending === 0 && $staleDelivered === 0),
+            ];
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function isStaleDeliveredBase(array $item, Carbon $now, int $staleAfterMinutes): bool
+    {
+        if (($item['status'] ?? '') !== 'delivered') {
+            return false;
+        }
+        if (($item['execution_mode'] ?? 'concept') !== 'direct') {
+            return false;
+        }
+        if ($this->normalizeChannel($item['channel'] ?? 'leitung') === 'tickets') {
+            return false;
+        }
+        if (isset($item['ag_response_summary']) && trim((string) $item['ag_response_summary']) !== '') {
+            return false;
+        }
+
+        $deliveredAt = trim((string) ($item['delivered_at'] ?? ''));
+        if ($deliveredAt === '') {
+            return false;
+        }
+
+        $age = $this->ageMinutes($deliveredAt, $now);
+
+        return $age !== null && $age >= $staleAfterMinutes;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function isStaleDeliveredCandidate(array $item, Carbon $now, int $staleAfterMinutes, int $maxRequeues): bool
+    {
+        if (!$this->isStaleDeliveredBase($item, $now, $staleAfterMinutes)) {
+            return false;
+        }
+
+        return max(0, (int) ($item['requeue_count'] ?? 0)) < $maxRequeues;
+    }
+
+    private function ageMinutes(string $isoTimestamp, Carbon $now): ?int
+    {
+        if ($isoTimestamp === '') {
+            return null;
+        }
+
+        try {
+            return max(0, (int) Carbon::parse($isoTimestamp)->diffInMinutes($now, false));
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -1051,7 +1313,8 @@ class AntigravityDirectInboxService
 
             $orig = $items[$targetIdx];
             $origTitle = (string) ($orig['title'] ?? $targetId);
-            $origChannel = $this->normalizeChannel($orig['channel'] ?? 'leitung');
+            $origBody = isset($orig['body']) && is_scalar($orig['body']) ? (string) $orig['body'] : '';
+            $origChannel = $this->resolveEffectiveChannel($orig['channel'] ?? 'leitung', $origTitle, $origBody);
             $existingSummary = isset($orig['ag_response_summary']) && trim((string) $orig['ag_response_summary']) !== ''
                 ? trim((string) $orig['ag_response_summary'])
                 : '';
@@ -1520,6 +1783,15 @@ class AntigravityDirectInboxService
                         $itemChanged = true;
                     }
 
+                    $incomingRequeue = max(0, (int) ($raw['requeue_count'] ?? 0));
+                    if ($incomingRequeue > max(0, (int) ($existingItem['requeue_count'] ?? 0))) {
+                        $existingItem['requeue_count'] = $incomingRequeue;
+                        if (!empty($raw['last_requeued_at']) && is_string($raw['last_requeued_at'])) {
+                            $existingItem['last_requeued_at'] = trim($raw['last_requeued_at']);
+                        }
+                        $itemChanged = true;
+                    }
+
                     $localMediaMissing = !empty($existingItem['has_attachment'])
                         && (
                             empty($existingItem['attachment_rel_path'])
@@ -1602,14 +1874,16 @@ class AntigravityDirectInboxService
                     ? trim($raw['created_at'])
                     : now('Europe/Berlin')->toIso8601String();
 
+                $importBody = isset($raw['body']) && is_scalar($raw['body'])
+                    ? mb_substr(trim((string) $raw['body']), 0, self::MAX_BODY_LENGTH, 'UTF-8')
+                    : '';
+
                 $newItem = $this->formatItemSchema([
                     'id' => $id,
                     'client_uuid' => $clientUuid,
-                    'channel' => $this->normalizeChannel($raw['channel'] ?? 'leitung'),
-                    'title' => mb_substr($title, 0, 500),
-                    'body' => isset($raw['body']) && $raw['body'] !== null
-                        ? mb_substr(trim((string) $raw['body']), 0, 5000)
-                        : '',
+                    'channel' => $this->resolveEffectiveChannel($raw['channel'] ?? 'leitung', $title, $importBody),
+                    'title' => mb_substr($title, 0, 500, 'UTF-8'),
+                    'body' => $importBody,
                     'checklist' => $checklist,
                     'execution_mode' => $mode,
                     'status' => $status,
@@ -1633,6 +1907,10 @@ class AntigravityDirectInboxService
                         : null,
                     'completed_at' => isset($raw['completed_at']) && is_string($raw['completed_at']) && trim($raw['completed_at']) !== ''
                         ? trim($raw['completed_at'])
+                        : null,
+                    'requeue_count' => max(0, (int) ($raw['requeue_count'] ?? 0)),
+                    'last_requeued_at' => isset($raw['last_requeued_at']) && is_string($raw['last_requeued_at']) && trim($raw['last_requeued_at']) !== ''
+                        ? trim($raw['last_requeued_at'])
                         : null,
                 ]);
 
@@ -1856,6 +2134,10 @@ class AntigravityDirectInboxService
                 : null,
             'completed_at' => isset($raw['completed_at']) && $raw['completed_at'] !== ''
                 ? (string) $raw['completed_at']
+                : null,
+            'requeue_count' => max(0, (int) ($raw['requeue_count'] ?? 0)),
+            'last_requeued_at' => isset($raw['last_requeued_at']) && trim((string) $raw['last_requeued_at']) !== ''
+                ? trim((string) $raw['last_requeued_at'])
                 : null,
         ];
     }

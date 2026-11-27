@@ -1052,6 +1052,77 @@ namespace FunkenwerkFtp
             return dlg.ShowDialog() == true;
         }
 
+        public enum FtpProfileSaveChoice
+        {
+            Cancel,
+            SaveAsNew,
+            OverwriteExisting
+        }
+
+        public static FtpProfileSaveChoice ShowProfileSaveChoiceDialog(
+            Window owner,
+            bool isDark,
+            string existingProfileName,
+            string newEndpointSummary)
+        {
+            var dlg = CreateBaseDialog(owner, isDark, "Profil speichern", 530, 195);
+            var fgPrimary = BrushHex(isDark ? "#F9FAFB" : "#111827");
+            var fgSecondary = BrushHex(isDark ? "#9CA3AF" : "#6B7280");
+            FtpProfileSaveChoice choice = FtpProfileSaveChoice.Cancel;
+
+            var stack = new StackPanel { Margin = new Thickness(22, 18, 22, 18) };
+            stack.Children.Add(new TextBlock
+            {
+                Text = $"Die Zugangsdaten weichen vom gewählten Profil '{existingProfileName}' ab.",
+                Foreground = fgPrimary,
+                FontSize = 13.5,
+                FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap
+            });
+            stack.Children.Add(new TextBlock
+            {
+                Text = newEndpointSummary,
+                Foreground = fgSecondary,
+                FontSize = 12.5,
+                Margin = new Thickness(0, 6, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            var btnRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 22, 0, 0)
+            };
+
+            var cancelBtn = CreateDialogButton("Abbrechen", isDark, isPrimary: false, isDanger: false);
+            cancelBtn.IsCancel = true;
+            cancelBtn.Click += (_, _) => { choice = FtpProfileSaveChoice.Cancel; dlg.Close(); };
+
+            var overwriteBtn = CreateDialogButton("Bestehendes überschreiben", isDark, isPrimary: false, isDanger: false);
+            overwriteBtn.Margin = new Thickness(8, 0, 0, 0);
+            overwriteBtn.Click += (_, _) => { choice = FtpProfileSaveChoice.OverwriteExisting; dlg.Close(); };
+
+            var newBtn = CreateDialogButton("Als neues Profil", isDark, isPrimary: true, isDanger: false);
+            newBtn.IsDefault = true;
+            newBtn.Margin = new Thickness(8, 0, 0, 0);
+            newBtn.Click += (_, _) => { choice = FtpProfileSaveChoice.SaveAsNew; dlg.Close(); };
+
+            btnRow.Children.Add(cancelBtn);
+            btnRow.Children.Add(overwriteBtn);
+            btnRow.Children.Add(newBtn);
+            stack.Children.Add(btnRow);
+            dlg.Content = stack;
+
+            dlg.PreviewKeyDown += (_, ke) =>
+            {
+                if (ke.Key == Key.Escape) { choice = FtpProfileSaveChoice.Cancel; dlg.Close(); ke.Handled = true; }
+            };
+
+            dlg.ShowDialog();
+            return choice;
+        }
+
         public static MessageBoxResult ShowUnsavedChangesDialog(Window owner, bool isDark, string fileName)
         {
             var dlg = CreateBaseDialog(owner, isDark, "Ungespeicherte Änderungen", 470, 185);

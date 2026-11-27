@@ -58,11 +58,12 @@ class AgDirectInboxManagerTest {
         assertEquals(AgDirectStatus.PENDING, AgDirectInboxManager.mapStatus("pending"))
         assertEquals("Gesendet", AgDirectInboxManager.mapStatus("pending").badgeLabel)
         assertEquals(AgDirectStatus.DELIVERED, AgDirectInboxManager.mapStatus("delivered"))
-        assertEquals("Bei Antigravity", AgDirectInboxManager.mapStatus("delivered").badgeLabel)
+        assertEquals(AgDirectStatus.DELIVERED, AgDirectInboxManager.mapStatus("in_progress"))
+        assertEquals("in Arbeit", AgDirectInboxManager.mapStatus("delivered").badgeLabel)
         assertEquals(AgDirectStatus.AWAITING_GO, AgDirectInboxManager.mapStatus("awaiting_go"))
         assertEquals("Go / Antwort fehlt", AgDirectInboxManager.mapStatus("awaiting_go").badgeLabel)
         assertEquals(AgDirectStatus.COMPLETED, AgDirectInboxManager.mapStatus("completed"))
-        assertEquals("Erledigt ✓", AgDirectInboxManager.mapStatus("completed").badgeLabel)
+        assertEquals("fertig", AgDirectInboxManager.mapStatus("completed").badgeLabel)
     }
 
     @Test
@@ -263,17 +264,49 @@ class AgDirectInboxManagerTest {
     @Test
     fun `routes all department channels persists offline with attachment and handles legacy json`() = runBlocking {
         assertEquals(
-            listOf("leitung", "shop", "android", "minipc", "buchhaltung", "new"),
+            listOf("leitung", "invest", "shop", "android", "minipc", "buchhaltung", "new"),
             AgDirectChannel.entries.map { it.code }
         )
         assertEquals("👑 Leitung", AgDirectInboxManager.resolveChannelEnum("leitung").chipLabel)
+        assertEquals("🏛️ Invest-Chat", AgDirectInboxManager.resolveChannelEnum("invest").chipLabel)
         assertEquals("🛍️ Shop", AgDirectInboxManager.resolveChannelEnum("shop").chipLabel)
         assertEquals("📱 Android", AgDirectInboxManager.resolveChannelEnum("android").chipLabel)
         assertEquals("🖥️ Mini-PC", AgDirectInboxManager.resolveChannelEnum("minipc").chipLabel)
         assertEquals("💶 Buchhaltung", AgDirectInboxManager.resolveChannelEnum("buchhaltung").chipLabel)
         assertEquals("➕ Neu", AgDirectInboxManager.resolveChannelEnum("new").chipLabel)
 
-        // Alias & fallback normalization
+        // Alias & fallback normalization + automatic project routing
+        assertEquals("invest", AgDirectInboxManager.normalizeChannel("Steinauer Invest"))
+        assertEquals("invest", AgDirectInboxManager.normalizeChannel("Invest-Chat"))
+        assertEquals("invest", AgDirectInboxManager.normalizeChannel("steini"))
+        assertEquals(
+            "invest",
+            AgDirectInboxManager.resolveEffectiveChannel("leitung", "Steinauer Invest: Nebenkosten prüfen", "")
+        )
+        assertEquals(
+            "leitung",
+            AgDirectInboxManager.resolveEffectiveChannel("invest", "Seelenfunke Shop Checkout prüfen", "")
+        )
+        assertEquals(
+            "leitung",
+            AgDirectInboxManager.resolveEffectiveChannel(
+                "leitung",
+                "Automatisches Routing für Anträge (Seelenfunke -> Leitung, Steinauer Invest -> Invest-Chat) sicherstellen.",
+                ""
+            )
+        )
+        assertEquals(
+            "leitung",
+            AgDirectInboxManager.resolveEffectiveChannel(
+                "invest",
+                "Automatisches Routing für Anträge (Seelenfunke -> Leitung, Steinauer Invest -> Invest-Chat) sicherstellen.",
+                ""
+            )
+        )
+        assertEquals(
+            "invest",
+            AgDirectInboxManager.resolveEffectiveChannel("minipc", "Steinauer Invest: Nebenkosten prüfen", "")
+        )
         assertEquals("minipc", AgDirectInboxManager.normalizeChannel("Mini-PC"))
         assertEquals("new", AgDirectInboxManager.normalizeChannel("neu"))
         assertEquals("leitung", AgDirectInboxManager.normalizeChannel(null))
@@ -582,10 +615,15 @@ class AgDirectInboxManagerTest {
         )
         assertEquals(2, AgDirectInboxManager.openCountFlow.value)
 
-        // Verify second-0 Gemini Live kick packet structure
+        // Verify second-0 Gemini Live kick packet structure (realtimeInput.text on 3.1, clientContent on 2.5)
         val kickPacket = FalconClientTools.buildClientContentKickPacket("SYSTEM-IMPULS: Offene Freigabe ansprechen")
-        assertTrue(kickPacket.has("clientContent"))
-        assertTrue(kickPacket.getAsJsonObject("clientContent").get("turnComplete").asBoolean)
+        assertTrue(kickPacket.has("realtimeInput"))
+        assertFalse(kickPacket.has("clientContent"))
+        val legacyKick = FalconClientTools.buildClientContentKickPacket(
+            "SYSTEM-IMPULS: Offene Freigabe ansprechen",
+            "models/gemini-2.5-flash-native-audio-latest"
+        )
+        assertTrue(legacyKick.getAsJsonObject("clientContent").get("turnComplete").asBoolean)
 
         val ok = AgDirectInboxManager.resolveBlockade(
             context = context,

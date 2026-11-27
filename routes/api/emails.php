@@ -139,10 +139,29 @@ Route::prefix('funki/emails')->group(function () {
             'files_needs_review_count' => (clone $visibleFilesBase)->where('funnel_status', 'needs_review')->count(),
         ];
 
+        $syncStats = MailMessage::query()
+            ->selectRaw('MAX(id) as latest_id, COUNT(*) as total_count, MAX(received_at) as latest_received_at, MAX(updated_at) as latest_updated_at')
+            ->first();
+        $globalUnreadTotal = MailMessage::query()
+            ->where('is_archived', false)
+            ->where('is_read', false)
+            ->whereNotIn('folder', ['Sent', 'Trash', 'Archive'])
+            ->count();
+
+        $syncState = [
+            'latest_message_id' => (int) ($syncStats->latest_id ?? 0),
+            'total_messages' => (int) ($syncStats->total_count ?? 0),
+            'unread_total' => $globalUnreadTotal,
+            'latest_received_at' => (string) ($syncStats->latest_received_at ?? ''),
+            'latest_updated_at' => (string) ($syncStats->latest_updated_at ?? ''),
+            'last_fetch_finished_at' => (int) \Illuminate\Support\Facades\Cache::get('crm_fetch_mails_last_finished_at', 0),
+        ];
+
         return response()->json([
             'success' => true,
             'data' => $result,
             'processed_summary' => $processedSummary,
+            'sync_state' => $syncState,
         ]);
     });
 
@@ -287,9 +306,11 @@ Route::prefix('funki/emails')->group(function () {
 
         if ($folder === 'Processed' || $hasSearch) {
             $query->orderByRaw("CASE WHEN priority = 'high' THEN 0 ELSE 1 END ASC")
-                  ->orderBy('received_at', 'desc');
+                  ->orderByRaw('COALESCE(received_at, created_at) DESC')
+                  ->orderBy('id', 'desc');
         } else {
-            $query->orderBy('received_at', 'desc');
+            $query->orderByRaw('COALESCE(received_at, created_at) DESC')
+                  ->orderBy('id', 'desc');
         }
 
         $messages = $query->paginate(150);
@@ -1422,14 +1443,17 @@ Route::prefix('funki/emails')->group(function () {
     Route::post('/sync', function (Request $request) {
         try {
             if ($request->boolean('wait', false)) {
-                @set_time_limit(60);
+                @set_time_limit(90);
                 $startedAt = microtime(true);
-                $beforeCount = MailMessage::count();
+                $beforeMaxId = (int) (MailMessage::max('id') ?? 0);
+                $forceSync = $request->boolean('force', false);
 
-                \Illuminate\Support\Facades\Artisan::call('crm:fetch-mails');
+                \Illuminate\Support\Facades\Artisan::call('crm:fetch-mails', $forceSync ? ['--force' => true] : []);
 
-                $afterCount = MailMessage::count();
-                $newCount = max(0, $afterCount - $beforeCount);
+                $afterMaxId = (int) (MailMessage::max('id') ?? 0);
+                $newCount = $afterMaxId > $beforeMaxId
+                    ? MailMessage::where('id', '>', $beforeMaxId)->count()
+                    : 0;
                 $accounts = MailAccount::all();
                 $syncedAccounts = $accounts->filter(fn ($a) => trim((string) $a->password) !== '' && $a->status === 'connected')->count();
                 $failedAccounts = $accounts->filter(fn ($a) => trim((string) $a->password) !== '' && $a->status === 'error')
@@ -1441,6 +1465,7 @@ Route::prefix('funki/emails')->group(function () {
                     'success' => true,
                     'mode' => 'sync',
                     'new_mails_count' => $newCount,
+                    'latest_message_id' => $afterMaxId,
                     'synced_accounts' => $syncedAccounts,
                     'failed_accounts' => $failedAccounts,
                     'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),

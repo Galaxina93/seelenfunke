@@ -38,7 +38,7 @@ class ExecuteAiBackgroundToolJob implements ShouldQueue
         }
 
         $task->update(['status' => 'processing']);
-        TaskUpdated::dispatch($task);
+        \App\Services\System\RealtimeBroadcastService::dispatch(new TaskUpdated($task), 'ExecuteAiBackgroundToolJob');
 
         if ($this->sessionId) {
             config(['ai.current_session_id' => $this->sessionId]);
@@ -81,7 +81,7 @@ class ExecuteAiBackgroundToolJob implements ShouldQueue
                 'response_content' => "Sicherheits-Blockade: Das Werkzeug '{$this->toolName}' darf nicht als Hintergrund-Job ausgeführt werden.",
                 'completed_at' => now(),
             ]);
-            TaskUpdated::dispatch($task);
+            \App\Services\System\RealtimeBroadcastService::dispatch(new TaskUpdated($task), 'ExecuteAiBackgroundToolJob');
             return;
         }
 
@@ -117,17 +117,20 @@ class ExecuteAiBackgroundToolJob implements ShouldQueue
                 'ui_metadata' => $metadata,
             ]);
 
-            TaskUpdated::dispatch($task);
+            \App\Services\System\RealtimeBroadcastService::dispatch(new TaskUpdated($task), 'ExecuteAiBackgroundToolJob');
 
             if (class_exists(AiFrontendEvent::class)) {
-                broadcast(new AiFrontendEvent('ai-background-task-completed', [
-                    'task_id' => $task->id,
-                    'prompt' => $task->prompt,
-                    'status' => $status,
-                    'response' => (string) $message,
-                    'agent_id' => $agent?->id,
-                    'agent_name' => $agent?->name ?? 'System',
-                ]));
+                \App\Services\System\RealtimeBroadcastService::dispatch(
+                    new AiFrontendEvent('ai-background-task-completed', [
+                        'task_id' => $task->id,
+                        'prompt' => $task->prompt,
+                        'status' => $status,
+                        'response' => (string) $message,
+                        'agent_id' => $agent?->id,
+                        'agent_name' => $agent?->name ?? 'System',
+                    ]),
+                    'ExecuteAiBackgroundToolJob'
+                );
             }
 
         } catch (\Throwable $e) {
@@ -143,7 +146,7 @@ class ExecuteAiBackgroundToolJob implements ShouldQueue
                 'completed_at' => now(),
             ]);
 
-            TaskUpdated::dispatch($task);
+            \App\Services\System\RealtimeBroadcastService::dispatch(new TaskUpdated($task), 'ExecuteAiBackgroundToolJob');
         }
     }
 }

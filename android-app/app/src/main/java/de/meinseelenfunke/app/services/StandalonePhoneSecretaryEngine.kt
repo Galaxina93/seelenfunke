@@ -98,6 +98,94 @@ object StandalonePhoneSecretaryEngine {
         val directBearerToken: String? = null
     )
 
+    internal data class MicCaptureProfile(
+        val audioSource: Int,
+        val label: String,
+        val enableHardwareEffects: Boolean
+    )
+
+    internal enum class MicFrameVerdict {
+        ACTIVE,
+        SILENT_WAIT,
+        ROTATE_SOURCE,
+        PERMANENT_SILENCE
+    }
+
+    internal class MicZeroSampleWatchdog(
+        private val rotateThresholdFrames: Int = 28,
+        private val reportThresholdFrames: Int = 65
+    ) {
+        var consecutiveZeroFramesInAttempt: Int = 0
+            private set
+        var totalZeroFramesAcrossAttempts: Int = 0
+            private set
+        var recoveryRotations: Int = 0
+            private set
+        var hasReportedWarning: Boolean = false
+            private set
+
+        fun onFrame(samples: ShortArray, length: Int, hasMoreCandidates: Boolean): MicFrameVerdict {
+            val n = length.coerceIn(0, samples.size)
+            var hasNonZero = false
+            for (i in 0 until n) {
+                if (samples[i].toInt() != 0) {
+                    hasNonZero = true
+                    break
+                }
+            }
+            if (hasNonZero) {
+                consecutiveZeroFramesInAttempt = 0
+                totalZeroFramesAcrossAttempts = 0
+                return MicFrameVerdict.ACTIVE
+            }
+
+            consecutiveZeroFramesInAttempt++
+            totalZeroFramesAcrossAttempts++
+
+            if (hasMoreCandidates && consecutiveZeroFramesInAttempt >= rotateThresholdFrames) {
+                consecutiveZeroFramesInAttempt = 0
+                recoveryRotations++
+                return MicFrameVerdict.ROTATE_SOURCE
+            }
+
+            if (!hasReportedWarning &&
+                (totalZeroFramesAcrossAttempts >= reportThresholdFrames ||
+                    (!hasMoreCandidates && consecutiveZeroFramesInAttempt >= reportThresholdFrames))
+            ) {
+                hasReportedWarning = true
+                return MicFrameVerdict.PERMANENT_SILENCE
+            }
+
+            return MicFrameVerdict.SILENT_WAIT
+        }
+    }
+
+    internal fun resolveDesiredAudioModeForSecretary(currentMode: Int): Int {
+        return if (currentMode == AudioManager.MODE_IN_CALL) {
+            AudioManager.MODE_IN_CALL
+        } else {
+            AudioManager.MODE_IN_COMMUNICATION
+        }
+    }
+
+    internal fun resolveAudioSourceProfiles(audioMode: Int): List<MicCaptureProfile> {
+        return if (audioMode == AudioManager.MODE_IN_CALL) {
+            listOf(
+                MicCaptureProfile(MediaRecorder.AudioSource.MIC, "MIC_RAW", enableHardwareEffects = false),
+                MicCaptureProfile(MediaRecorder.AudioSource.VOICE_COMMUNICATION, "VOICE_COMM_RAW", enableHardwareEffects = false),
+                MicCaptureProfile(MediaRecorder.AudioSource.VOICE_RECOGNITION, "VOICE_REC_FX", enableHardwareEffects = true),
+                MicCaptureProfile(MediaRecorder.AudioSource.UNPROCESSED, "UNPROCESSED_RAW", enableHardwareEffects = false)
+            )
+        } else {
+            listOf(
+                MicCaptureProfile(MediaRecorder.AudioSource.VOICE_COMMUNICATION, "VOICE_COMM_FX", enableHardwareEffects = true),
+                MicCaptureProfile(MediaRecorder.AudioSource.MIC, "MIC_RAW", enableHardwareEffects = false),
+                MicCaptureProfile(MediaRecorder.AudioSource.VOICE_RECOGNITION, "VOICE_REC_FX", enableHardwareEffects = true),
+                MicCaptureProfile(MediaRecorder.AudioSource.UNPROCESSED, "UNPROCESSED_RAW", enableHardwareEffects = false)
+            )
+        }
+    }
+
     private const val WARM_CACHE_TTL_MS = 75_000L
     private const val ECHO_TAIL_GUARD_MS = 380L
     private const val OPENING_BARGE_IN_GUARD_MS = 1_200L
@@ -269,16 +357,16 @@ object StandalonePhoneSecretaryEngine {
         return "$who hat angerufen (kurzes Gespräch ohne nähere Nachricht) und bittet bei Gelegenheit um Rückruf."
     }
 
-    internal fun buildKickoffPacketJson(greetingName: String): JsonObject {
+    internal fun buildKickoffPacketJson(
+        greetingName: String,
+        modelName: String = "models/gemini-3.1-flash-live-preview"
+    ): JsonObject {
         val who = greetingName.trim().ifBlank { "Kontakt" }
-        return JsonObject().apply {
-            add("realtimeInput", JsonObject().apply {
-                addProperty(
-                    "text",
-                    "[TELEFONAT SOEBEN ANGENOMMEN: $who ist jetzt in der Leitung. Begrüße $who jetzt sofort herzlich und freundlich auf Deutsch als Funkira, Alinas persönliche Assistentin, sag kurz dass Alina gerade nicht persönlich ans Telefon gehen kann, frage freundlich nach dem Anliegen und versichere warmherzig, dass Alina die Nachricht sofort bekommt.]"
-                )
-            })
-        }
+        val prompt = "[TELEFONAT SOEBEN ANGENOMMEN: $who ist jetzt in der Leitung. Begrüße $who jetzt sofort herzlich und freundlich auf Deutsch als Funkira, Alinas persönliche Assistentin, sag kurz dass Alina gerade nicht persönlich ans Telefon gehen kann, frage freundlich nach dem Anliegen und versichere warmherzig, dass Alina die Nachricht sofort bekommt.]"
+        return de.meinseelenfunke.app.util.FalconClientTools.buildClientContentKickPacket(
+            prompt = prompt,
+            modelName = modelName
+        )
     }
 
     internal fun buildToolResponsePacketJson(
@@ -327,6 +415,7 @@ object StandalonePhoneSecretaryEngine {
         greetingName: String,
         relationType: String?,
         systemInstructions: String?,
+        micFgsGranted: Boolean = true,
         onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
     ): SecretarySessionResult {
@@ -372,6 +461,7 @@ object StandalonePhoneSecretaryEngine {
                     systemInstruction = prompt,
                     candidate = candidate,
                     attemptIndex = idx,
+                    micFgsGranted = micFgsGranted,
                     onTranscriptUpdated = onTranscriptUpdated,
                     isCallStillOffhook = isCallStillOffhook
                 )
@@ -504,6 +594,7 @@ object StandalonePhoneSecretaryEngine {
         systemInstruction: String,
         candidate: WsCandidate,
         attemptIndex: Int,
+        micFgsGranted: Boolean,
         onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
     ): SecretarySessionResult? {
@@ -517,6 +608,8 @@ object StandalonePhoneSecretaryEngine {
         val goodbyeAudioArrived = AtomicBoolean(false)
         val finishToolTriggered = AtomicBoolean(false)
         val goodbyeTurnDone = AtomicBoolean(false)
+        val micSilencedFlag = AtomicBoolean(false)
+        val silencePromptSent = AtomicBoolean(false)
 
         val callerFullTranscript = StringBuilder()
         val currentCallerTurn = StringBuilder()
@@ -654,9 +747,9 @@ object StandalonePhoneSecretaryEngine {
                         if (!setupReady.isCompleted) {
                             setupReady.complete(true)
                         }
-                        // Trigger immediate warm greeting via Gemini 3.1 realtimeInput.text without waiting for caller silence!
+                        // Trigger immediate warm greeting using the active model's wire schema
                         kickoffSentUptimeMs.set(SystemClock.uptimeMillis())
-                        val kickoff = buildKickoffPacketJson(greetingName)
+                        val kickoff = buildKickoffPacketJson(greetingName, candidate.liveModel)
                         webSocket.send(gson.toJson(kickoff))
                         return
                     }
@@ -808,8 +901,11 @@ object StandalonePhoneSecretaryEngine {
             recordJob = scope.launch {
                 streamCallerMicrophoneLoop(
                     appCtx = appCtx,
+                    callId = callId,
+                    micFgsGranted = micFgsGranted,
                     ws = wsRef,
                     closedFlag = closedFlag,
+                    micSilencedFlag = micSilencedFlag,
                     playbackActiveUntilMs = playbackActiveUntilMs,
                     kickoffSentUptimeMs = kickoffSentUptimeMs,
                     firstModelAudioArrived = firstModelAudioArrived,
@@ -829,6 +925,22 @@ object StandalonePhoneSecretaryEngine {
                 }
                 if ((now - startedUptime) >= 90_000L) {
                     break
+                }
+
+                if (micSilencedFlag.get() && !finishToolTriggered.get() && callerFullTranscript.isEmpty()) {
+                    if (!firstModelAudioArrived.get() && (now - startedUptime) >= 3_500L) {
+                        return null
+                    }
+                    if (firstModelAudioArrived.get() &&
+                        now >= (playbackActiveUntilMs.get() + ECHO_TAIL_GUARD_MS) &&
+                        !silencePromptSent.getAndSet(true)
+                    ) {
+                        val hintPacket = de.meinseelenfunke.app.util.FalconClientTools.buildClientContentKickPacket(
+                            prompt = "[SYSTEM-HINWEIS: Das Mikrofon ist systemseitig stummgeschaltet. Sag $greetingName jetzt bitte kurz, herzlich und natürlich, dass du die Verbindung notiert hast und Alina sich umgehend meldet, und rufe sofort phone_secretary_finish auf.]",
+                            modelName = candidate.liveModel
+                        )
+                        wsRef?.send(gson.toJson(hintPacket))
+                    }
                 }
 
                 if (finishToolTriggered.get()) {
@@ -929,10 +1041,14 @@ object StandalonePhoneSecretaryEngine {
         }
     }
 
+    @Suppress("MissingPermission")
     private suspend fun streamCallerMicrophoneLoop(
         appCtx: Context,
+        callId: String,
+        micFgsGranted: Boolean,
         ws: WebSocket?,
         closedFlag: AtomicBoolean,
+        micSilencedFlag: AtomicBoolean,
         playbackActiveUntilMs: AtomicLong,
         kickoffSentUptimeMs: AtomicLong,
         firstModelAudioArrived: AtomicBoolean,
@@ -948,40 +1064,103 @@ object StandalonePhoneSecretaryEngine {
             return
         }
 
+        // Ensure WakeWordService releases hardware mic & SpeechRecognizer synchronously before opening secretary AudioRecord
+        WakeWordService.releaseMicrophoneForCall(timeoutMs = 700L)
+
+        val audioManager = appCtx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val initialMode = try { audioManager?.mode ?: AudioManager.MODE_NORMAL } catch (_: Exception) { AudioManager.MODE_NORMAL }
+        val profiles = resolveAudioSourceProfiles(initialMode)
+
         val sampleRate = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val minBuf = max(AudioRecord.getMinBufferSize(sampleRate, channelConfig, encoding), 4096)
 
-        val record = createBestAudioRecord(sampleRate, channelConfig, encoding, minBuf) ?: run {
-            ErrorSentinelReporter.captureError(
-                context = appCtx,
-                tag = "phone_secretary_mic",
-                message = "AudioRecord konnte während des Telefonats nicht initialisiert werden."
-            )
-            return
-        }
-
+        // 640 samples @ 16 kHz = crisp 40 ms real-time frames with zero extra sleep latency
+        val pcmShortBuf = ShortArray(640)
+        val watchdog = MicZeroSampleWatchdog(rotateThresholdFrames = 28, reportThresholdFrames = 65)
+        var profileIdx = 0
+        var activeRecord: AudioRecord? = null
+        var activeProfile: MicCaptureProfile? = null
         var aec: AcousticEchoCanceler? = null
         var ns: NoiseSuppressor? = null
+        val testedLabels = mutableListOf<String>()
+
+        fun releaseCurrentRecorder() {
+            try { aec?.release() } catch (_: Exception) { }
+            try { ns?.release() } catch (_: Exception) { }
+            aec = null
+            ns = null
+            val rec = activeRecord
+            activeRecord = null
+            if (rec != null) {
+                try {
+                    if (rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                        rec.stop()
+                    }
+                } catch (_: Exception) { }
+                try { rec.release() } catch (_: Exception) { }
+            }
+        }
+
+        fun openNextAvailableRecorder(): Boolean {
+            releaseCurrentRecorder()
+            while (profileIdx < profiles.size) {
+                val prof = profiles[profileIdx++]
+                testedLabels.add(prof.label)
+                val candidate = try {
+                    AudioRecord(prof.audioSource, sampleRate, channelConfig, encoding, minBuf)
+                } catch (_: Exception) {
+                    null
+                }
+                if (candidate != null && candidate.state == AudioRecord.STATE_INITIALIZED) {
+                    try {
+                        if (prof.enableHardwareEffects) {
+                            if (AcousticEchoCanceler.isAvailable()) {
+                                aec = AcousticEchoCanceler.create(candidate.audioSessionId)?.apply { enabled = true }
+                            }
+                            if (NoiseSuppressor.isAvailable()) {
+                                ns = NoiseSuppressor.create(candidate.audioSessionId)?.apply { enabled = true }
+                            }
+                        }
+                        candidate.startRecording()
+                        if (candidate.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                            activeRecord = candidate
+                            activeProfile = prof
+                            return true
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+                try { aec?.release() } catch (_: Exception) { }
+                try { ns?.release() } catch (_: Exception) { }
+                aec = null
+                ns = null
+                try { candidate?.release() } catch (_: Exception) { }
+            }
+            return false
+        }
 
         try {
-            if (AcousticEchoCanceler.isAvailable()) {
-                aec = AcousticEchoCanceler.create(record.audioSessionId)?.apply { enabled = true }
-            }
-            if (NoiseSuppressor.isAvailable()) {
-                ns = NoiseSuppressor.create(record.audioSessionId)?.apply { enabled = true }
+            if (!openNextAvailableRecorder()) {
+                micSilencedFlag.set(true)
+                ErrorSentinelReporter.captureError(
+                    context = appCtx,
+                    tag = "phone_secretary_mic",
+                    message = "AudioRecord konnte während des Telefonats nicht initialisiert werden.",
+                    extraContext = mapOf(
+                        "call_id" to callId,
+                        "audio_mode" to initialMode.toString(),
+                        "mic_fgs_granted" to micFgsGranted.toString(),
+                        "tested_sources" to testedLabels.joinToString(",")
+                    )
+                )
+                return
             }
 
-            record.startRecording()
-            if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) return
-
-            // 640 samples @ 16 kHz = crisp 40 ms real-time frames with zero extra sleep latency
-            val pcmShortBuf = ShortArray(640)
-            var consecutiveZeroFrames = 0
-            var reportedZeroMicWarning = false
             while (!closedFlag.get() && isCallStillOffhook()) {
-                val read = record.read(pcmShortBuf, 0, pcmShortBuf.size)
+                val rec = activeRecord ?: break
+                val read = rec.read(pcmShortBuf, 0, pcmShortBuf.size)
                 if (read <= 0) {
                     delay(15L)
                     continue
@@ -1000,29 +1179,53 @@ object StandalonePhoneSecretaryEngine {
                     continue
                 }
 
-                var hasNonZeroSample = false
-                for (i in 0 until read) {
-                    if (pcmShortBuf[i].toInt() != 0) {
-                        hasNonZeroSample = true
-                        break
+                val hasMoreCandidates = profileIdx < profiles.size
+                when (watchdog.onFrame(pcmShortBuf, read, hasMoreCandidates)) {
+                    MicFrameVerdict.ROTATE_SOURCE -> {
+                        val failedLabel = activeProfile?.label ?: "unknown"
+                        configureSpeakerphoneForSecretaryCall(audioManager)
+                        if (openNextAvailableRecorder()) {
+                            PhoneConciergeManager.appendDiagnosticTrace(
+                                appCtx,
+                                "Mikro-Stille auf $failedLabel -> Wechsel auf ${activeProfile?.label ?: "Fallback"}"
+                            )
+                            ErrorSentinelReporter.captureAutoHeal(
+                                context = appCtx,
+                                component = "phone_secretary_mic",
+                                title = "Mikrofon-Quelle im Anruf automatisch gewechselt",
+                                message = "Quelle $failedLabel lieferte >1,1s Stille; auf ${activeProfile?.label} umgeschaltet.",
+                                healSummary = "AudioRecord während laufendem Telefonat nahtlos neu initialisiert.",
+                                extraContext = mapOf(
+                                    "call_id" to callId,
+                                    "failed_source" to failedLabel,
+                                    "new_source" to (activeProfile?.label ?: ""),
+                                    "audio_mode" to (audioManager?.mode?.toString() ?: "-1"),
+                                    "mic_fgs_granted" to micFgsGranted.toString()
+                                )
+                            )
+                            continue
+                        }
                     }
-                }
-                if (!hasNonZeroSample) {
-                    consecutiveZeroFrames++
-                    if (!reportedZeroMicWarning && consecutiveZeroFrames >= 65) {
-                        reportedZeroMicWarning = true
+                    MicFrameVerdict.PERMANENT_SILENCE -> {
+                        micSilencedFlag.set(true)
                         PhoneConciergeManager.appendDiagnosticTrace(
                             appCtx,
-                            "Warnung: Mikrofon liefert reine Stille (OS-Hintergrundsperre?)"
+                            "Warnung: Mikrofon liefert reine Stille (fgsMic=$micFgsGranted, mode=${audioManager?.mode ?: -1})"
                         )
                         ErrorSentinelReporter.captureError(
                             context = appCtx,
                             tag = "phone_secretary_mic",
-                            message = "AudioRecord lieferte >2,5s lang ausschließlich Null-Samples während des Anrufs."
+                            message = "AudioRecord lieferte >2,5s lang ausschließlich Null-Samples während des Anrufs.",
+                            extraContext = mapOf(
+                                "call_id" to callId,
+                                "audio_mode" to (audioManager?.mode?.toString() ?: "-1"),
+                                "mic_fgs_granted" to micFgsGranted.toString(),
+                                "tested_sources" to testedLabels.joinToString(","),
+                                "rotations" to watchdog.recoveryRotations.toString()
+                            )
                         )
                     }
-                } else {
-                    consecutiveZeroFrames = 0
+                    MicFrameVerdict.ACTIVE, MicFrameVerdict.SILENT_WAIT -> Unit
                 }
 
                 val outBytes = ByteArray(read * 2)
@@ -1046,36 +1249,8 @@ object StandalonePhoneSecretaryEngine {
             }
         } catch (_: Exception) {
         } finally {
-            try { aec?.release() } catch (_: Exception) { }
-            try { ns?.release() } catch (_: Exception) { }
-            try { record.stop() } catch (_: Exception) { }
-            try { record.release() } catch (_: Exception) { }
+            releaseCurrentRecorder()
         }
-    }
-
-    @Suppress("MissingPermission")
-    private fun createBestAudioRecord(
-        sampleRate: Int,
-        channelConfig: Int,
-        encoding: Int,
-        bufferSize: Int
-    ): AudioRecord? {
-        val sources = intArrayOf(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            MediaRecorder.AudioSource.MIC
-        )
-        for (src in sources) {
-            try {
-                val candidate = AudioRecord(src, sampleRate, channelConfig, encoding, bufferSize)
-                if (candidate.state == AudioRecord.STATE_INITIALIZED) {
-                    return candidate
-                }
-                candidate.release()
-            } catch (_: Exception) {
-            }
-        }
-        return null
     }
 
     private fun createSecretaryAudioTrack(): AudioTrack? {
@@ -1185,7 +1360,10 @@ object StandalonePhoneSecretaryEngine {
     private fun configureSpeakerphoneForSecretaryCall(am: AudioManager?) {
         if (am == null) return
         try {
-            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            val desiredMode = resolveDesiredAudioModeForSecretary(am.mode)
+            if (am.mode != desiredMode) {
+                am.mode = desiredMode
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val speaker = am.availableCommunicationDevices.firstOrNull {
                     it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
@@ -1216,7 +1394,9 @@ object StandalonePhoneSecretaryEngine {
                 am.clearCommunicationDevice()
             }
             am.isSpeakerphoneOn = prevSpeaker
-            am.mode = prevMode
+            if (am.mode != AudioManager.MODE_IN_CALL) {
+                am.mode = prevMode
+            }
             if (prevCallVol >= 0) {
                 am.setStreamVolume(AudioManager.STREAM_VOICE_CALL, prevCallVol, 0)
             }

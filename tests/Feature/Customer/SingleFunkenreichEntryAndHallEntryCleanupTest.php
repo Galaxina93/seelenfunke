@@ -163,6 +163,6 @@ class SingleFunkenreichEntryAndHallEntryCleanupTest extends TestCase
         $this->assertStringContainsString('await this._safeCompileAsync(1400);', $engine);
         $this->assertStringContainsString("if (!program || typeof program.isReady !== 'function' || program.isReady())", $engine);
         $this->assertStringContainsString('this.destroyed || this.renderer !== renderer', $engine);
-        $this->assertStringContainsString('seelenfunke-louvre-showroom-3d.js?v=20261122v2', $host);
+        $this->assertStringContainsString('seelenfunke-louvre-showroom-3d.js?v=20261127v1', $host);
     }
 }

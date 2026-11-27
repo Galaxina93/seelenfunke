@@ -30,8 +30,9 @@ class SeelenfunkeApp : Application() {
     }
 
     private fun createNotificationChannels() {
+        de.meinseelenfunke.app.util.NotificationBadgeGuard.ensureSilentBackgroundChannels(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
             
             // 1. Create orders channel with high importance and custom sound
             val soundUri = Uri.parse("android.resource://" + packageName + "/raw/order_ching")

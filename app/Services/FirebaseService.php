@@ -50,18 +50,25 @@ class FirebaseService
             return false;
         }
 
+        // Clean and safe FCM data values (must be strings)
+        $sanitizedData = [];
+        foreach ($data as $k => $v) {
+            $sanitizedData[(string)$k] = is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string)$v;
+        }
+
+        $title = mb_substr(trim($title), 0, 120);
+        $body = mb_substr(trim($body), 0, 500);
+
+        if ($title === '' && $body === '' && empty($sanitizedData)) {
+            return false;
+        }
+
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
             return false;
         }
 
         $url = "https://fcm.googleapis.com/v1/projects/{$this->projectId}/messages:send";
-
-        // Clean and safe FCM data values (must be strings)
-        $sanitizedData = [];
-        foreach ($data as $k => $v) {
-            $sanitizedData[(string)$k] = is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string)$v;
-        }
 
         // Build the FCM payload
         $message = [
@@ -72,16 +79,18 @@ class FirebaseService
             ],
         ];
 
-        $title = mb_substr(trim($title), 0, 120);
-        $body = mb_substr(trim($body), 0, 500);
+        $silentFlag = strtolower(trim((string) ($sanitizedData['silent'] ?? '')));
+        $actionFlag = strtolower(trim((string) ($sanitizedData['action'] ?? '')));
+        $isSilentDataPush = in_array($silentFlag, ['1', 'true', 'yes'], true)
+            || ($actionFlag !== '' && str_starts_with($actionFlag, 'sync_'));
 
-        if (!empty($title) || !empty($body)) {
+        if (!$isSilentDataPush && (!empty($title) || !empty($body))) {
             $message['notification'] = [
                 'title' => $title,
                 'body' => $body,
             ];
             
-            $isOrder = isset($data['order_id']);
+            $isOrder = isset($sanitizedData['order_id']) && $sanitizedData['order_id'] !== '';
             $channelId = $isOrder ? 'orders_notification_channel_v4' : 'default_notification_channel';
             $sound = $isOrder ? 'order_ching' : 'default';
 

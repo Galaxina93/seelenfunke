@@ -200,6 +200,7 @@ fun FalconFocusScreen(
     var showPhotoLightbox by remember { mutableStateOf(false) }
     var showCameraSourceMenu by remember { mutableStateOf(false) }
     var dismissedSubtitleText by remember { mutableStateOf<String?>(null) }
+    var lastCallButtonTapUptimeMs by remember { mutableStateOf(0L) }
     var pendingCameraAction by remember { mutableStateOf<PendingCameraAction?>(null) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var pageLoaded by remember { mutableStateOf(false) }
@@ -385,6 +386,18 @@ fun FalconFocusScreen(
     LaunchedEffect(errorText) {
         if (!errorText.isNullOrBlank()) {
             Toast.makeText(context, errorText, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Keep screen awake during active hands-free Live-Call so Android never locks & drops the mic/WebSocket
+    val hostView = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(isConnected || isConnecting) {
+        val prevKeepScreenOn = hostView.keepScreenOn
+        if (isConnected || isConnecting) {
+            hostView.keepScreenOn = true
+        }
+        onDispose {
+            hostView.keepScreenOn = prevKeepScreenOn
         }
     }
 
@@ -1742,6 +1755,11 @@ fun FalconFocusScreen(
                                 CircleShape
                             )
                             .clickable {
+                                val nowTapMs = android.os.SystemClock.uptimeMillis()
+                                if (!FunkiraLiveViewModel.shouldAllowCallButtonTap(lastCallButtonTapUptimeMs, nowTapMs)) {
+                                    return@clickable
+                                }
+                                lastCallButtonTapUptimeMs = nowTapMs
                                 if (isConnected || isConnecting) {
                                     viewModel.disconnectLiveChat()
                                 } else {

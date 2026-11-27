@@ -80,10 +80,15 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (ServiceLocator.authRepository.isLoggedIn() &&
-            de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.refreshCount(this) > 0
-        ) {
-            de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.scheduleBackgroundAutoFlush(this, 450L)
+        de.meinseelenfunke.app.util.NotificationBadgeGuard.clearObsoleteStatusNotifications(
+            this,
+            de.meinseelenfunke.app.services.WakeWordService.TRIGGER_NOTIFICATION_ID
+        )
+        if (ServiceLocator.authRepository.isLoggedIn()) {
+            de.meinseelenfunke.app.util.PhoneConciergeManager.flushPendingCompletionsAsync(this)
+            if (de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.refreshCount(this) > 0) {
+                de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.scheduleBackgroundAutoFlush(this, 450L)
+            }
         }
     }
 
@@ -125,8 +130,8 @@ class MainActivity : FragmentActivity() {
         }
 
         if (intent.getBooleanExtra("start_voice_call", false)) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.cancel(1003)
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            manager?.cancel(de.meinseelenfunke.app.services.WakeWordService.TRIGGER_NOTIFICATION_ID)
             NavigationBridge.triggerWakeWord()
         } else if (!intent.getStringExtra("navigate_to").isNullOrBlank()) {
             val navigateTo = intent.getStringExtra("navigate_to")?.trim().orEmpty()
@@ -140,10 +145,16 @@ class MainActivity : FragmentActivity() {
                 navigateTo.equals("anrufbeantworter", ignoreCase = true) ||
                 navigateTo.equals("phone_secretary", ignoreCase = true)
             ) {
+                (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
+                    ?.cancel(de.meinseelenfunke.app.services.FunkiraPhoneConciergeService.SUMMARY_NOTIF_ID)
                 NavigationBridge.triggerNavigation(NavigationBridge.NavTarget.ORGANIZER, subTab = 7)
             } else {
                 val parsedTarget = NavigationBridge.parseTarget(navigateTo) ?: NavigationBridge.NavTarget.ZENTRUM
                 val subTab = intent.getIntExtra("open_subtab", 0)
+                if (parsedTarget == NavigationBridge.NavTarget.ORGANIZER && subTab == 7) {
+                    (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
+                        ?.cancel(de.meinseelenfunke.app.services.FunkiraPhoneConciergeService.SUMMARY_NOTIF_ID)
+                }
                 NavigationBridge.triggerNavigation(parsedTarget, subTab = subTab)
             }
         } else if (intent.hasExtra("open_tab")) {

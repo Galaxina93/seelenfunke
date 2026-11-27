@@ -11,10 +11,10 @@
     <ApplicationTitle>Funkenwerk FTP</ApplicationTitle>
     <Product>Funkenwerk FTP</Product>
     <Company>Mein-Seelenfunke</Company>
-    <Version>1.5.0</Version>
-    <AssemblyVersion>1.5.0.17</AssemblyVersion>
-    <FileVersion>1.5.0.17</FileVersion>
-    <InformationalVersion>1.5.0+b17</InformationalVersion>
+    <Version>1.5.1</Version>
+    <AssemblyVersion>1.5.1.18</AssemblyVersion>
+    <FileVersion>1.5.1.18</FileVersion>
+    <InformationalVersion>1.5.1+b18</InformationalVersion>
     <ApplicationIcon>funkenwerk_ftp.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>

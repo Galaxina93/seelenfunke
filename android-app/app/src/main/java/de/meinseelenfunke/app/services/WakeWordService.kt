@@ -55,7 +55,11 @@ class WakeWordService : Service() {
 
     @Volatile
     private var isRunning = false
+    @Volatile
     private var audioRecord: AudioRecord? = null
+    private val micLock = Any()
+    @Volatile
+    private var micIdleLatch = CountDownLatch(0)
     private var recordThread: Thread? = null
     private val cadenceGate = SpeechCadenceGate()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -66,8 +70,25 @@ class WakeWordService : Service() {
 
     companion object {
         private const val TAG = "WakeWordService"
-        private const val CHANNEL_ID = "seelenfunke_wakeword_channel"
+        private const val CHANNEL_ID = de.meinseelenfunke.app.util.NotificationBadgeGuard.WAKEWORD_STATUS_CHANNEL_ID
+        private const val TRIGGER_CHANNEL_ID = de.meinseelenfunke.app.util.NotificationBadgeGuard.WAKEWORD_TRIGGER_CHANNEL_ID
         private const val NOTIFICATION_ID = 1002
+        const val TRIGGER_NOTIFICATION_ID = 1003
+
+        @Volatile
+        private var activeInstance: WakeWordService? = null
+
+        fun releaseMicrophoneForCall(timeoutMs: Long = 700L): Boolean {
+            NavigationBridge.isLiveCallActive = true
+            val svc = activeInstance ?: return true
+            svc.stopAudioRecord()
+            svc.cancelSpeechRecognizerBlocking()
+            return try {
+                svc.micIdleLatch.await(timeoutMs.coerceIn(50L, 2_000L), TimeUnit.MILLISECONDS)
+            } catch (_: InterruptedException) {
+                false
+            }
+        }
 
         private const val SAMPLE_RATE = 16000
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
@@ -232,6 +253,7 @@ class WakeWordService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
         createNotificationChannel()
     }
 
@@ -303,6 +325,7 @@ class WakeWordService : Service() {
                         cadenceGate.reset()
                         preRollWritePos = 0
                         preRollFilled = 0
+                        micIdleLatch.countDown()
                         Thread.sleep(450L)
                         continue
                     }
@@ -317,11 +340,26 @@ class WakeWordService : Service() {
                         )
                         if (rec.state != AudioRecord.STATE_INITIALIZED) {
                             try { rec.release() } catch (_: Exception) {}
+                            micIdleLatch.countDown()
                             Thread.sleep(1000L)
                             continue
                         }
-                        rec.startRecording()
-                        audioRecord = rec
+                        val assignedRec = synchronized(micLock) {
+                            if (NavigationBridge.isLiveCallActive || !isRunning) {
+                                try { rec.release() } catch (_: Exception) {}
+                                micIdleLatch.countDown()
+                                null
+                            } else {
+                                rec.startRecording()
+                                audioRecord = rec
+                                micIdleLatch = CountDownLatch(1)
+                                rec
+                            }
+                        }
+                        if (assignedRec == null) {
+                            Thread.sleep(200L)
+                            continue
+                        }
                     }
 
                     val readResult = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
@@ -644,15 +682,17 @@ class WakeWordService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val triggerChannelId = "seelenfunke_trigger_channel"
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val triggerChannelId = TRIGGER_CHANNEL_ID
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
+        de.meinseelenfunke.app.util.NotificationBadgeGuard.ensureSilentBackgroundChannels(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 triggerChannelId,
                 "Funkira Aktivierung",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
+                setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 enableVibration(true)
             }
@@ -671,7 +711,11 @@ class WakeWordService : Service() {
             .setAutoCancel(true)
             .build()
 
-        manager.notify(1003, notification)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        ) {
+            manager.notify(TRIGGER_NOTIFICATION_ID, notification)
+        }
 
         try {
             context.startActivity(intent)
@@ -681,18 +725,24 @@ class WakeWordService : Service() {
     }
 
     private fun stopAudioRecord() {
-        val rec = audioRecord ?: return
-        audioRecord = null
-        try {
-            if (rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                rec.stop()
+        val rec = synchronized(micLock) {
+            val current = audioRecord
+            audioRecord = null
+            current
+        }
+        if (rec != null) {
+            try {
+                if (rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    rec.stop()
+                }
+            } catch (_: Exception) {
             }
-        } catch (_: Exception) {
+            try {
+                rec.release()
+            } catch (_: Exception) {
+            }
         }
-        try {
-            rec.release()
-        } catch (_: Exception) {
-        }
+        micIdleLatch.countDown()
     }
 
     private fun createNotification(): Notification {
@@ -718,6 +768,7 @@ class WakeWordService : Service() {
     }
 
     private fun createNotificationChannel() {
+        de.meinseelenfunke.app.util.NotificationBadgeGuard.ensureSilentBackgroundChannels(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
@@ -725,14 +776,21 @@ class WakeWordService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Hintergrunddienst für Hey Funkira"
+                setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+                setSound(null, null)
             }
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
             manager.createNotificationChannel(channel)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        if (activeInstance === this) {
+            activeInstance = null
+        }
         isRunning = false
         stopAudioRecord()
         cancelSpeechRecognizerBlocking()

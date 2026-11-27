@@ -193,7 +193,10 @@ trait AiTelefonyFuncs
         
         $record->objective = $args['objective'];
         $record->save();
-        \App\Events\SupportTelephonyUpdated::dispatch();
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new \App\Events\SupportTelephonyUpdated(),
+            'AiTelefonyFuncs'
+        );
 
         return [
             'status' => 'success',
@@ -366,7 +369,10 @@ trait AiTelefonyFuncs
 
         $call->status = $status;
         $call->save();
-        \App\Events\SupportTelephonyUpdated::dispatch();
+        \App\Services\System\RealtimeBroadcastService::dispatch(
+            new \App\Events\SupportTelephonyUpdated(),
+            'AiTelefonyFuncs'
+        );
 
         return [
             'status' => 'success',
@@ -420,7 +426,10 @@ trait AiTelefonyFuncs
                 $call->status = 'failed';
                 $call->summary = "Technischer Fehler: " . implode(" | ", $errorMessages);
                 $call->save();
-                \App\Events\SupportTelephonyUpdated::dispatch();
+                \App\Services\System\RealtimeBroadcastService::dispatch(
+                    new \App\Events\SupportTelephonyUpdated(),
+                    'AiTelefonyFuncs'
+                );
             }
 
             return [
@@ -519,7 +528,10 @@ trait AiTelefonyFuncs
             $record->objective = $context['objective'] ?? '';
             $record->status = 'ongoing';
             $record->save();
-            \App\Events\SupportTelephonyUpdated::dispatch();
+            \App\Services\System\RealtimeBroadcastService::dispatch(
+                new \App\Events\SupportTelephonyUpdated(),
+                'AiTelefonyFuncs'
+            );
 
             return [
                 'success' => true,

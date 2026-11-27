@@ -711,13 +711,21 @@ class AiAgentEditor extends Component
             ];
         });
 
+        $agentModelForBehavior = ($this->agentId && $this->agentId !== 'new')
+            ? AiAgent::find($this->agentId)
+            : null;
+        $behaviorSummary = $agentModelForBehavior
+            ? \App\Services\AI\AiBehaviorAnalysisService::getAgentCompactSummary($agentModelForBehavior, 30)
+            : null;
+
         return view('livewire.shop.ai.ai-agent-editor', [
             'aiRoles' => AiRole::orderBy('name')->get(),
             'currentRole' => $currentRole,
             'activeTools' => $activeTools,
             'activeToolIds' => $activeToolIds,
             'groupedTools' => $groupedToolsCollection,
-            'totalToolsCount' => $allTools->count()
+            'totalToolsCount' => $allTools->count(),
+            'behaviorSummary' => $behaviorSummary,
         ]);
     }
 }

@@ -73,8 +73,9 @@ class FunkiraPhoneConciergeService : Service() {
         const val EXTRA_RING_DELAY_SEC = "extra_ring_delay_sec"
 
         private const val CHANNEL_ID = "funkira_phone_concierge_channel"
+        private const val STATUS_CHANNEL_ID = de.meinseelenfunke.app.util.NotificationBadgeGuard.PHONE_CONCIERGE_STATUS_CHANNEL_ID
         private const val ACTIVE_NOTIF_ID = 1044
-        private const val SUMMARY_NOTIF_ID = 1045
+        internal const val SUMMARY_NOTIF_ID = 1045
         internal const val SOFORT_RINGING_SETTLE_MS = 280L
 
         internal fun computeEffectiveRingWaitMs(ringDelaySec: Int): Long {
@@ -424,8 +425,8 @@ class FunkiraPhoneConciergeService : Service() {
                 return
             }
 
-            // Pause WakeWord mic before picking up so AudioRecord has zero contention
-            NavigationBridge.isLiveCallActive = true
+            // Release WakeWordService hardware mic synchronously before picking up so AudioRecord has zero contention
+            WakeWordService.releaseMicrophoneForCall(timeoutMs = 700L)
             if (!acceptIncomingCallSafe()) {
                 NavigationBridge.isLiveCallActive = false
                 PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Fehler: acceptRingingCall fehlgeschlagen")
@@ -491,7 +492,11 @@ class FunkiraPhoneConciergeService : Service() {
 
             // Call is confirmed OFFHOOK -> upgrade foreground service type to PHONE_CALL | MICROPHONE
             currentFgsIncludesMic = true
-            promoteToForeground("Funkira spricht mit $displayLabel", "Anliegen wird live aufgenommen", includeMicrophone = true)
+            val micFgsGranted = promoteToForeground(
+                "Funkira spricht mit $displayLabel",
+                "Anliegen wird live aufgenommen",
+                includeMicrophone = true
+            )
             delay(250L)
 
             // Check whether Funkenwerk-MiniPC Bluetooth SCO is actively connected AND Portal relay accepts it
@@ -557,6 +562,7 @@ class FunkiraPhoneConciergeService : Service() {
                     greetingName = greetingName,
                     relationType = relationType,
                     systemInstructions = systemInstructions,
+                    micFgsGranted = micFgsGranted,
                     onTranscriptUpdated = { lines -> partialTranscriptRef.set(lines) },
                     isCallStillOffhook = {
                         readUnifiedCallState(telephony, telecom, audioManager, subStates, true) == TelephonyManager.CALL_STATE_OFFHOOK
@@ -893,8 +899,22 @@ class FunkiraPhoneConciergeService : Service() {
     }
 
     private fun ensureChannel() {
+        de.meinseelenfunke.app.util.NotificationBadgeGuard.ensureSilentBackgroundChannels(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java) ?: return
+            val statusCh = NotificationChannel(
+                STATUS_CHANNEL_ID,
+                "Funkira Anruf-Status",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Aktiver Telefon-Assistent Status während eines Gesprächs"
+                setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+                setSound(null, null)
+            }
+            nm.createNotificationChannel(statusCh)
+
             val ch = NotificationChannel(
                 CHANNEL_ID,
                 "Funkira Telefon-Assistent",
@@ -906,7 +926,8 @@ class FunkiraPhoneConciergeService : Service() {
         }
     }
 
-    private fun promoteToForeground(title: String, body: String, includeMicrophone: Boolean) {
+    private fun promoteToForeground(title: String, body: String, includeMicrophone: Boolean): Boolean {
+        ensureChannel()
         val stopIntent = Intent(this, FunkiraPhoneConciergeService::class.java).apply {
             action = ACTION_MANUAL_STOP
         }
@@ -923,13 +944,14 @@ class FunkiraPhoneConciergeService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notif = NotificationCompat.Builder(this, STATUS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setColor(0xFFC5A059.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setContentIntent(openPending)
             .setOngoing(true)
+            .setSilent(true)
             .addAction(0, "Auflegen", stopPending)
             .build()
 
@@ -941,6 +963,7 @@ class FunkiraPhoneConciergeService : Service() {
             } else {
                 startForeground(ACTIVE_NOTIF_ID, notif)
             }
+            return includeMicrophone && hasMicPerm
         } catch (e: Exception) {
             ErrorSentinelReporter.captureAutoHeal(
                 context = applicationContext,
@@ -957,10 +980,15 @@ class FunkiraPhoneConciergeService : Service() {
                     startForeground(ACTIVE_NOTIF_ID, notif)
                 }
             } catch (_: Exception) { }
+            return false
         }
     }
 
     private fun postSummaryNotification(callerLabel: String, summary: String) {
+        val cleanCaller = callerLabel.trim()
+        val cleanSummary = summary.trim()
+        if (cleanCaller.isEmpty() && cleanSummary.isEmpty()) return
+        ensureChannel()
         val nm = getSystemService(NotificationManager::class.java) ?: return
         val tapIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -977,14 +1005,18 @@ class FunkiraPhoneConciergeService : Service() {
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setColor(0xFFC5A059.toInt())
-            .setContentTitle("📞 Funkira Sekretärin · $callerLabel")
-            .setContentText(summary)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(summary))
+            .setContentTitle("📞 Funkira Sekretärin · ${cleanCaller.ifBlank { "Anruf" }}")
+            .setContentText(cleanSummary)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(cleanSummary))
             .setContentIntent(openPending)
             .setAutoCancel(true)
             .build()
         try {
-            nm.notify(SUMMARY_NOTIF_ID, notif)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            ) {
+                nm.notify(SUMMARY_NOTIF_ID, notif)
+            }
         } catch (_: Exception) { }
     }
 

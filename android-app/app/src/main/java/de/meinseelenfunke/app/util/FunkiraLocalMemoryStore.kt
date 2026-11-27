@@ -44,11 +44,11 @@ object FunkiraLocalMemoryStore {
     private const val KEY_TOTAL_COUNT = "memory_total_count"
 
     const val MAX_RAW_TURNS = 30
-    const val HOT_WINDOW_TURNS = 8
-    const val MAX_HOT_TURN_CHARS = 140
+    const val HOT_WINDOW_TURNS = 12
+    const val MAX_HOT_TURN_CHARS = 260
     const val MAX_DIGEST_FACTS = 8
     const val MAX_DIGEST_CHARS = 600
-    const val MAX_MEMORY_PROMPT_CHARS = 1800
+    const val MAX_MEMORY_PROMPT_CHARS = 3600
     const val DEDUP_WINDOW_MS = 15_000L
 
     private val NOISE_ACK_SET = setOf(
@@ -195,7 +195,7 @@ object FunkiraLocalMemoryStore {
         val snap = hydrate(context)
         if (snap.turns.isEmpty() && snap.rollingDigest.isBlank()) return ""
 
-        val raw = buildString {
+        val header = buildString {
             append("--- LOKALES KURZZEITGEDAECHTNIS (ANDROID BRAIN) ---\n")
             if (snap.lastTopicSummary.isNotBlank()) {
                 append("LETZTES THEMA: ").append(snap.lastTopicSummary.take(280)).append('\n')
@@ -203,19 +203,45 @@ object FunkiraLocalMemoryStore {
             if (snap.rollingDigest.isNotBlank()) {
                 append("GEMERKTE KERNFAKTEN: ").append(snap.rollingDigest.take(MAX_DIGEST_CHARS)).append('\n')
             }
-            val tail = snap.turns.takeLast(maxTurns.coerceIn(1, MAX_RAW_TURNS))
-            if (tail.isNotEmpty()) {
-                append("LETZTER VERLAUF:\n")
-                tail.forEach { t ->
-                    val speaker = if (t.role == "user") "Alina" else "Funkira"
-                    val prefix = if (t.timeShort.isNotBlank()) "[${t.timeShort}] $speaker" else speaker
-                    append(prefix).append(": ").append(t.body.take(MAX_HOT_TURN_CHARS)).append('\n')
-                }
-            }
+        }
+        val footer = buildString {
             append("--- ENDE LOKALES KURZZEITGEDAECHTNIS ---\n")
             append("Setze das Gespraech nahtlos fort und beziehe dich bei Rueckfragen auf dieses Gedaechtnis.")
         }
-        return raw.take(MAX_MEMORY_PROMPT_CHARS)
+
+        val tail = snap.turns.takeLast(maxTurns.coerceIn(1, MAX_RAW_TURNS))
+        val selectedLines = ArrayList<String>(tail.size)
+        if (tail.isNotEmpty()) {
+            val sectionHeader = "LETZTER VERLAUF:\n"
+            val remainingBudget = (MAX_MEMORY_PROMPT_CHARS - header.length - sectionHeader.length - footer.length).coerceAtLeast(0)
+            var used = 0
+            for (t in tail.asReversed()) {
+                val speaker = if (t.role == "user") "Alina" else "Funkira"
+                val prefix = if (t.timeShort.isNotBlank()) "[${t.timeShort}] $speaker" else speaker
+                val rawLine = "$prefix: ${t.body.take(MAX_HOT_TURN_CHARS)}\n"
+                if (used + rawLine.length <= remainingBudget) {
+                    selectedLines.add(rawLine)
+                    used += rawLine.length
+                } else if (selectedLines.isEmpty() && remainingBudget > 24) {
+                    val maxBodyLen = (remainingBudget - "$prefix: \n".length).coerceAtLeast(16)
+                    selectedLines.add("$prefix: ${t.body.take(maxBodyLen)}\n")
+                    break
+                } else {
+                    break
+                }
+            }
+            selectedLines.reverse()
+        }
+
+        val assembled = buildString {
+            append(header)
+            if (selectedLines.isNotEmpty()) {
+                append("LETZTER VERLAUF:\n")
+                selectedLines.forEach { append(it) }
+            }
+            append(footer)
+        }
+        return if (assembled.length <= MAX_MEMORY_PROMPT_CHARS) assembled else assembled.take(MAX_MEMORY_PROMPT_CHARS)
     }
 
     internal fun sanitizeBody(raw: String): String {

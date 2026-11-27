@@ -73,6 +73,12 @@
                 $vVer = is_file($vDisk) ? '?v=' . filemtime($vDisk) : '';
                 $iVer = is_file($iDisk) ? '?v=' . filemtime($iDisk) : '';
 
+                $vWebmRel = preg_replace('/\.mp4$/i', '.webm', (string) $t['video']);
+                $vWebmDisk = ($vWebmRel && $vWebmRel !== $t['video']) ? storage_path('app/public/' . $vWebmRel) : null;
+                $vWebmUrl = ($vWebmDisk && is_file($vWebmDisk))
+                    ? asset('storage/' . $vWebmRel) . '?v=' . filemtime($vWebmDisk)
+                    : '';
+
                 $tKey = $t['key'] ?? 'standard';
                 $baseOverlayRel = $product->preview_image_path ?? null;
                 if (!$baseOverlayRel) {
@@ -93,9 +99,10 @@
                 }
 
                 return array_merge($t, [
-                    'videoUrl'   => asset('storage/' . $t['video']) . $vVer,
-                    'imageUrl'   => asset('storage/' . $t['image']) . $iVer,
-                    'overlayUrl' => $overlayUrl,
+                    'videoUrl'     => asset('storage/' . $t['video']) . $vVer,
+                    'videoWebmUrl' => $vWebmUrl,
+                    'imageUrl'     => asset('storage/' . $t['image']) . $iVer,
+                    'overlayUrl'   => $overlayUrl,
                 ]);
             })),
             has_back_side: {{!empty($configSettings['has_back_side']) && $configSettings['has_back_side'] ? 'true' : 'false'}},
@@ -360,8 +367,8 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            width: max(240%, 1100px);
-            height: max(240%, 1100px);
+            width: 220%;
+            height: 220%;
             transform: translate(-50%, -50%) rotate(0deg);
             background: conic-gradient(
                 from 0deg,

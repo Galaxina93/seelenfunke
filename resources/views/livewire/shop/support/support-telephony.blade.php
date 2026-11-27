@@ -246,7 +246,33 @@
                                                                     <i class="bi bi-card-text"></i> Fazit
                                                                 </h4>
                                                                 <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{{ $call->summary ?? 'Kein Fazit verfügbar.' }}</p>
+                                                                @if(!empty($stepsAndGoals['support_ticket_number']) || !empty($stepsAndGoals['ticket_number']))
+                                                                    <div class="mt-3 pt-3 border-t border-gray-200 dark:border-white/5 flex flex-wrap gap-4 text-xs font-semibold">
+                                                                        @if(!empty($stepsAndGoals['support_ticket_number']))
+                                                                            <span class="text-[var(--theme-color)]">Support-Ticket: {{ $stepsAndGoals['support_ticket_number'] }}</span>
+                                                                        @endif
+                                                                        @if(!empty($stepsAndGoals['ticket_number']))
+                                                                            <span class="text-gray-600 dark:text-gray-400">Vorgang: {{ $stepsAndGoals['ticket_number'] }}</span>
+                                                                        @endif
+                                                                    </div>
+                                                                @endif
                                                             </div>
+
+                                                            @if(!empty($stepsAndGoals['rahmenbedingungen']) && is_array($stepsAndGoals['rahmenbedingungen']))
+                                                                <div class="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/5 p-5 shadow-sm">
+                                                                    <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                        <i class="bi bi-check2-square"></i> Rahmenbedingungen
+                                                                    </h4>
+                                                                    <ul class="space-y-1.5">
+                                                                        @foreach($stepsAndGoals['rahmenbedingungen'] as $rb)
+                                                                            <li class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                                                                <span class="text-[#C5A059] font-bold">✓</span>
+                                                                                <span>{{ $rb }}</span>
+                                                                            </li>
+                                                                        @endforeach
+                                                                    </ul>
+                                                                </div>
+                                                            @endif
 
                                                             <!-- Next Steps -->
                                                             <div class="bg-white dark:bg-gray-900/40 rounded-2xl border border-gray-200 dark:border-white/5 p-5 shadow-sm">
@@ -293,26 +319,37 @@
         </div>
     @elseif($currentTab === 'settings')
         <div class="bg-white/90 dark:bg-gray-900/40 border border-gray-200/80 dark:border-white/5 rounded-2xl p-6 backdrop-blur-md shadow-sm transition-colors duration-300">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Regeln & Limits</h2>
-            <p class="text-gray-600 dark:text-gray-400 text-sm mb-6">Definiere, wann und wie viel die Agenten telefonieren dürfen.</p>
-            
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">KI-Telefonie Steuerung</h2>
+
             <div class="space-y-4">
                 <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-xl flex justify-between items-center bg-gray-50 dark:bg-gray-800/30">
-                    <div>
-                        <div class="text-gray-900 dark:text-white font-medium">Nachtruhe (Outbound)</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">Verbietet ausgehende Anrufe zwischen 20:00 und 08:00 Uhr.</div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-900 dark:text-white font-medium">KI-Anrufannahme</span>
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 cursor-help" title="Hauptschalter für eingehende Live-Anrufe durch Funkira">!</span>
                     </div>
-                    <div class="w-12 h-6 bg-[var(--theme-color)] rounded-full relative cursor-pointer opacity-80 hover:opacity-100 transition-opacity">
-                        <div class="absolute right-1 top-1 w-4 h-4 bg-white dark:bg-gray-900 rounded-full shadow-sm"></div>
-                    </div>
+                    <button type="button" wire:click="toggleConciergeEnabled" aria-label="KI-Anrufannahme umschalten" class="w-12 h-6 {{ $conciergeEnabled ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700' }} rounded-full relative cursor-pointer transition-colors">
+                        <div class="absolute top-1 w-4 h-4 bg-white dark:bg-gray-900 rounded-full shadow-sm transition-all {{ $conciergeEnabled ? 'right-1' : 'left-1' }}"></div>
+                    </button>
                 </div>
+
                 <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-xl flex justify-between items-center bg-gray-50 dark:bg-gray-800/30">
-                    <div>
-                        <div class="text-gray-900 dark:text-white font-medium">Kosten-Limit pro Tag</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">Maximale Gesprächsminuten pro Agent und Tag.</div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-900 dark:text-white font-medium">Vollständiger Kundenservice</span>
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 cursor-help" title="Nimmt auch unbekannte Kundenanrufe an und erstellt automatisch ein Support-Ticket sowie eine App-Notiz">!</span>
                     </div>
-                    <div>
-                        <input type="number" value="120" class="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 focus:border-[var(--theme-color)] rounded-lg text-gray-900 dark:text-white w-24 text-center px-2 py-1 outline-none shadow-sm"> <span class="text-gray-500 dark:text-gray-400 ml-1">Min.</span>
+                    <button type="button" wire:click="toggleCustomerServiceEnabled" aria-label="Kundenservice-Anrufannahme umschalten" class="w-12 h-6 {{ $customerServiceEnabled ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700' }} rounded-full relative cursor-pointer transition-colors">
+                        <div class="absolute top-1 w-4 h-4 bg-white dark:bg-gray-900 rounded-full shadow-sm transition-all {{ $customerServiceEnabled ? 'right-1' : 'left-1' }}"></div>
+                    </button>
+                </div>
+
+                <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-xl flex justify-between items-center bg-gray-50 dark:bg-gray-800/30">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-900 dark:text-white font-medium">Klingel-Verzögerung</span>
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 cursor-help" title="Wartezeit in Sekunden bis zur Übernahme durch Funkira (0 bis 30 Sekunden)">!</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" min="0" max="30" wire:model="ringDelaySeconds" wire:change="saveRingDelay" class="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 focus:border-[var(--theme-color)] rounded-lg text-gray-900 dark:text-white w-24 text-center px-2 py-1 outline-none shadow-sm">
+                        <span class="text-gray-500 dark:text-gray-400 text-sm">Sek.</span>
                     </div>
                 </div>
             </div>
