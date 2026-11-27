@@ -967,7 +967,7 @@
                     };
 
                     const checkDependencies = () => {
-                        if (window.THREE && window.GLTFLoader && window.Configurator3DEngine) {
+                        if (window.THREE && window.GLTFLoader && window.Seelenfunke3DStudio && window.Configurator3DEngine) {
                             startConfigurator();
                         } else {
                             setTimeout(checkDependencies, 250);

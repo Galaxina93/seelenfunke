@@ -341,6 +341,7 @@ class ProductSeeder extends Seeder
                 'overlay_type' => 'plane',
                 'cylinder_radius' => 50,
                 'material_type' => 'metal',
+                'lighting_preset' => 'dark_metal_studio',
                 'model_scale' => 136,
                 'model_pos_x' => 0, 'model_pos_y' => 0, 'model_pos_z' => 0,
                 'model_rot_x' => 0, 'model_rot_y' => 0, 'model_rot_z' => 0,

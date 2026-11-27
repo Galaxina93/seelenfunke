@@ -178,6 +178,7 @@ class ProductCreate extends Component
         'configurator_workspace_help' => 'Richte hier das grüne Gravur-Zeichenbrett (2D) sowie die Position, Rotation und Projektion (Flach vs. Zylindrisch) auf dem 3D-Modell ein.',
         'working_area_help' => 'Steuert Position (X/Y), Größe (Breite/Höhe) und Form (Eckig, Rund, Polygon) des erlaubten Gravurbereichs auf dem 2D-Overlay.',
         'model_transform_help' => 'Passt Skalierung, Position und Grund-Rotation des 3D-Modells im Kamera-Sichtfeld an.',
+        'model_lighting_help' => 'Steuert das Studio-Lichtprofil (z. B. Anti-Überstrahlung für schwarzes Eloxal-Metall), die Belichtung sowie Umgebungs- und Glanzlichter.',
         'overlay_transform_help' => 'Steuert, wie die Kunden-Gravur auf die 3D-Oberfläche projiziert wird (Größe, Versatz, Rotation und Material-Effekt wie Glas-Frosting oder Metall-Gravur).',
         'product_templates_help' => 'Fertige Design- und Anlass-Vorlagen (z. B. Muttertag, Weihnachten, Hochzeit), die Kunden im Konfigurator mit 1 Klick laden können und die als automatisches Saison-Hauptbild dienen.',
         'Lager' => 'Bestandsführung aktivieren.',
@@ -2314,6 +2315,10 @@ class ProductCreate extends Component
         } else {
             unset($this->configSettings['out_of_stock_lead_days_min'], $this->configSettings['out_of_stock_lead_days_max']);
         }
+
+        $this->configSettings = app(ConfiguratorService::class)->mergeWithDefaults(
+            is_array($this->configSettings) ? $this->configSettings : []
+        );
 
         $this->product->configurator_settings = $this->configSettings;
         if ($this->type === 'physical') {

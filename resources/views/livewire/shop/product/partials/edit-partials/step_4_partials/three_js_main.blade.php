@@ -29,6 +29,12 @@
     $adminResolvedFallbackUrl = ($adminFallbackDisk && is_file($adminFallbackDisk))
         ? asset('storage/' . ltrim($adminFallbackRel, '/')) . '?v=' . filemtime($adminFallbackDisk)
         : '';
+
+    $adminOverlayAnalysis = app(\App\Services\ConfiguratorService::class)->analyzeOverlayImage(
+        $product?->preview_image_path ?? null,
+        is_array($configSettings ?? null) ? $configSettings : []
+    );
+    $adminLightingPresets = app(\App\Services\ConfiguratorService::class)->getThreeDLightingPresets();
 @endphp
 x-data="(()=>{
 return {
@@ -41,6 +47,10 @@ modelPath: '{{ $adminResolvedModelUrl }}',
 bgPath: '{{ $adminResolvedBgUrl }}',
 bgVideoUrl: '{{ $adminResolvedVidUrl }}',
 fallbackImg: '{{ $adminResolvedFallbackUrl }}',
+isDarkSurface: {{ !empty($adminOverlayAnalysis['is_dark_surface']) ? 'true' : 'false' }},
+surfaceLuminance: {{ (float) ($adminOverlayAnalysis['surface_luminance'] ?? 140) }},
+templatePackage: '{{ ($configSettings['template_package'] ?? ($product?->slug ?? '')) }}',
+lightingPresets: @js($adminLightingPresets),
 configSettings: $wire.entangle('configSettings'),
 
 activeSide: 'front',
@@ -125,10 +135,77 @@ model: null, modelContainer: null,
 texturePlaneFront: null, texturePlaneBack: null,
 textureCanvas: null, textureCtx: null,
 textureFront: null, textureBack: null,
-areaDummy: null
+areaDummy: null,
+_envTexture: null,
+_pmremTarget: null
 };
 }
 return window._adminThreeEngine;
+},
+
+getStudioLightingOpts(extra = {}) {
+let eng = this.getEngine();
+const cfg = this.configSettings || {};
+return Object.assign({
+isMobile: false,
+hasEnv: !!this.bgPath,
+renderer: eng ? eng.renderer : null,
+presets: this.lightingPresets || null,
+materialType: cfg.material_type || 'glass',
+isDarkSurface: Boolean(this.isDarkSurface),
+surfaceLuminance: Number(this.surfaceLuminance ?? 140),
+templatePackage: String(cfg.template_package || this.templatePackage || ''),
+xtoolPhotoSubstratePolarity: String(cfg.xtool_photo_substrate_polarity || ''),
+lightingPreset: String(cfg.lighting_preset || 'auto'),
+lightingExposure: cfg.lighting_exposure ?? null,
+lightingAmbient: cfg.lighting_ambient ?? null,
+lightingSpecular: cfg.lighting_specular ?? null,
+modelPath: String(this.modelPath || ''),
+model: eng ? eng.model : null
+}, extra || {});
+},
+
+resolveLightingProfile() {
+if (!window.Seelenfunke3DStudio || typeof window.Seelenfunke3DStudio.resolveLightingProfile !== 'function') {
+return { preset: 'crystal_studio', isDarkMetal: false, tone_mapping_exposure: 1.0, ambient_mult: 1.0, specular_mult: 1.0 };
+}
+return window.Seelenfunke3DStudio.resolveLightingProfile(this.getStudioLightingOpts());
+},
+
+applyLighting(extra = {}) {
+let eng = this.getEngine();
+if (!eng || !eng.scene || !window.Seelenfunke3DStudio || !window.THREE) return;
+window.Seelenfunke3DStudio.applyStudioLighting(eng.scene, window.THREE, this.getStudioLightingOpts(extra));
+},
+
+resetLighting() {
+if (!this.configSettings) return;
+this.configSettings.lighting_preset = 'auto';
+this.configSettings.lighting_exposure = null;
+this.configSettings.lighting_ambient = null;
+this.configSettings.lighting_specular = null;
+this.applyLighting();
+this.applyMaterial();
+},
+
+loadAdminEnvironment(newBgPath) {
+let eng = this.getEngine();
+if (!eng.scene || !newBgPath || !window.THREE || !window.THREE.TextureLoader) return;
+const loader = new window.THREE.TextureLoader();
+if (typeof loader.setCrossOrigin === 'function') loader.setCrossOrigin('anonymous');
+loader.load(newBgPath, (t) => {
+if (!eng.scene) {
+if (typeof t.dispose === 'function') t.dispose();
+return;
+}
+if (eng._envTexture && eng._envTexture !== t && typeof eng._envTexture.dispose === 'function') {
+eng._envTexture.dispose();
+}
+eng._envTexture = t;
+window.Seelenfunke3DStudio.applyEnvironmentTexture(eng.scene, t, window.THREE, eng.renderer, eng, true);
+eng.scene.background = null;
+this.applyLighting();
+});
 },
 
 getRaw(obj) {
@@ -140,6 +217,14 @@ return obj;
 
 reinit3D() {
 let eng = this.getEngine();
+if (eng._pmremTarget && typeof eng._pmremTarget.dispose === 'function') {
+eng._pmremTarget.dispose();
+eng._pmremTarget = null;
+}
+if (eng._envTexture && typeof eng._envTexture.dispose === 'function') {
+eng._envTexture.dispose();
+eng._envTexture = null;
+}
 if (eng.renderer) {
 eng.renderer.dispose();
 if(eng.renderer.domElement && eng.renderer.domElement.parentNode) {
@@ -185,6 +270,10 @@ this.configSettings.custom_points = [{x:20,y:20}, {x:80,y:20}, {x:80,y:80}, {x:2
 
 if (typeof this.configSettings.material_type === 'undefined') this.configSettings.material_type = 'glass';
 if (typeof this.configSettings.overlay_type === 'undefined') this.configSettings.overlay_type = 'cylinder';
+if (typeof this.configSettings.lighting_preset === 'undefined') this.configSettings.lighting_preset = 'auto';
+if (typeof this.configSettings.lighting_exposure === 'undefined') this.configSettings.lighting_exposure = null;
+if (typeof this.configSettings.lighting_ambient === 'undefined') this.configSettings.lighting_ambient = null;
+if (typeof this.configSettings.lighting_specular === 'undefined') this.configSettings.lighting_specular = null;
 
 this.ensureBeginnerCoordsInitialized();
 
@@ -224,6 +313,20 @@ setTimeout(() => this.reinit3D(), 60);
 }
 });
 
+this.$watch('bgPath', (val) => {
+if (!this.isInitialized) return;
+if (val) {
+this.loadAdminEnvironment(val);
+} else {
+let eng = this.getEngine();
+if (eng && eng.scene) {
+eng.scene.environment = null;
+eng.scene.background = new window.THREE.Color('#0b0f19');
+this.applyMaterial();
+}
+}
+});
+
 this.$nextTick(() => {
 if (this.modelPath) {
 this.init3D();
@@ -236,6 +339,10 @@ this.showDrawingBoard = true;
 init3D() {
 const container = this.$refs.adminContainer3d;
 if (!container) return;
+if (!window.Seelenfunke3DStudio) {
+setTimeout(() => this.init3D(), 30);
+return;
+}
 if (container.offsetWidth === 0 || container.offsetHeight === 0) {
 if (this.$wire && this.$wire.step4SubStep === 3) {
 setTimeout(() => this.init3D(), 80);
@@ -254,26 +361,16 @@ eng.scene.background = null;
 
 eng.camera = new window.THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.1, 1000);
 
-eng.renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
+eng.renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true, precision: 'highp' });
 eng.renderer.setSize(container.offsetWidth, container.offsetHeight);
 eng.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const initProfile = this.resolveLightingProfile();
+window.Seelenfunke3DStudio.configureRenderer(eng.renderer, window.THREE, initProfile.tone_mapping_exposure);
 
 container.innerHTML = '';
 container.appendChild(eng.renderer.domElement);
 
-eng.scene.add(new window.THREE.AmbientLight(0xffffff, 1.5));
-
-const mainLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
-mainLight.position.set(10, 10, 10);
-eng.scene.add(mainLight);
-
-const fillLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
-fillLight.position.set(-10, 5, 10);
-eng.scene.add(fillLight);
-
-const backLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
-backLight.position.set(0, 10, -10);
-eng.scene.add(backLight);
+this.applyLighting();
 
 eng.controls = new window.OrbitControls(eng.camera, eng.renderer.domElement);
 eng.controls.enableDamping = true;
@@ -282,12 +379,7 @@ eng.controls.enablePan = false;
 eng.controls.maxPolarAngle = Math.PI / 1.6;
 
 if(this.bgPath) {
-const loader = new window.THREE.TextureLoader();
-loader.load(this.bgPath, (t) => {
-t.mapping = window.THREE.EquirectangularReflectionMapping;
-eng.scene.environment = t;
-eng.scene.background = null;
-});
+this.loadAdminEnvironment(this.bgPath);
 }
 
 eng.areaDummy = new window.THREE.Group();
@@ -601,104 +693,14 @@ eng.tControls.detach();
 
 applyMaterial() {
 let eng = this.getEngine();
-if (!eng.model || !this.configSettings) return;
+if (!eng.model || !this.configSettings || !window.Seelenfunke3DStudio) return;
 
 const matType = this.configSettings.material_type || 'glass';
-const hasEnv = !!this.bgPath;
-
-eng.model.traverse((child) => {
-if (child.isMesh && child.material) {
-const firstMat = Array.isArray(child.material) ? child.material[0] : child.material;
-if (!child.userData._origMap && firstMat && firstMat.map) {
-child.userData._origMap = firstMat.map;
+const opts = this.getStudioLightingOpts({ materialType: matType, model: eng.model });
+const res = window.Seelenfunke3DStudio.applyMaterialToModel(eng.model, matType, opts, window.THREE);
+if (eng.scene) {
+this.applyLighting({ isDarkMetal: res.isDarkMetal });
 }
-if (!child.userData._origMatName && firstMat && firstMat.name) {
-child.userData._origMatName = firstMat.name;
-}
-const oldMap = child.userData._origMap || (firstMat ? firstMat.map : null);
-const origMatName = child.userData._origMatName || '';
-const isOpticalCrystal = (origMatName === 'Optical_K9_Crystal_Glass') || (this.modelPath && this.modelPath.includes('seelenk'));
-
-if(matType === 'glass') {
-child.renderOrder = 1;
-if (isOpticalCrystal && child.geometry && child.geometry.index) {
-const idxCount = child.geometry.index.count;
-child.geometry.clearGroups();
-child.geometry.addGroup(0, idxCount, 0);
-child.geometry.addGroup(0, idxCount, 1);
-
-const matBack = new window.THREE.MeshPhysicalMaterial({
-map: oldMap,
-color: 0xe6f8fc,
-metalness: 0.02,
-roughness: 0.05,
-ior: 1.52,
-reflectivity: 0.9,
-envMapIntensity: hasEnv ? 0.35 : 0.0,
-transparent: true,
-opacity: 0.44,
-depthWrite: false,
-side: window.THREE.BackSide
-});
-const matFront = new window.THREE.MeshPhysicalMaterial({
-map: oldMap,
-color: 0xffffff,
-metalness: 0.04,
-roughness: 0.03,
-ior: 1.52,
-reflectivity: 1.0,
-clearcoat: 1.0,
-clearcoatRoughness: 0.02,
-envMapIntensity: hasEnv ? 0.45 : 0.0,
-transparent: true,
-opacity: 0.96,
-depthWrite: false,
-side: window.THREE.FrontSide
-});
-child.material = [matBack, matFront];
-} else {
-child.material = new window.THREE.MeshPhysicalMaterial({
-map: oldMap,
-color: 0xffffff,
-metalness: hasEnv ? 0.3 : 0.0,
-roughness: hasEnv ? 0.05 : 0.2,
-transparent: true,
-opacity: 0.80,
-depthWrite: false,
-side: window.THREE.FrontSide
-});
-}
-} else if(matType === 'wood') {
-child.material = new window.THREE.MeshStandardMaterial({
-map: oldMap,
-color: 0xffffff,
-roughness: 0.9,
-metalness: 0.0
-});
-} else if(matType === 'metal') {
-child.material = new window.THREE.MeshStandardMaterial({
-map: oldMap,
-color: 0xffffff,
-roughness: hasEnv ? 0.2 : 0.4,
-metalness: hasEnv ? 0.9 : 0.0,
-alphaTest: oldMap ? 0.35 : 0.0,
-side: window.THREE.DoubleSide
-});
-} else {
-child.material = new window.THREE.MeshStandardMaterial({
-map: oldMap,
-color: 0xffffff,
-roughness: 0.5,
-metalness: 0.0
-});
-}
-if (Array.isArray(child.material)) {
-child.material.forEach(m => { m.needsUpdate = true; });
-} else {
-child.material.needsUpdate = true;
-}
-}
-});
 },
 
 applyModelTransforms() {

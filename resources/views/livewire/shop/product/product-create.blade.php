@@ -63,4 +63,6 @@
     @elseif($viewMode === 'edit')
         @include('livewire.shop.product.partials._edit')
     @endif
+
+    @include('livewire.shop.product.partials.three_d_studio_helper')
 </div>

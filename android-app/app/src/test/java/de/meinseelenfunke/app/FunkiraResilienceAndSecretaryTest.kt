@@ -930,4 +930,54 @@ class FunkiraResilienceAndSecretaryTest {
         assertTrue(toolsJson.contains("ticket_subject"))
         assertTrue(toolsJson.contains("order_number"))
     }
+
+    @Test
+    fun android14PlusMicFgsElevation_andSilenceAlertPolicy_handleOsDenialAndLiveResetCleanly() {
+        // 1. OS-denied background FGS mic maps to AUTO_HEAL_OS_FGS_DENIED (no false-alarm Sentinel ERROR spam),
+        //    whereas granted FGS mic with pure zeros still escalates to ERROR_HARDWARE_OR_HAL_SILENCE.
+        assertEquals(
+            StandalonePhoneSecretaryEngine.MicSilenceAlertPolicy.AUTO_HEAL_OS_FGS_DENIED,
+            StandalonePhoneSecretaryEngine.resolveMicSilenceAlertPolicy(micFgsGranted = false)
+        )
+        assertEquals(
+            StandalonePhoneSecretaryEngine.MicSilenceAlertPolicy.ERROR_HARDWARE_OR_HAL_SILENCE,
+            StandalonePhoneSecretaryEngine.resolveMicSilenceAlertPolicy(micFgsGranted = true)
+        )
+
+        // 2. Watchdog default headroom (112 frames) allows all 4 audio sources to rotate before reporting silence,
+        //    and resetForRetry() clears state cleanly when PhoneSecretaryCallActivity elevates FGS mid-call.
+        val watchdog = StandalonePhoneSecretaryEngine.MicZeroSampleWatchdog()
+        val silentFrame = ShortArray(640)
+
+        var rotations = 0
+        var permanentBeforeAllFour = 0
+        repeat(84) {
+            when (watchdog.onFrame(silentFrame, silentFrame.size, hasMoreCandidates = rotations < 3)) {
+                StandalonePhoneSecretaryEngine.MicFrameVerdict.ROTATE_SOURCE -> rotations++
+                StandalonePhoneSecretaryEngine.MicFrameVerdict.PERMANENT_SILENCE -> permanentBeforeAllFour++
+                else -> Unit
+            }
+        }
+        assertEquals(3, rotations)
+        assertEquals(0, permanentBeforeAllFour)
+
+        // Exhausting 4th source hits PERMANENT_SILENCE once
+        var permanentHits = 0
+        repeat(35) {
+            if (watchdog.onFrame(silentFrame, silentFrame.size, hasMoreCandidates = false) ==
+                StandalonePhoneSecretaryEngine.MicFrameVerdict.PERMANENT_SILENCE
+            ) {
+                permanentHits++
+            }
+        }
+        assertEquals(1, permanentHits)
+        assertTrue(watchdog.hasReportedWarning)
+
+        // Mid-call FGS elevation resets watchdog cleanly so fresh AudioRecord starts from zero
+        watchdog.resetForRetry()
+        assertEquals(0, watchdog.consecutiveZeroFramesInAttempt)
+        assertEquals(0, watchdog.totalZeroFramesAcrossAttempts)
+        assertEquals(0, watchdog.recoveryRotations)
+        assertFalse(watchdog.hasReportedWarning)
+    }
 }

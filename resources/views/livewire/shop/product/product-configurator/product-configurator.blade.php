@@ -114,6 +114,12 @@
             overlay_type: '{{$configSettings['overlay_type'] ?? "plane"}}',
             cylinder_radius: {{$configSettings['cylinder_radius'] ?? 50}},
             material_type: '{{$configSettings['material_type'] ?? "glass"}}',
+            lightingPresets: @js(app(\App\Services\ConfiguratorService::class)->getThreeDLightingPresets()),
+            lighting_preset: '{{$configSettings['lighting_preset'] ?? "auto"}}',
+            lighting_exposure: {{ isset($configSettings['lighting_exposure']) && is_numeric($configSettings['lighting_exposure']) ? (float) $configSettings['lighting_exposure'] : 'null' }},
+            lighting_ambient: {{ isset($configSettings['lighting_ambient']) && is_numeric($configSettings['lighting_ambient']) ? (float) $configSettings['lighting_ambient'] : 'null' }},
+            lighting_specular: {{ isset($configSettings['lighting_specular']) && is_numeric($configSettings['lighting_specular']) ? (float) $configSettings['lighting_specular'] : 'null' }},
+            xtool_photo_substrate_polarity: '{{$configSettings['xtool_photo_substrate_polarity'] ?? ""}}',
             model_scale: {{$configSettings['model_scale'] ?? 100}},
             model_pos_x: {{$configSettings['model_pos_x'] ?? 0}},
             model_pos_y: {{$configSettings['model_pos_y'] ?? 0}},
@@ -794,6 +800,7 @@
         @include('livewire.shop.product.product-configurator.partials.footer', ['isDark' => $isDark])
     </div>
 
+    @include('livewire.shop.product.partials.three_d_studio_helper')
     @include('livewire.shop.product.product-configurator.partials.scripts_frontend_2')
     @include('livewire.shop.product.product-configurator.partials.scripts_frontend_1')
     @assets

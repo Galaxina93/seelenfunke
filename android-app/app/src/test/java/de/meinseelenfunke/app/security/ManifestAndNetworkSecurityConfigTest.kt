@@ -223,4 +223,23 @@ class ManifestAndNetworkSecurityConfigTest {
         assertFalse(userMsg.contains("CertPathValidator"))
         assertFalse(userMsg.contains(" – "))
     }
+
+    @Test
+    fun phoneSecretaryCallActivityIsPrivateAndConfiguredForLockscreenMicFgsElevation() {
+        val doc = parseXml(resolveProjectFile("src/main/AndroidManifest.xml"))
+        val activities = doc.getElementsByTagName("activity")
+        var callAct: Element? = null
+        for (i in 0 until activities.length) {
+            val el = activities.item(i) as Element
+            if (el.getAttributeNS(androidNs, "name") == ".ui.PhoneSecretaryCallActivity") {
+                callAct = el
+                break
+            }
+        }
+        assertNotNull("Expected .ui.PhoneSecretaryCallActivity in AndroidManifest.xml", callAct)
+        assertEquals("false", callAct!!.getAttributeNS(androidNs, "exported"))
+        assertEquals("true", callAct.getAttributeNS(androidNs, "showWhenLocked"))
+        assertEquals("true", callAct.getAttributeNS(androidNs, "turnScreenOn"))
+        assertEquals("true", callAct.getAttributeNS(androidNs, "excludeFromRecents"))
+    }
 }

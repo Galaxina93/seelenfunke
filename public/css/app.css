@@ -3273,6 +3273,9 @@ video {
   min-width: -moz-max-content;
   min-width: max-content;
 }
+.min-w-\[155px\] {
+  min-width: 155px;
+}
 .max-w-2xl {
   max-width: 42rem;
 }
@@ -4369,6 +4372,10 @@ video {
 }
 .gap-y-6 {
   row-gap: 1.5rem;
+}
+.gap-x-5 {
+  -moz-column-gap: 1.25rem;
+       column-gap: 1.25rem;
 }
 .-space-x-2 > :not([hidden]) ~ :not([hidden]) {
   --tw-space-x-reverse: 0;

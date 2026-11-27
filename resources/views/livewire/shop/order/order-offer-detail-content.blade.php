@@ -146,7 +146,8 @@
             || !empty($mfgOverview['has_gift_box'])
         );
     @endphp
-    <div class="w-full flex-1 flex flex-col items-center justify-start sm:justify-center p-4 sm:p-10 overflow-y-auto custom-scrollbar">
+    <div wire:key="order-step-pending-{{ $model->id }}"
+         class="w-full flex-1 flex flex-col items-center justify-start sm:justify-center p-4 sm:p-10 overflow-y-auto custom-scrollbar">
         <div x-data="{ startingMagic: false }"
              data-pending-order-card
              :class="startingMagic ? 'border-[var(--theme-color-50)]' : 'border-gray-200 dark:border-gray-800'"
@@ -298,14 +299,16 @@
         );
     @endphp
 
-    <div class="w-full flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-8 flex flex-col items-center">
+    <div wire:key="order-step-shell-{{ $model->id }}"
+         class="w-full flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-8 flex flex-col items-center">
         <div class="max-w-3xl w-full shrink-0 space-y-6">
 
             {{-- ================================================================= --}}
             {{-- SCHRITT 1: IN BEARBEITUNG (2-Tab Ansicht: Cockpit & Vorschau) --}}
             {{-- ================================================================= --}}
             @if($currentOrderStep === 1)
-                <div class="bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 shadow-xl space-y-5">
+                <div wire:key="order-step-1-{{ $model->id }}"
+                     class="bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 shadow-xl space-y-5">
 
                     @php
                         $previewHasBack = \App\Livewire\Shop\Order\OrderOverview::itemHasConfiguredBackSide($previewItem);
@@ -439,7 +442,9 @@
 
                     {{-- TAB 1: LIVE-LASER-COCKPIT | TAB 2: LIVE-KONFIGURATIONS-VORSCHAU (0 ms Client-Side Switch) --}}
                     @if($hasPhysicalCockpit)
-                        <div x-show="stepOneTab === 'cockpit'">
+                        <div wire:key="order-step1-tab-cockpit-{{ $model->id }}-{{ $previewItem?->id ?? 'none' }}"
+                             x-show="stepOneTab === 'cockpit'"
+                             class="w-full min-w-0">
                             @include('livewire.shop.order.order-offer-detail-partials.laser-cockpit-card')
                         </div>
                     @endif
@@ -451,7 +456,8 @@
                             $isAdminOrderEditable = !in_array((string) ($model->status ?? ''), ['shipped', 'completed', 'cancelled', 'refunded'], true);
                             $adminBlueprintTimeline = \App\Livewire\Shop\Order\OrderOverview::buildItemBlueprintTimeline($previewItem);
                         @endphp
-                        <div @if($hasPhysicalCockpit) x-cloak x-show="stepOneTab === 'preview'" style="display: none;" @endif
+                        <div wire:key="order-step1-tab-preview-{{ $model->id }}-{{ $previewItem->id }}"
+                             @if($hasPhysicalCockpit) x-cloak x-show="stepOneTab === 'preview'" style="display: none;" @endif
                              class="space-y-3">
                             <div class="rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden {{ $isItemCustomFields ? 'min-h-0' : 'min-h-[500px]' }} flex flex-col">
                                 @if($previewItem->product)
@@ -764,7 +770,8 @@
                 @php
                     $packingPlan = $model->getPackingStationPlan();
                 @endphp
-                <div class="bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl space-y-6">
+                <div wire:key="order-step-2-{{ $model->id }}"
+                     class="bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl space-y-6">
 
                     {{-- Kopfzeile (ohne Subtext) --}}
                     <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
@@ -921,7 +928,8 @@
             {{-- SCHRITT 3: BESTELLUNG ABGESCHLOSSEN --}}
             {{-- ================================================================= --}}
             @else
-                <div class="bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2.5rem] p-8 sm:p-10 shadow-xl text-center flex flex-col items-center space-y-5">
+                <div wire:key="order-step-3-{{ $model->id }}"
+                     class="bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2.5rem] p-8 sm:p-10 shadow-xl text-center flex flex-col items-center space-y-5">
                     <div class="w-16 h-16 rounded-2xl bg-[var(--theme-color-15)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center shadow-sm">
                         <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>

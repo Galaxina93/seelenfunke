@@ -1645,7 +1645,7 @@ class FileDownloadService
         }
 
         $materialType = strtolower(trim((string) ($productConfig['material_type'] ?? '')));
-        if (in_array($materialType, ['glass', 'crystal', 'slate', 'black_aluminum'], true)) {
+        if (in_array($materialType, ['glass', 'crystal', 'slate', 'black_aluminum', 'dark_metal'], true)) {
             return true;
         }
         if (in_array($materialType, ['silver', 'gold', 'wood', 'brass', 'stainless_steel'], true)) {

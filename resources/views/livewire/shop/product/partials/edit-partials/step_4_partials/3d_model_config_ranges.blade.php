@@ -27,13 +27,15 @@
 
             <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Material</span>
-                <select x-model="configSettings.material_type" @change="applyMaterial()" class="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] cursor-pointer outline-none appearance-none">
+                <select x-model="configSettings.material_type" @change="applyLighting(); applyMaterial()" class="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] cursor-pointer outline-none appearance-none">
                     <option value="glass" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Glas (Transparent)</option>
                     <option value="wood" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Holz (Matt)</option>
-                    <option value="metal" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Metall (Glänzend)</option>
+                    <option value="metal" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Metall (Eloxiert / Stahl)</option>
+                    <option value="silver" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">925er Silber (Poliert)</option>
+                    <option value="gold" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Gold / Vergoldet (Glänzend)</option>
                     <option value="plastic" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Kunststoff</option>
                 </select>
-                <button type="button" @click="configSettings.material_type = 'glass'; applyMaterial()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
+                <button type="button" @click="configSettings.material_type = 'glass'; applyLighting(); applyMaterial()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
             <div class="flex items-center gap-2 w-full mt-2">
@@ -83,6 +85,49 @@
                 <input type="range" x-model.number="configSettings.model_rot_z" @input="applyModelTransforms()" min="-180" max="180" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_rot_z" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
                 <button type="button" @click="configSettings.model_rot_z = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
+            </div>
+
+            <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-gray-200 dark:border-gray-800">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest">Beleuchtung &amp; Lichteinfall</span>
+                        @include('components.alerts.info-tooltip', ['key' => 'model_lighting_help'])
+                    </div>
+                    <button type="button" @click="resetLighting()" class="text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-[var(--theme-color)] transition-colors cursor-pointer">Auto</button>
+                </div>
+
+                <div class="flex items-center gap-2 w-full">
+                    <span class="{{ $labelClassModel }}">Licht-Profil</span>
+                    <select x-model="configSettings.lighting_preset" @change="applyLighting(); applyMaterial()" class="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] cursor-pointer outline-none appearance-none">
+                        <option value="auto" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Automatik (Material)</option>
+                        <option value="dark_metal_studio" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Dunkles Metall / Eloxiert</option>
+                        <option value="precious_metal_studio" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Edelmetall / Schmuck</option>
+                        <option value="crystal_studio" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Kristallglas / Studio</option>
+                        <option value="matte_studio" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Holz / Matt</option>
+                    </select>
+                    <button type="button" @click="configSettings.lighting_preset = 'auto'; applyLighting(); applyMaterial()" class="{{ $resetBtnClass }}" title="Automatik"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
+                </div>
+
+                <div class="flex items-center gap-2 w-full">
+                    <span class="{{ $labelClassModel }}" title="Belichtung (Tone Mapping)">Belichtung</span>
+                    <input type="range" :value="configSettings.lighting_exposure ?? resolveLightingProfile().tone_mapping_exposure" @input="configSettings.lighting_exposure = parseFloat($event.target.value); applyLighting()" min="0.40" max="1.60" step="0.02" class="{{ $rangeSliderClassModel }}">
+                    <input type="number" x-model.number="configSettings.lighting_exposure" @input="applyLighting()" placeholder="Auto" min="0.35" max="1.80" step="0.02" class="{{ $rangeInputClassModel }}">
+                    <button type="button" @click="configSettings.lighting_exposure = null; applyLighting()" class="{{ $resetBtnClass }}" title="Auto"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
+                </div>
+
+                <div class="flex items-center gap-2 w-full">
+                    <span class="{{ $labelClassModel }}" title="Umgebungslicht-Faktor">Umgebung</span>
+                    <input type="range" :value="configSettings.lighting_ambient ?? 1.0" @input="configSettings.lighting_ambient = parseFloat($event.target.value); applyLighting()" min="0.20" max="2.00" step="0.05" class="{{ $rangeSliderClassModel }}">
+                    <input type="number" x-model.number="configSettings.lighting_ambient" @input="applyLighting()" placeholder="1.0" min="0.15" max="2.00" step="0.05" class="{{ $rangeInputClassModel }}">
+                    <button type="button" @click="configSettings.lighting_ambient = null; applyLighting()" class="{{ $resetBtnClass }}" title="Auto"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
+                </div>
+
+                <div class="flex items-center gap-2 w-full">
+                    <span class="{{ $labelClassModel }}" title="Glanz-, Kanten- &amp; Lichteffekt-Faktor">Lichteffekt</span>
+                    <input type="range" :value="configSettings.lighting_specular ?? 1.0" @input="configSettings.lighting_specular = parseFloat($event.target.value); applyLighting(); applyMaterial()" min="0.20" max="2.00" step="0.05" class="{{ $rangeSliderClassModel }}">
+                    <input type="number" x-model.number="configSettings.lighting_specular" @input="applyLighting(); applyMaterial()" placeholder="1.0" min="0.15" max="2.00" step="0.05" class="{{ $rangeInputClassModel }}">
+                    <button type="button" @click="configSettings.lighting_specular = null; applyLighting(); applyMaterial()" class="{{ $resetBtnClass }}" title="Auto"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
+                </div>
             </div>
         </div>
     </div>

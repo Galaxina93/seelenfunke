@@ -28,11 +28,13 @@ import de.meinseelenfunke.app.MainActivity
 import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.data.api.PhoneConciergeSignalBody
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.ui.PhoneSecretaryCallActivity
 import de.meinseelenfunke.app.util.CachedWhitelistContact
 import de.meinseelenfunke.app.util.ErrorSentinelReporter
 import de.meinseelenfunke.app.util.NavigationBridge
 import de.meinseelenfunke.app.util.PendingPhoneSecretaryNote
 import de.meinseelenfunke.app.util.PhoneConciergeManager
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +45,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
@@ -63,7 +66,9 @@ class FunkiraPhoneConciergeService : Service() {
     companion object {
         const val ACTION_INCOMING_WHITELIST_CALL = "de.meinseelenfunke.app.ACTION_INCOMING_WHITELIST_CALL"
         const val ACTION_MANUAL_STOP = "de.meinseelenfunke.app.ACTION_MANUAL_STOP_CONCIERGE"
+        const val ACTION_UPGRADE_MIC_FGS = "de.meinseelenfunke.app.ACTION_UPGRADE_MIC_FGS"
 
+        const val EXTRA_CALL_ID = "extra_call_id"
         const val EXTRA_CONTACT_ID = "extra_contact_id"
         const val EXTRA_CALLER_NAME = "extra_caller_name"
         const val EXTRA_CALLER_NICKNAME = "extra_caller_nickname"
@@ -75,9 +80,28 @@ class FunkiraPhoneConciergeService : Service() {
 
         private const val CHANNEL_ID = "funkira_phone_concierge_channel"
         private const val STATUS_CHANNEL_ID = de.meinseelenfunke.app.util.NotificationBadgeGuard.PHONE_CONCIERGE_STATUS_CHANNEL_ID
+        private const val FULLSCREEN_CALL_CHANNEL_ID = "funkira_phone_secretary_call_fs_v1"
         private const val ACTIVE_NOTIF_ID = 1044
         internal const val SUMMARY_NOTIF_ID = 1045
+        private const val FULLSCREEN_CALL_NOTIF_ID = 1046
         internal const val SOFORT_RINGING_SETTLE_MS = 280L
+
+        fun requestMicFgsUpgradeFromForegroundActivity(
+            context: Context,
+            callId: String,
+            displayLabel: String
+        ) {
+            val intent = Intent(context, FunkiraPhoneConciergeService::class.java).apply {
+                action = ACTION_UPGRADE_MIC_FGS
+                putExtra(EXTRA_CALL_ID, callId)
+                putExtra(EXTRA_CALLER_NAME, displayLabel)
+            }
+            try {
+                ContextCompat.startForegroundService(context, intent)
+            } catch (_: Exception) {
+                try { context.startService(intent) } catch (_: Exception) { }
+            }
+        }
 
         internal fun computeEffectiveRingWaitMs(ringDelaySec: Int): Long {
             val clamped = ringDelaySec.coerceIn(0, 30)
@@ -251,6 +275,8 @@ class FunkiraPhoneConciergeService : Service() {
     private var activeCallJob: Job? = null
     @Volatile
     private var currentFgsIncludesMic: Boolean = false
+    private val micFgsElevationDeferred = AtomicReference<CompletableDeferred<Boolean>?>(null)
+    private val activeDisplayLabelRef = AtomicReference("Kontakt")
 
     override fun onCreate() {
         super.onCreate()
@@ -266,13 +292,41 @@ class FunkiraPhoneConciergeService : Service() {
             hangUpCallIfOffhook()
             restoreAudioRouting()
             currentFgsIncludesMic = false
+            dismissCallElevationUi()
             stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (intent?.action == ACTION_UPGRADE_MIC_FGS) {
+            val label = intent.getStringExtra(EXTRA_CALLER_NAME)?.takeIf { it.isNotBlank() }
+                ?: activeDisplayLabelRef.get()
+                ?: "Kontakt"
+            if (activeCallJob?.isActive == true) {
+                val upgraded = promoteToForeground(
+                    "Funkira spricht mit $label",
+                    "Anliegen wird live aufgenommen",
+                    includeMicrophone = true,
+                    reportDowngrade = false
+                )
+                currentFgsIncludesMic = upgraded
+                PhoneSecretaryCallActivity.updateMicElevatedState(upgraded)
+                micFgsElevationDeferred.get()?.let { def ->
+                    if (!def.isCompleted) def.complete(upgraded)
+                }
+                if (upgraded) {
+                    PhoneConciergeManager.appendDiagnosticTrace(
+                        applicationContext,
+                        "Mikrofon-FGS erfolgreich über Call-Activity aktiviert"
+                    )
+                }
+            }
             return START_NOT_STICKY
         }
 
         val callerName = intent?.getStringExtra(EXTRA_CALLER_NAME)?.takeIf { it.isNotBlank() } ?: "Kontakt"
         val nickname = intent?.getStringExtra(EXTRA_CALLER_NICKNAME).orEmpty()
         val displayLabel = nickname.ifBlank { callerName }
+        activeDisplayLabelRef.set(displayLabel)
 
         if (activeCallJob?.isActive == true) {
             // Preserve current foreground service type if a fallback broadcast arrives mid-session
@@ -537,14 +591,41 @@ class FunkiraPhoneConciergeService : Service() {
 
             PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Verbunden -> Funkira Sekretärin startet")
 
-            // Call is confirmed OFFHOOK -> upgrade foreground service type to PHONE_CALL | MICROPHONE
-            currentFgsIncludesMic = true
-            val micFgsGranted = promoteToForeground(
+            // Call is confirmed OFFHOOK -> upgrade foreground service type to PHONE_CALL | MICROPHONE.
+            // On Android 14-17 (API 34-37), direct background upgrade can throw SecurityException unless
+            // a TOP Activity elevates the FGS. If direct upgrade is denied, launch PhoneSecretaryCallActivity
+            // via CATEGORY_CALL FullScreenIntent (lockscreen-capable) + wait up to 1.2s for TOP elevation.
+            var micFgsGranted = promoteToForeground(
                 "Funkira spricht mit $displayLabel",
                 "Anliegen wird live aufgenommen",
-                includeMicrophone = true
+                includeMicrophone = true,
+                reportDowngrade = false
             )
-            delay(250L)
+            if (!micFgsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val elevationWaiter = CompletableDeferred<Boolean>()
+                micFgsElevationDeferred.set(elevationWaiter)
+                launchFullScreenCallActivityForMicElevation(callId, displayLabel)
+                val elevated = withTimeoutOrNull(1_200L) { elevationWaiter.await() } == true
+                if (elevated || currentFgsIncludesMic) {
+                    micFgsGranted = true
+                } else {
+                    PhoneConciergeManager.appendDiagnosticTrace(
+                        applicationContext,
+                        "FGS-Mikrofon nach Call-Activity-Versuch weiter OS-gesperrt (Tipp: Netz-Modus **004*)"
+                    )
+                    ErrorSentinelReporter.captureAutoHeal(
+                        context = applicationContext,
+                        component = "phone_secretary_fgs",
+                        title = "Foreground-Service-Typ auf PHONE_CALL zurückgestuft",
+                        message = "Android 14+ blockierte Hintergrund-Mikrofon-FGS trotz Call-Activity-Versuch.",
+                        healSummary = "Dienst läuft im PHONE_CALL-Modus weiter (Empfehlung: Netz-Modus **004* für 100 % OS-unabhängiges Audio).",
+                        extraContext = mapOf("call_id" to callId, "include_mic" to "true")
+                    )
+                }
+            }
+            currentFgsIncludesMic = micFgsGranted
+            PhoneSecretaryCallActivity.updateMicElevatedState(micFgsGranted)
+            delay(200L)
 
             // Check whether Funkenwerk-MiniPC Bluetooth SCO is actively connected AND Portal relay accepts it (Whitelist only)
             val useMiniPcWorkshopBridge = !isCustomerMode && isMiniPcBluetoothScoAvailable() && routeCallAudioToMiniPcBluetooth()
@@ -610,7 +691,8 @@ class FunkiraPhoneConciergeService : Service() {
                     relationType = relationType,
                     systemInstructions = systemInstructions,
                     callMode = callMode,
-                    micFgsGranted = micFgsGranted,
+                    micFgsGranted = currentFgsIncludesMic,
+                    micFgsGrantedProvider = { currentFgsIncludesMic },
                     onTranscriptUpdated = { lines -> partialTranscriptRef.set(lines) },
                     isCallStillOffhook = {
                         readUnifiedCallState(telephony, telecom, audioManager, subStates, true) == TelephonyManager.CALL_STATE_OFFHOOK
@@ -715,6 +797,8 @@ class FunkiraPhoneConciergeService : Service() {
             NavigationBridge.isLiveCallActive = false
             unregisterAllSubscriptionCallStateListeners(registeredCallbacks)
             currentFgsIncludesMic = false
+            micFgsElevationDeferred.getAndSet(null)?.let { if (!it.isCompleted) it.complete(false) }
+            dismissCallElevationUi()
             restoreAudioRouting()
             try {
                 if (lifecycleWakeLock?.isHeld == true) lifecycleWakeLock.release()
@@ -987,10 +1071,84 @@ class FunkiraPhoneConciergeService : Service() {
                 description = "Whitelist-Sekretärin & Anrufnotizen"
             }
             nm.createNotificationChannel(ch)
+
+            val fsCh = NotificationChannel(
+                FULLSCREEN_CALL_CHANNEL_ID,
+                "Funkira Aktiver Anruf",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Aktiviert das Live-Gesprächsfenster für den Telefon-Assistenten"
+                setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+                setSound(null, null)
+            }
+            nm.createNotificationChannel(fsCh)
         }
     }
 
-    private fun promoteToForeground(title: String, body: String, includeMicrophone: Boolean): Boolean {
+    private fun launchFullScreenCallActivityForMicElevation(callId: String, displayLabel: String) {
+        ensureChannel()
+        val callIntent = PhoneSecretaryCallActivity.buildIntent(applicationContext, callId, displayLabel)
+        val fullScreenPending = PendingIntent.getActivity(
+            this,
+            1046,
+            callIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val stopIntent = Intent(this, FunkiraPhoneConciergeService::class.java).apply {
+            action = ACTION_MANUAL_STOP
+        }
+        val stopPending = PendingIntent.getService(
+            this,
+            1047,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val fsNotif = NotificationCompat.Builder(this, FULLSCREEN_CALL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
+            .setContentTitle("Funkira spricht mit $displayLabel")
+            .setContentText("Tippen für Live-Ansicht")
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setFullScreenIntent(fullScreenPending, true)
+            .setContentIntent(fullScreenPending)
+            .setOngoing(true)
+            .setSilent(true)
+            .addAction(0, "Auflegen", stopPending)
+            .build()
+
+        try {
+            val nm = getSystemService(NotificationManager::class.java)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            ) {
+                nm?.notify(FULLSCREEN_CALL_NOTIF_ID, fsNotif)
+            }
+        } catch (_: Exception) { }
+
+        try {
+            startActivity(callIntent)
+        } catch (_: Exception) { }
+    }
+
+    private fun dismissCallElevationUi() {
+        PhoneSecretaryCallActivity.dismissActive()
+        try {
+            getSystemService(NotificationManager::class.java)?.cancel(FULLSCREEN_CALL_NOTIF_ID)
+        } catch (_: Exception) { }
+    }
+
+    private fun promoteToForeground(
+        title: String,
+        body: String,
+        includeMicrophone: Boolean,
+        reportDowngrade: Boolean = true
+    ): Boolean {
         ensureChannel()
         val stopIntent = Intent(this, FunkiraPhoneConciergeService::class.java).apply {
             action = ACTION_MANUAL_STOP
@@ -1029,14 +1187,16 @@ class FunkiraPhoneConciergeService : Service() {
             }
             return includeMicrophone && hasMicPerm
         } catch (e: Exception) {
-            ErrorSentinelReporter.captureAutoHeal(
-                context = applicationContext,
-                component = "phone_secretary_fgs",
-                title = "Foreground-Service-Typ auf PHONE_CALL zurückgestuft",
-                message = e.message ?: "Mikrofon-FGS-Upgrade vom Betriebssystem abgelehnt",
-                healSummary = "Dienst läuft stabil im PHONE_CALL-Modus weiter.",
-                extraContext = mapOf("include_mic" to includeMicrophone.toString())
-            )
+            if (reportDowngrade) {
+                ErrorSentinelReporter.captureAutoHeal(
+                    context = applicationContext,
+                    component = "phone_secretary_fgs",
+                    title = "Foreground-Service-Typ auf PHONE_CALL zurückgestuft",
+                    message = e.message ?: "Mikrofon-FGS-Upgrade vom Betriebssystem abgelehnt",
+                    healSummary = "Dienst läuft stabil im PHONE_CALL-Modus weiter.",
+                    extraContext = mapOf("include_mic" to includeMicrophone.toString())
+                )
+            }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     startForeground(ACTIVE_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
@@ -1087,6 +1247,8 @@ class FunkiraPhoneConciergeService : Service() {
     override fun onDestroy() {
         activeCallJob?.cancel()
         serviceScope.cancel()
+        micFgsElevationDeferred.getAndSet(null)?.let { if (!it.isCompleted) it.complete(false) }
+        dismissCallElevationUi()
         restoreAudioRouting()
         super.onDestroy()
     }

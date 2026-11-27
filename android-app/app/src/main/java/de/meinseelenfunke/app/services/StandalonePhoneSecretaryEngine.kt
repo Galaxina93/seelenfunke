@@ -118,9 +118,22 @@ object StandalonePhoneSecretaryEngine {
         PERMANENT_SILENCE
     }
 
+    internal enum class MicSilenceAlertPolicy {
+        AUTO_HEAL_OS_FGS_DENIED,
+        ERROR_HARDWARE_OR_HAL_SILENCE
+    }
+
+    internal fun resolveMicSilenceAlertPolicy(micFgsGranted: Boolean): MicSilenceAlertPolicy {
+        return if (micFgsGranted) {
+            MicSilenceAlertPolicy.ERROR_HARDWARE_OR_HAL_SILENCE
+        } else {
+            MicSilenceAlertPolicy.AUTO_HEAL_OS_FGS_DENIED
+        }
+    }
+
     internal class MicZeroSampleWatchdog(
         private val rotateThresholdFrames: Int = 28,
-        private val reportThresholdFrames: Int = 65
+        private val reportThresholdFrames: Int = 112
     ) {
         var consecutiveZeroFramesInAttempt: Int = 0
             private set
@@ -130,6 +143,13 @@ object StandalonePhoneSecretaryEngine {
             private set
         var hasReportedWarning: Boolean = false
             private set
+
+        fun resetForRetry() {
+            consecutiveZeroFramesInAttempt = 0
+            totalZeroFramesAcrossAttempts = 0
+            recoveryRotations = 0
+            hasReportedWarning = false
+        }
 
         fun onFrame(samples: ShortArray, length: Int, hasMoreCandidates: Boolean): MicFrameVerdict {
             val n = length.coerceIn(0, samples.size)
@@ -496,6 +516,7 @@ object StandalonePhoneSecretaryEngine {
         systemInstructions: String?,
         callMode: String = PhoneConciergeManager.CALL_MODE_SECRETARY,
         micFgsGranted: Boolean = true,
+        micFgsGrantedProvider: () -> Boolean = { micFgsGranted },
         onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
     ): SecretarySessionResult {
@@ -547,7 +568,7 @@ object StandalonePhoneSecretaryEngine {
                     candidate = candidate,
                     attemptIndex = idx,
                     isCustomerService = isCustomerService,
-                    micFgsGranted = micFgsGranted,
+                    micFgsGrantedProvider = micFgsGrantedProvider,
                     onTranscriptUpdated = onTranscriptUpdated,
                     isCallStillOffhook = isCallStillOffhook
                 )
@@ -681,7 +702,7 @@ object StandalonePhoneSecretaryEngine {
         candidate: WsCandidate,
         attemptIndex: Int,
         isCustomerService: Boolean = false,
-        micFgsGranted: Boolean,
+        micFgsGrantedProvider: () -> Boolean,
         onTranscriptUpdated: ((List<String>) -> Unit)? = null,
         isCallStillOffhook: () -> Boolean
     ): SecretarySessionResult? {
@@ -1012,7 +1033,7 @@ object StandalonePhoneSecretaryEngine {
                 streamCallerMicrophoneLoop(
                     appCtx = appCtx,
                     callId = callId,
-                    micFgsGranted = micFgsGranted,
+                    micFgsGrantedProvider = micFgsGrantedProvider,
                     ws = wsRef,
                     closedFlag = closedFlag,
                     micSilencedFlag = micSilencedFlag,
@@ -1162,7 +1183,7 @@ object StandalonePhoneSecretaryEngine {
     private suspend fun streamCallerMicrophoneLoop(
         appCtx: Context,
         callId: String,
-        micFgsGranted: Boolean,
+        micFgsGrantedProvider: () -> Boolean,
         ws: WebSocket?,
         closedFlag: AtomicBoolean,
         micSilencedFlag: AtomicBoolean,
@@ -1195,13 +1216,15 @@ object StandalonePhoneSecretaryEngine {
 
         // 640 samples @ 16 kHz = crisp 40 ms real-time frames with zero extra sleep latency
         val pcmShortBuf = ShortArray(640)
-        val watchdog = MicZeroSampleWatchdog(rotateThresholdFrames = 28, reportThresholdFrames = 65)
+        // Give all 4 sources full rotation headroom (28 frames/source * 4 = 112 frames) when FGS mic is active
+        val watchdog = MicZeroSampleWatchdog(rotateThresholdFrames = 28, reportThresholdFrames = 112)
         var profileIdx = 0
         var activeRecord: AudioRecord? = null
         var activeProfile: MicCaptureProfile? = null
         var aec: AcousticEchoCanceler? = null
         var ns: NoiseSuppressor? = null
         val testedLabels = mutableListOf<String>()
+        var lastObservedMicFgs = micFgsGrantedProvider()
 
         fun releaseCurrentRecorder() {
             try { aec?.release() } catch (_: Exception) { }
@@ -1220,16 +1243,39 @@ object StandalonePhoneSecretaryEngine {
             }
         }
 
+        fun buildAudioRecordCandidate(audioSource: Int): AudioRecord? {
+            return try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    AudioRecord.Builder()
+                        .setAudioSource(audioSource)
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setSampleRate(sampleRate)
+                                .setEncoding(encoding)
+                                .setChannelMask(channelConfig)
+                                .build()
+                        )
+                        .setBufferSizeInBytes(minBuf)
+                        .setPrivacySensitive(false)
+                        .build()
+                } else {
+                    AudioRecord(audioSource, sampleRate, channelConfig, encoding, minBuf)
+                }
+            } catch (_: Exception) {
+                try {
+                    AudioRecord(audioSource, sampleRate, channelConfig, encoding, minBuf)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+
         fun openNextAvailableRecorder(): Boolean {
             releaseCurrentRecorder()
             while (profileIdx < profiles.size) {
                 val prof = profiles[profileIdx++]
                 testedLabels.add(prof.label)
-                val candidate = try {
-                    AudioRecord(prof.audioSource, sampleRate, channelConfig, encoding, minBuf)
-                } catch (_: Exception) {
-                    null
-                }
+                val candidate = buildAudioRecordCandidate(prof.audioSource)
                 if (candidate != null && candidate.state == AudioRecord.STATE_INITIALIZED) {
                     try {
                         if (prof.enableHardwareEffects) {
@@ -1268,7 +1314,7 @@ object StandalonePhoneSecretaryEngine {
                     extraContext = mapOf(
                         "call_id" to callId,
                         "audio_mode" to initialMode.toString(),
-                        "mic_fgs_granted" to micFgsGranted.toString(),
+                        "mic_fgs_granted" to micFgsGrantedProvider().toString(),
                         "tested_sources" to testedLabels.joinToString(",")
                     )
                 )
@@ -1276,6 +1322,22 @@ object StandalonePhoneSecretaryEngine {
             }
 
             while (!closedFlag.get() && isCallStillOffhook()) {
+                // Live FGS-Elevation Recovery: if PhoneSecretaryCallActivity elevates FGS mic from false -> true
+                // mid-call, immediately reopen AudioRecord from source #0 with a fresh watchdog!
+                val micFgsNow = micFgsGrantedProvider()
+                if (micFgsNow && !lastObservedMicFgs) {
+                    lastObservedMicFgs = true
+                    profileIdx = 0
+                    watchdog.resetForRetry()
+                    micSilencedFlag.set(false)
+                    configureSpeakerphoneForSecretaryCall(audioManager)
+                    openNextAvailableRecorder()
+                    PhoneConciergeManager.appendDiagnosticTrace(
+                        appCtx,
+                        "AudioRecord nach FGS-Mikrofon-Aktivierung live neu gestartet (${activeProfile?.label ?: "n/a"})"
+                    )
+                }
+
                 val rec = activeRecord ?: break
                 val read = rec.read(pcmShortBuf, 0, pcmShortBuf.size)
                 if (read <= 0) {
@@ -1317,7 +1379,7 @@ object StandalonePhoneSecretaryEngine {
                                     "failed_source" to failedLabel,
                                     "new_source" to (activeProfile?.label ?: ""),
                                     "audio_mode" to (audioManager?.mode?.toString() ?: "-1"),
-                                    "mic_fgs_granted" to micFgsGranted.toString()
+                                    "mic_fgs_granted" to micFgsNow.toString()
                                 )
                             )
                             continue
@@ -1325,22 +1387,37 @@ object StandalonePhoneSecretaryEngine {
                     }
                     MicFrameVerdict.PERMANENT_SILENCE -> {
                         micSilencedFlag.set(true)
+                        val diagMap = mapOf(
+                            "call_id" to callId,
+                            "audio_mode" to (audioManager?.mode?.toString() ?: "-1"),
+                            "mic_fgs_granted" to micFgsNow.toString(),
+                            "tested_sources" to testedLabels.joinToString(","),
+                            "rotations" to watchdog.recoveryRotations.toString()
+                        )
                         PhoneConciergeManager.appendDiagnosticTrace(
                             appCtx,
-                            "Warnung: Mikrofon liefert reine Stille (fgsMic=$micFgsGranted, mode=${audioManager?.mode ?: -1})"
+                            "Warnung: Mikrofon liefert reine Stille (fgsMic=$micFgsNow, mode=${audioManager?.mode ?: -1})"
                         )
-                        ErrorSentinelReporter.captureError(
-                            context = appCtx,
-                            tag = "phone_secretary_mic",
-                            message = "AudioRecord lieferte >2,5s lang ausschließlich Null-Samples während des Anrufs.",
-                            extraContext = mapOf(
-                                "call_id" to callId,
-                                "audio_mode" to (audioManager?.mode?.toString() ?: "-1"),
-                                "mic_fgs_granted" to micFgsGranted.toString(),
-                                "tested_sources" to testedLabels.joinToString(","),
-                                "rotations" to watchdog.recoveryRotations.toString()
-                            )
-                        )
+                        when (resolveMicSilenceAlertPolicy(micFgsNow)) {
+                            MicSilenceAlertPolicy.AUTO_HEAL_OS_FGS_DENIED -> {
+                                ErrorSentinelReporter.captureAutoHeal(
+                                    context = appCtx,
+                                    component = "phone_secretary_mic",
+                                    title = "Android-Hintergrundsperre für Anruf-Mikrofon abgefangen",
+                                    message = "Android verweigerte Hintergrund-Mikrofon-FGS (mic_fgs_granted=false); Funkira hat den Anrufer freundlich verabschiedet und Rückruf-Ticket gesichert.",
+                                    healSummary = "Anruf geordnet mit Rückruf-Notiz abgeschlossen (Empfehlung: Netz-Modus **004* für 100 % OS-unabhängiges Audio).",
+                                    extraContext = diagMap
+                                )
+                            }
+                            MicSilenceAlertPolicy.ERROR_HARDWARE_OR_HAL_SILENCE -> {
+                                ErrorSentinelReporter.captureError(
+                                    context = appCtx,
+                                    tag = "phone_secretary_mic",
+                                    message = "AudioRecord lieferte trotz aktivem Mikrofon-FGS über alle Quellen Null-Samples während des Anrufs.",
+                                    extraContext = diagMap
+                                )
+                            }
+                        }
                     }
                     MicFrameVerdict.ACTIVE, MicFrameVerdict.SILENT_WAIT -> Unit
                 }

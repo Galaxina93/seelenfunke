@@ -74,31 +74,18 @@
 
             this.renderer.setSize(initW, initH);
             this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
-            this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
-            this.renderer.toneMappingExposure = 1.0;
+            if (window.Seelenfunke3DStudio) {
+                const initProfile = window.Seelenfunke3DStudio.resolveLightingProfile(this.getStudioLightingOpts({ isMobile }));
+                window.Seelenfunke3DStudio.configureRenderer(this.renderer, window.THREE, initProfile.tone_mapping_exposure);
+            } else {
+                this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.0;
+            }
 
             this.container.innerHTML = '';
             this.container.appendChild(this.renderer.domElement);
 
-            // Stärkeres Umgebungslicht auf Mobile als Ausgleich
-            this.scene.add(new window.THREE.AmbientLight(0xffffff, isMobile ? 3.0 : 1.5));
-
-            const mainLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
-            mainLight.position.set(10, 10, 10);
-            this.scene.add(mainLight);
-
-            const fillLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
-            fillLight.position.set(-10, 5, 10);
-            this.scene.add(fillLight);
-
-            // Symmetrische Ausleuchtung der Rückseite (-Z), damit Rückseiten-Ansicht & Snapshots genauso brillant ausgeleuchtet sind wie die Vorderseite
-            const backLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
-            backLight.position.set(-10, 10, -10);
-            this.scene.add(backLight);
-
-            const backFillLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
-            backFillLight.position.set(10, 5, -10);
-            this.scene.add(backFillLight);
+            this.applyStudioLighting({ isMobile });
 
             this.controls = new window.OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
@@ -192,6 +179,51 @@
             );
         }
 
+        getStudioLightingOpts(extra = {}) {
+            const isMobile = window.innerWidth < 768;
+            const cfg = this.config || {};
+            return Object.assign({
+                isMobile,
+                hasEnv: !isMobile && !!this.bgPath,
+                renderer: this.renderer || null,
+                presets: cfg.lightingPresets || null,
+                materialType: cfg.material_type || 'glass',
+                isDarkSurface: Boolean(cfg.isDarkSurface),
+                surfaceLuminance: Number(cfg.surfaceLuminance ?? 140),
+                templatePackage: String(cfg.templatePackage || ''),
+                xtoolPhotoSubstratePolarity: String(cfg.xtool_photo_substrate_polarity || ''),
+                lightingPreset: String(cfg.lighting_preset || 'auto'),
+                lightingExposure: cfg.lighting_exposure ?? null,
+                lightingAmbient: cfg.lighting_ambient ?? null,
+                lightingSpecular: cfg.lighting_specular ?? null,
+                modelPath: String(this.modelPath || ''),
+                model: this.model || null
+            }, extra || {});
+        }
+
+        applyStudioLighting(extra = {}) {
+            if (!this.scene || !window.THREE) return;
+            const opts = this.getStudioLightingOpts(extra);
+            if (window.Seelenfunke3DStudio) {
+                window.Seelenfunke3DStudio.applyStudioLighting(this.scene, window.THREE, opts);
+                return;
+            }
+            const isMobile = Boolean(opts.isMobile);
+            this.scene.add(new window.THREE.AmbientLight(0xffffff, isMobile ? 1.4 : 0.85));
+            const mainLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
+            mainLight.position.set(12, 13, 8.5);
+            this.scene.add(mainLight);
+            const fillLight = new window.THREE.DirectionalLight(0xffffff, 1.3);
+            fillLight.position.set(-12, 5, 8.0);
+            this.scene.add(fillLight);
+            const backLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
+            backLight.position.set(-12, 13, -8.5);
+            this.scene.add(backLight);
+            const backFillLight = new window.THREE.DirectionalLight(0xffffff, 1.3);
+            backFillLight.position.set(12, 5, -8.0);
+            this.scene.add(backFillLight);
+        }
+
         updateBackground(newBgPath) {
             if (!newBgPath) return;
             this.bgPath = newBgPath;
@@ -213,6 +245,9 @@
                         return;
                     }
                     t.mapping = window.THREE.EquirectangularReflectionMapping;
+                    if (typeof window.THREE.SRGBColorSpace !== 'undefined') {
+                        t.colorSpace = window.THREE.SRGBColorSpace;
+                    }
                     if (this._envTexture && this._envTexture !== t && typeof this._envTexture.dispose === 'function') {
                         this._envTexture.dispose();
                     }
@@ -222,9 +257,12 @@
                     }
                     if (this.scene) {
                         this.scene.background = null;
-                        if (!isMobile) {
+                        if (window.Seelenfunke3DStudio) {
+                            window.Seelenfunke3DStudio.applyEnvironmentTexture(this.scene, t, window.THREE, this.renderer, this, !isMobile);
+                        } else if (!isMobile) {
                             this.scene.environment = t;
                         }
+                        this.applyStudioLighting({ isMobile });
                     }
                 });
             }
@@ -394,6 +432,15 @@
 
             // WICHTIG: Auf Mobile haben wir kein Environment, also müssen wir das berücksichtigen
             const hasEnv = !isMobile && !!this.bgPath;
+
+            if (window.Seelenfunke3DStudio) {
+                const opts = this.getStudioLightingOpts({ materialType: matType, hasEnv, model: this.model });
+                const res = window.Seelenfunke3DStudio.applyMaterialToModel(this.model, matType, opts, window.THREE);
+                if (this.scene) {
+                    this.applyStudioLighting({ isMobile, isDarkMetal: res.isDarkMetal });
+                }
+                return;
+            }
 
             this.model.traverse((child) => {
                 if(child.isMesh && child.material) {
@@ -727,7 +774,10 @@
                 if(!ctx) return;
                 const cw = canvas.width;
                 ctx.clearRect(0, 0, cw, cw);
-                const isMetalSurface = ['metal', 'silver', 'gold'].includes(this.config.material_type);
+                const matLower = String(this.config.material_type || '').toLowerCase();
+                const isMetalSurface = ['metal', 'dark_metal', 'black_aluminum', 'silver', 'gold'].includes(matLower);
+                const isDarkMetalExplicit = ['dark_metal', 'black_aluminum'].includes(matLower);
+                const isLightMetalSurface = isMetalSurface && !isDarkMetalExplicit && (this.config.isDarkSurface === false);
                 const mirrorBack = Boolean(isBackSide && this.config.has_back_side && this.config.overlay_type !== 'cylinder');
 
                 const toPx = (p) => (p / 100) * cw;
@@ -806,7 +856,7 @@
 
                     // VISUELLER FILTER: Macht eingefügte Logos auf dunklem Grund weiß/silber und auf hellem Gold-Metall tief-anthrazit (Anlassgravur)
                     // Die Originaldatei (logo.url) bleibt schwarz für den XCS Export!
-                    const isLightMetal = (isMetalSurface && this.config.isDarkSurface === false);
+                    const isLightMetal = isLightMetalSurface;
                     if (isLightMetal) {
                         ctx.shadowColor = 'rgba(255,248,210,0.55)';
                         ctx.shadowBlur = cw <= 1024 ? 2 : 4;
@@ -885,7 +935,7 @@
                                 const fontSize = (item.size || 1) * (cw / 25);
                                 ctx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
 
-                                const isLightMetal = (isMetalSurface && this.config.isDarkSurface === false);
+                                const isLightMetal = isLightMetalSurface;
                                 if (isLightMetal) {
                                     ctx.filter = 'none';
                                     ctx.fillStyle = 'rgba(20,18,14,0.93)';
@@ -1123,6 +1173,7 @@
             }
             if (this.textureFront && typeof this.textureFront.dispose === 'function') this.textureFront.dispose();
             if (this.textureBack && typeof this.textureBack.dispose === 'function') this.textureBack.dispose();
+            if (this._pmremTarget && typeof this._pmremTarget.dispose === 'function') this._pmremTarget.dispose();
             if (this._envTexture && typeof this._envTexture.dispose === 'function') this._envTexture.dispose();
             if (this.scene) {
                 this.scene.traverse((obj) => {

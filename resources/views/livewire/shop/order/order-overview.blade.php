@@ -499,7 +499,8 @@
                 && !$isPreviewService
                 && $this->laserCockpitData !== null;
         @endphp
-        <div class="min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-2rem)] flex flex-col bg-white dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] shadow-xl dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-gray-200 dark:border-gray-800 lg:overflow-hidden animate-fade-in-up">
+        <div wire:key="order-detail-panel-{{ $selectedOrder->id }}"
+             class="min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-2rem)] flex flex-col bg-white dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] shadow-xl dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-gray-200 dark:border-gray-800 lg:overflow-hidden animate-fade-in-up">
             @include("livewire.shop.order.order-overview-partials.detail-header")
             <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col bg-gray-50/50 dark:bg-gray-950/50">
                 @include('livewire.shop.order.order-offer-detail-content', [
@@ -510,7 +511,8 @@
                 ])
 
                 @if($currentPreviewItem)
-                    <div @if($isCockpitRenderedInStepOne) x-cloak x-show="stepOneTab !== 'cockpit'" style="display: none;" @endif
+                    <div wire:key="order-media-fallback-{{ $selectedOrder->id }}-step-{{ (int) ($this->activeOrderStep ?? 1) }}"
+                         @if($isCockpitRenderedInStepOne) x-cloak x-show="stepOneTab !== 'cockpit'" style="display: none;" @endif
                          data-order-media-fallback
                          class="max-w-3xl w-full mx-auto px-4 sm:px-8 pb-6 shrink-0">
                         @include('livewire.shop.order.order-overview-partials.media-dropdown-card', [

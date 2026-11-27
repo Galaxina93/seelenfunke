@@ -2296,6 +2296,7 @@ class OrderOverview extends Component
         return in_array($clean, ['anti_glare', 'dim', 'normal'], true) ? $clean : 'normal';
     }
 
+    #[\Livewire\Attributes\Renderless]
     public function setLaserCameraLightMode(string $mode, ?string $itemId = null): void
     {
         $this->laserCameraLightMode = $this->normalizeCameraLightMode($mode);
@@ -2472,6 +2473,7 @@ class OrderOverview extends Component
      *
      * @return array{ok: bool, w_mm?: float, h_mm?: float}
      */
+    #[\Livewire\Attributes\Renderless]
     public function copyOtherSideLaserDimensions(string $itemId, ?string $targetSide = null): array
     {
         $item = $this->resolveOrderItemForLaserAction($itemId);
@@ -2576,13 +2578,21 @@ class OrderOverview extends Component
                 $this->laserHeightMm
             );
 
+            $syncCameraUrl = null;
+            if (!empty($detected['camera_url'])) {
+                $rawCamUrl = (string) $detected['camera_url'];
+                $syncCameraUrl = $rawCamUrl . (str_contains($rawCamUrl, '?') ? '&' : '?') . 'r=' . $this->laserCameraRefreshToken;
+            }
+
             $this->dispatch(
                 'laser-cockpit-sync',
                 x: $this->laserCenterXMm,
                 y: $this->laserCenterYMm,
                 angle: $this->laserAngleDeg,
                 w: $this->laserWidthMm,
-                h: $this->laserHeightMm
+                h: $this->laserHeightMm,
+                source: 'ai_align',
+                camera_url: $syncCameraUrl
             );
 
             $xFmt = number_format($this->laserCenterXMm, 2, ',', '.');
@@ -2621,6 +2631,7 @@ class OrderOverview extends Component
      * Aktualisiert und persistiert die Laser-Koordinaten (X, Y, Winkel sowie optional skalierte Breite/Höhe wMm x hMm)
      * in echter 0,01 mm (10 µm) Präzision. Abwärtskompatibel zu bisherigen Aufrufen updateLaserCoordinates($xMm, $yMm, $angleDeg).
      */
+    #[\Livewire\Attributes\Renderless]
     public function updateLaserCoordinates(
         $itemId,
         $xMm = null,
@@ -2738,6 +2749,7 @@ class OrderOverview extends Component
         }
     }
 
+    #[\Livewire\Attributes\Renderless]
     public function nudgeLaserPosition(float $dxMm = 0.0, float $dyMm = 0.0, float $dAngleDeg = 0.0): void
     {
         $this->laserCenterXMm = round(max(5.0, min(195.0, $this->laserCenterXMm + $dxMm)), 2);
@@ -2764,6 +2776,7 @@ class OrderOverview extends Component
         );
     }
 
+    #[\Livewire\Attributes\Renderless]
     public function setLaserFramingMode(string $mode, ?string $itemId = null, bool $updateLiveIfFraming = false): array
     {
         $normalized = \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode($mode);
@@ -2783,7 +2796,7 @@ class OrderOverview extends Component
             $conf = is_array($targetItem->configuration) ? $targetItem->configuration : [];
             $conf['laser_framing_mode'] = $normalized;
             $targetItem->configuration = $conf;
-            $targetItem->save();
+            $targetItem->saveQuietly();
 
             if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
                 $loaded = $this->selectedOrder->items->firstWhere('id', $targetItem->id);
@@ -3175,6 +3188,54 @@ class OrderOverview extends Component
         ];
     }
 
+    /**
+     * Erzeugt einen stabilen Disk-Cache-Hash für das WYSIWYG-Gravur-Overlay im Laser-Cockpit.
+     * Bewusst OHNE $item->updated_at und mit deterministischer Key-Sortierung, damit reine
+     * Koordinaten-, Lichtmodus- oder Framing-Speicherungen den GD-PNG-Cache nicht invalidieren.
+     */
+    public static function buildLaserCockpitPreviewCacheHash(
+        OrderOrderItem $item,
+        string $effectiveSide,
+        array $laserGuide,
+        array $calibration
+    ): string {
+        $confForCache = is_array($item->configuration) ? $item->configuration : [];
+        unset(
+            $confForCache['laser_cockpit_coordinates'],
+            $confForCache['manufacturing_checklist'],
+            $confForCache['laser_parameter_overrides'],
+            $confForCache['laser_cockpit_parameters'],
+            $confForCache['laser_camera_light_mode'],
+            $confForCache['laser_framing_mode'],
+            $confForCache['laser_engraved_sides'],
+            $confForCache['laser_active_profile_ids']
+        );
+
+        $normalize = static function ($value) use (&$normalize) {
+            if (!is_array($value)) {
+                return $value;
+            }
+            if (!array_is_list($value)) {
+                ksort($value);
+            }
+            foreach ($value as $k => $v) {
+                $value[$k] = $normalize($v);
+            }
+
+            return $value;
+        };
+
+        return sha1(
+            'v9-cockpit-photo-layers|'
+            . $item->id . '|'
+            . $effectiveSide . '|'
+            . ($item->product?->updated_at?->timestamp ?? 0) . '|'
+            . ($laserGuide['material'] ?? '') . '|'
+            . json_encode($normalize($calibration)) . '|'
+            . json_encode($normalize($confForCache))
+        );
+    }
+
     public function getLaserCockpitDataProperty(): ?array
     {
         $item = $this->previewItem;
@@ -3207,28 +3268,8 @@ class OrderOverview extends Component
             }
             $calibration = $downloadService->resolveEngravingWorkingAreaCalibration($item->product, $productCfg, $conf, false);
 
-            $confForCache = $conf;
-            unset(
-                $confForCache['laser_cockpit_coordinates'],
-                $confForCache['manufacturing_checklist'],
-                $confForCache['laser_parameter_overrides'],
-                $confForCache['laser_cockpit_parameters'],
-                $confForCache['laser_camera_light_mode'],
-                $confForCache['laser_framing_mode'],
-                $confForCache['laser_engraved_sides']
-            );
-
-            // Schneller Disk-Cache für das hochauflösende WYSIWYG-Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
-            $cacheHash = sha1(
-                'v8-cockpit-photo-layers|'
-                . $item->id . '|'
-                . $effectiveSide . '|'
-                . ($item->updated_at?->timestamp ?? 0) . '|'
-                . ($item->product?->updated_at?->timestamp ?? 0) . '|'
-                . ($laserGuide['material'] ?? '') . '|'
-                . json_encode($calibration) . '|'
-                . json_encode($confForCache)
-            );
+            // Stabiler Disk-Cache für das hochauflösende WYSIWYG-Gravur-Overlay (ohne $item->updated_at, damit Koordinaten-/Lichtmodus-Saves den Cache nicht invalidieren)
+            $cacheHash = self::buildLaserCockpitPreviewCacheHash($item, $effectiveSide, $laserGuide, $calibration);
             $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
             $relPng = "bestellungen/xtool/previews/{$cacheHash}.png";
             $relMeta = "bestellungen/xtool/previews/{$cacheHash}.json";

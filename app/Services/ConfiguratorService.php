@@ -58,10 +58,10 @@ class ConfiguratorService
             ];
         }
 
-        $aLeft = isset($configSettings['area_left']) ? (float) $configSettings['area_left'] : 30.0;
-        $aTop = isset($configSettings['area_top']) ? (float) $configSettings['area_top'] : ($pkgKey === 'seelen-anhaenger' ? 54.2 : 30.0);
-        $aWidth = isset($configSettings['area_width']) ? (float) $configSettings['area_width'] : 40.0;
-        $aHeight = isset($configSettings['area_height']) ? (float) $configSettings['area_height'] : 40.0;
+        $aLeft = (isset($configSettings['area_left']) && is_numeric($configSettings['area_left'])) ? max(0.0, min(100.0, (float) $configSettings['area_left'])) : 30.0;
+        $aTop = (isset($configSettings['area_top']) && is_numeric($configSettings['area_top'])) ? max(0.0, min(100.0, (float) $configSettings['area_top'])) : ($pkgKey === 'seelen-anhaenger' ? 54.2 : 30.0);
+        $aWidth = (isset($configSettings['area_width']) && is_numeric($configSettings['area_width'])) ? max(1.0, min(100.0, (float) $configSettings['area_width'])) : 40.0;
+        $aHeight = (isset($configSettings['area_height']) && is_numeric($configSettings['area_height'])) ? max(1.0, min(100.0, (float) $configSettings['area_height'])) : 40.0;
 
         $cacheKey = $diskPath . ':' . @filemtime($diskPath) . ':' . $aLeft . ':' . $aTop . ':' . $aWidth . ':' . $aHeight;
         if (isset(self::$overlayAnalysisCache[$cacheKey])) {
@@ -92,6 +92,14 @@ class ConfiguratorService
 
         $w = imagesx($im);
         $h = imagesy($im);
+        if ($w <= 0 || $h <= 0) {
+            imagedestroy($im);
+            return self::$overlayAnalysisCache[$cacheKey] = [
+                'is_dark_surface'         => $fallbackDark,
+                'has_transparent_overlay' => $fallbackTrans,
+                'surface_luminance'       => $fallbackDark ? 10.0 : 140.0,
+            ];
+        }
 
         // 1. Prüfe Ecken auf Alpha-Transparenz (PHP GD: 0 = deckend, 127 = voll transparent)
         $corners = [
@@ -230,15 +238,19 @@ class ConfiguratorService
             ],
 
             // 3D Model
-            'overlay_type' => 'plane',
-            'material_type'=> 'glass',
-            'model_scale'  => 100,
-            'model_pos_x'  => 0,
-            'model_pos_y'  => 0,
-            'model_pos_z'  => 0,
-            'model_rot_x'  => 0,
-            'model_rot_y'  => 0,
-            'model_rot_z'  => 0,
+            'overlay_type'       => 'plane',
+            'material_type'      => 'glass',
+            'lighting_preset'    => 'auto',
+            'lighting_exposure'  => null,
+            'lighting_ambient'   => null,
+            'lighting_specular'  => null,
+            'model_scale'        => 100,
+            'model_pos_x'        => 0,
+            'model_pos_y'        => 0,
+            'model_pos_z'        => 0,
+            'model_rot_x'        => 0,
+            'model_rot_y'        => 0,
+            'model_rot_z'        => 0,
 
             // 3D Engraving / Overlay
             'engraving_scale' => 100,
@@ -928,6 +940,186 @@ class ConfiguratorService
     }
 
     /**
+     * Liefert die kalibrierten Studio-Beleuchtungsprofile für den 3D-Produktmanager
+     * sowie den Frontend- und Auftrags-3D-Konfigurator.
+     */
+    public function getThreeDLightingPresets(): array
+    {
+        return [
+            'dark_metal_studio' => [
+                'key'                   => 'dark_metal_studio',
+                'label'                 => 'Dunkles Metall / Eloxiert (Anti-Überstrahlung)',
+                'tone_mapping_exposure' => 0.88,
+                'mobile_exposure'       => 0.94,
+                'ambient_intensity'     => 0.24,
+                'mobile_ambient'        => 0.48,
+                'hemi_sky_color'        => '#fff4e2',
+                'hemi_ground_color'     => '#0b0e14',
+                'hemi_intensity'        => 0.26,
+                'mobile_hemi'           => 0.40,
+                'env_intensity'         => 0.30,
+                'material_roughness'    => 0.34,
+                'material_metalness'    => 0.72,
+                'material_env_intensity'=> 0.24,
+                'key_light'             => ['color' => '#fff6ea', 'intensity' => 1.75, 'pos' => [16, 18, 4.2]],
+                'fill_light'            => ['color' => '#e8f0ff', 'intensity' => 0.60, 'pos' => [-16, -5, 4.0]],
+                'rim_light'             => ['color' => '#ffdfaa', 'intensity' => 1.85, 'pos' => [0, 16, -11]],
+                'back_key_light'        => ['color' => '#fff6ea', 'intensity' => 1.70, 'pos' => [-16, 18, -4.2]],
+                'back_fill_light'       => ['color' => '#e8f0ff', 'intensity' => 0.55, 'pos' => [16, -5, -4.0]],
+            ],
+            'precious_metal_studio' => [
+                'key'                   => 'precious_metal_studio',
+                'label'                 => 'Edelmetall / Schmuck (Brillant)',
+                'tone_mapping_exposure' => 0.96,
+                'mobile_exposure'       => 1.00,
+                'ambient_intensity'     => 0.85,
+                'mobile_ambient'        => 1.45,
+                'hemi_sky_color'        => '#fff8ec',
+                'hemi_ground_color'     => '#1a1c24',
+                'hemi_intensity'        => 0.45,
+                'mobile_hemi'           => 0.60,
+                'env_intensity'         => 0.80,
+                'material_roughness'    => 0.22,
+                'material_metalness'    => 0.55,
+                'material_env_intensity'=> 0.80,
+                'key_light'             => ['color' => '#ffffff', 'intensity' => 2.15, 'pos' => [11, 12, 8.5]],
+                'fill_light'            => ['color' => '#fff8f0', 'intensity' => 1.45, 'pos' => [-11, 5, 8.5]],
+                'rim_light'             => ['color' => '#ffe9c2', 'intensity' => 1.85, 'pos' => [0, 12, -11]],
+                'back_key_light'        => ['color' => '#ffffff', 'intensity' => 2.05, 'pos' => [-11, 12, -8.5]],
+                'back_fill_light'       => ['color' => '#fff8f0', 'intensity' => 1.40, 'pos' => [11, 5, -8.5]],
+            ],
+            'crystal_studio' => [
+                'key'                   => 'crystal_studio',
+                'label'                 => 'Kristallglas / Transparent',
+                'tone_mapping_exposure' => 1.00,
+                'mobile_exposure'       => 1.04,
+                'ambient_intensity'     => 1.15,
+                'mobile_ambient'        => 2.40,
+                'hemi_sky_color'        => '#ffffff',
+                'hemi_ground_color'     => '#162030',
+                'hemi_intensity'        => 0.35,
+                'mobile_hemi'           => 0.55,
+                'env_intensity'         => 0.95,
+                'material_roughness'    => 0.04,
+                'material_metalness'    => 0.04,
+                'material_env_intensity'=> 0.45,
+                'key_light'             => ['color' => '#ffffff', 'intensity' => 2.35, 'pos' => [10, 10, 10]],
+                'fill_light'            => ['color' => '#ffffff', 'intensity' => 1.85, 'pos' => [-10, 5, 10]],
+                'rim_light'             => ['color' => '#ffffff', 'intensity' => 1.50, 'pos' => [0, 12, -10]],
+                'back_key_light'        => ['color' => '#ffffff', 'intensity' => 2.25, 'pos' => [-10, 10, -10]],
+                'back_fill_light'       => ['color' => '#ffffff', 'intensity' => 1.80, 'pos' => [10, 5, -10]],
+            ],
+            'matte_studio' => [
+                'key'                   => 'matte_studio',
+                'label'                 => 'Holz / Matt / Kunststoff',
+                'tone_mapping_exposure' => 0.96,
+                'mobile_exposure'       => 1.00,
+                'ambient_intensity'     => 0.85,
+                'mobile_ambient'        => 1.40,
+                'hemi_sky_color'        => '#fffaf0',
+                'hemi_ground_color'     => '#181512',
+                'hemi_intensity'        => 0.35,
+                'mobile_hemi'           => 0.50,
+                'env_intensity'         => 0.55,
+                'material_roughness'    => 0.70,
+                'material_metalness'    => 0.00,
+                'material_env_intensity'=> 0.35,
+                'key_light'             => ['color' => '#fff9f0', 'intensity' => 1.80, 'pos' => [10, 11, 8]],
+                'fill_light'            => ['color' => '#f3f6ff', 'intensity' => 1.10, 'pos' => [-10, 4, 8]],
+                'rim_light'             => ['color' => '#ffe8c8', 'intensity' => 1.20, 'pos' => [0, 11, -10]],
+                'back_key_light'        => ['color' => '#fff9f0', 'intensity' => 1.70, 'pos' => [-10, 11, -8]],
+                'back_fill_light'       => ['color' => '#f3f6ff', 'intensity' => 1.05, 'pos' => [10, 4, -8]],
+            ],
+        ];
+    }
+
+    /**
+     * Ermittelt das effektive 3D-Beleuchtungsprofil anhand von Material, Produkt-Vorlage,
+     * Overlay-Luminanz und optionalen Admin-Feinjustierungen (strikt geclampt).
+     */
+    public function resolveThreeDLightingProfile(?array $configSettings = [], ?string $previewImagePath = null, bool $isMobile = false): array
+    {
+        $cfg = is_array($configSettings) ? $configSettings : [];
+        $presets = $this->getThreeDLightingPresets();
+
+        $requestedPreset = strtolower(trim((string) ($cfg['lighting_preset'] ?? 'auto')));
+        $matType = strtolower(trim((string) ($cfg['material_type'] ?? 'glass')));
+        $pkgKey = strtolower(trim((string) ($cfg['template_package'] ?? 'custom')));
+        $polarity = strtolower(trim((string) ($cfg['xtool_photo_substrate_polarity'] ?? '')));
+
+        $isDarkMetal = false;
+        if (isset($presets[$requestedPreset])) {
+            $presetKey = $requestedPreset;
+            $isDarkMetal = ($presetKey === 'dark_metal_studio');
+        } else {
+            $overlayAnalysis = $this->analyzeOverlayImage($previewImagePath, $cfg);
+            $isDarkSurface = !empty($overlayAnalysis['is_dark_surface']);
+            $isBrightPreciousPackage = in_array($pkgKey, ['seelen-talisman', 'goldenes-seelen-herz', 'echtgold-seelen-herz', 'id-armband-silber-herz', 'id-armband-gold-herz'], true);
+
+            if (in_array($matType, ['dark_metal', 'black_aluminum'], true)
+                || ($matType === 'metal' && !$isBrightPreciousPackage && ($isDarkSurface || $pkgKey === 'seelen-anhaenger' || $polarity === 'white_on_dark'))) {
+                $presetKey = 'dark_metal_studio';
+                $isDarkMetal = true;
+            } elseif (in_array($matType, ['metal', 'silver', 'gold'], true)) {
+                $presetKey = 'precious_metal_studio';
+            } elseif ($matType === 'glass') {
+                $presetKey = 'crystal_studio';
+            } else {
+                $presetKey = 'matte_studio';
+            }
+        }
+
+        $base = $presets[$presetKey] ?? $presets['crystal_studio'];
+
+        $clampNullableFloat = static function (mixed $val, float $min, float $max): ?float {
+            if ($val === null || $val === '' || !is_numeric($val)) {
+                return null;
+            }
+            $num = (float) $val;
+            if (!is_finite($num)) {
+                return null;
+            }
+            return round(max($min, min($max, $num)), 3);
+        };
+
+        $customExposure = $clampNullableFloat($cfg['lighting_exposure'] ?? null, 0.35, 1.80);
+        $ambientMult = $clampNullableFloat($cfg['lighting_ambient'] ?? null, 0.15, 2.00) ?? 1.0;
+        $specMult = $clampNullableFloat($cfg['lighting_specular'] ?? null, 0.15, 2.00) ?? 1.0;
+
+        $exposure = $customExposure ?? (float) ($isMobile ? $base['mobile_exposure'] : $base['tone_mapping_exposure']);
+        $ambient = round((float) ($isMobile ? $base['mobile_ambient'] : $base['ambient_intensity']) * $ambientMult, 3);
+        $hemi = round((float) ($isMobile ? $base['mobile_hemi'] : $base['hemi_intensity']) * $ambientMult, 3);
+        $envIntensity = round((float) $base['env_intensity'] * $specMult, 3);
+
+        $scaleLight = static function (array $light) use ($specMult): array {
+            return [
+                'color'     => $light['color'],
+                'intensity' => round((float) $light['intensity'] * $specMult, 3),
+                'pos'       => $light['pos'],
+            ];
+        };
+
+        return [
+            'preset'                 => $presetKey,
+            'is_dark_metal'          => $isDarkMetal,
+            'tone_mapping_exposure'  => round($exposure, 3),
+            'ambient_intensity'      => $ambient,
+            'hemi_sky_color'         => $base['hemi_sky_color'],
+            'hemi_ground_color'      => $base['hemi_ground_color'],
+            'hemi_intensity'         => $hemi,
+            'env_intensity'          => $envIntensity,
+            'material_roughness'     => (float) $base['material_roughness'],
+            'material_metalness'     => (float) $base['material_metalness'],
+            'material_env_intensity' => round((float) $base['material_env_intensity'] * $specMult, 3),
+            'key_light'              => $scaleLight($base['key_light']),
+            'fill_light'             => $scaleLight($base['fill_light']),
+            'rim_light'              => $scaleLight($base['rim_light']),
+            'back_key_light'         => $scaleLight($base['back_key_light']),
+            'back_fill_light'        => $scaleLight($base['back_fill_light']),
+        ];
+    }
+
+    /**
      * Stellt sicher, dass keine JS-Fehler im Frontend/Backend entstehen,
      * weil ein Wert im Array fehlt oder ungültige Werte/Extreme übergeben werden.
      */
@@ -939,25 +1131,90 @@ class ConfiguratorService
 
         $merged = array_merge($this->getDefaultSettings(), $savedConfig);
 
+        $clampNumeric = static function (mixed $value, float $default, float $min, float $max): float {
+            if (!is_numeric($value)) {
+                return $default;
+            }
+            $num = (float) $value;
+            if (!is_finite($num)) {
+                return $default;
+            }
+            return max($min, min($max, $num));
+        };
+
+        $clampNullable = static function (mixed $value, float $min, float $max): ?float {
+            if ($value === null || $value === '' || !is_numeric($value)) {
+                return null;
+            }
+            $num = (float) $value;
+            if (!is_finite($num)) {
+                return null;
+            }
+            return round(max($min, min($max, $num)), 2);
+        };
+
+        $validShapes = ['rect', 'circle', 'custom'];
+        $merged['area_shape'] = in_array($merged['area_shape'] ?? 'rect', $validShapes, true)
+            ? $merged['area_shape']
+            : 'rect';
+
+        $validOverlays = ['plane', 'cylinder'];
+        $merged['overlay_type'] = in_array($merged['overlay_type'] ?? 'plane', $validOverlays, true)
+            ? $merged['overlay_type']
+            : 'plane';
+
+        $validMaterials = ['glass', 'wood', 'metal', 'silver', 'gold', 'plastic'];
+        $merged['material_type'] = in_array($merged['material_type'] ?? 'glass', $validMaterials, true)
+            ? $merged['material_type']
+            : 'glass';
+
+        $validLightingPresets = array_merge(['auto'], array_keys($this->getThreeDLightingPresets()));
+        $rawLightingPreset = strtolower(trim((string) ($merged['lighting_preset'] ?? 'auto')));
+        $merged['lighting_preset'] = in_array($rawLightingPreset, $validLightingPresets, true)
+            ? $rawLightingPreset
+            : 'auto';
+
+        $merged['lighting_exposure'] = $clampNullable($merged['lighting_exposure'] ?? null, 0.35, 1.80);
+        $merged['lighting_ambient']  = $clampNullable($merged['lighting_ambient'] ?? null, 0.15, 2.00);
+        $merged['lighting_specular'] = $clampNullable($merged['lighting_specular'] ?? null, 0.15, 2.00);
+
         // Clamp 2D coordinates and dimensions (0..100%, width/height min 1%)
-        $merged['area_left'] = max(0, min(100, is_numeric($merged['area_left'] ?? null) ? (float)$merged['area_left'] : 10));
-        $merged['area_top'] = max(0, min(100, is_numeric($merged['area_top'] ?? null) ? (float)$merged['area_top'] : 10));
-        $merged['area_width'] = max(1, min(100, is_numeric($merged['area_width'] ?? null) ? (float)$merged['area_width'] : 80));
-        $merged['area_height'] = max(1, min(100, is_numeric($merged['area_height'] ?? null) ? (float)$merged['area_height'] : 80));
+        $merged['area_left'] = $clampNumeric($merged['area_left'] ?? null, 10.0, 0.0, 100.0);
+        $merged['area_top'] = $clampNumeric($merged['area_top'] ?? null, 10.0, 0.0, 100.0);
+        $merged['area_width'] = $clampNumeric($merged['area_width'] ?? null, 80.0, 1.0, 100.0);
+        $merged['area_height'] = $clampNumeric($merged['area_height'] ?? null, 80.0, 1.0, 100.0);
 
         // Clamp 3D model & engraving scales (10% bis 1000% verhindert WebGL Matrix-Inversions- und Pufferfehler)
-        $merged['model_scale'] = max(10, min(1000, is_numeric($merged['model_scale'] ?? null) ? (float)$merged['model_scale'] : 100));
-        $merged['engraving_scale'] = max(10, min(1000, is_numeric($merged['engraving_scale'] ?? null) ? (float)$merged['engraving_scale'] : 100));
+        $merged['model_scale'] = $clampNumeric($merged['model_scale'] ?? null, 100.0, 10.0, 1000.0);
+        $merged['engraving_scale'] = $clampNumeric($merged['engraving_scale'] ?? null, 100.0, 10.0, 1000.0);
+        if (array_key_exists('back_engraving_scale', $merged)) {
+            $merged['back_engraving_scale'] = $clampNumeric($merged['back_engraving_scale'], 100.0, 10.0, 1000.0);
+        }
+
+        foreach (['model_pos_x', 'model_pos_y', 'model_pos_z', 'engraving_pos_x', 'engraving_pos_y', 'engraving_pos_z', 'back_engraving_pos_x', 'back_engraving_pos_y', 'back_engraving_pos_z'] as $posKey) {
+            if (array_key_exists($posKey, $merged)) {
+                $merged[$posKey] = $clampNumeric($merged[$posKey], 0.0, -500.0, 500.0);
+            }
+        }
+        foreach (['model_rot_x', 'model_rot_y', 'model_rot_z', 'engraving_rot_x', 'engraving_rot_y', 'engraving_rot_z', 'back_engraving_rot_x', 'back_engraving_rot_y', 'back_engraving_rot_z'] as $rotKey) {
+            if (array_key_exists($rotKey, $merged)) {
+                $merged[$rotKey] = $clampNumeric($merged[$rotKey], 0.0, -360.0, 360.0);
+            }
+        }
 
         // Validate and clamp custom_points
         if (isset($merged['custom_points']) && is_array($merged['custom_points'])) {
             $sanitizedPoints = [];
             foreach ($merged['custom_points'] as $pt) {
                 if (is_array($pt) && isset($pt['x'], $pt['y']) && is_numeric($pt['x']) && is_numeric($pt['y'])) {
-                    $sanitizedPoints[] = [
-                        'x' => max(0, min(100, (float)$pt['x'])),
-                        'y' => max(0, min(100, (float)$pt['y'])),
-                    ];
+                    $px = (float) $pt['x'];
+                    $py = (float) $pt['y'];
+                    if (is_finite($px) && is_finite($py)) {
+                        $sanitizedPoints[] = [
+                            'x' => max(0.0, min(100.0, $px)),
+                            'y' => max(0.0, min(100.0, $py)),
+                        ];
+                    }
                 }
             }
             if (!empty($sanitizedPoints)) {

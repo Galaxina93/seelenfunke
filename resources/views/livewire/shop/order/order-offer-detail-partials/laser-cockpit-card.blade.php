@@ -100,6 +100,11 @@
             'otherSideWMm'          => isset($cockpitData['other_side_w_mm']) && $cockpitData['other_side_w_mm'] !== null ? (float) $cockpitData['other_side_w_mm'] : null,
             'otherSideHMm'          => isset($cockpitData['other_side_h_mm']) && $cockpitData['other_side_h_mm'] !== null ? (float) $cockpitData['other_side_h_mm'] : null,
             'framingMode'           => (string) ($cockpitData['framing_mode'] ?? 'contour'),
+            'cameraLightMode'       => (string) ($cockpitData['camera_light_mode'] ?? ($_lwCockpit->laserCameraLightMode ?? 'normal')),
+            'cameraUrl'             => (string) ($cockpitData['camera_url'] ?? ''),
+            'previewDataUrl'        => (string) ($cockpitData['preview_data_url'] ?? ''),
+            'ghostDPath'            => (string) ($cockpitData['ghost_d_path'] ?? ''),
+            'laserOnline'           => !empty($cockpitData['laser_online']),
             'preflight'             => is_array($cockpitData['preflight'] ?? null) ? $cockpitData['preflight'] : [],
             'hasLaserOverrides'     => (bool) ($lp['has_overrides'] ?? false),
             'activeProfileId'       => $initActiveProfileId,
@@ -164,7 +169,7 @@
             shiftHeld: false,
             altHeld: false,
             cockpitHovered: false,
-            xrayToggle: false,
+            xrayToggle: Boolean(window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].xrayToggle),
             xrayKeyHeld: false,
             frameLocked: Boolean(window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].frameLocked),
             historyIndex: 0,
@@ -199,7 +204,14 @@
             _applyFeedbackTimer: null,
             measuringFocus: false,
             stoppingLaser: false,
-            framingMode: '{{ $cockpitData['framing_mode'] ?? 'contour' }}',
+            framingMode: 'contour',
+            cameraLightMode: 'normal',
+            cameraUrl: '',
+            previewDataUrl: '',
+            ghostDPath: '',
+            _alignInFlight: false,
+            _alignStartCoordSeq: 0,
+            _savedScrollSnapshots: [],
             _liveFrameReplaceTimer: null,
             _engravingObservedForCurrentJob: false,
             _completionDispatchedForScope: false,
@@ -209,7 +221,7 @@
             _statusPollTimer: null,
             _statusPollBusy: false,
             laserWork: {
-                online: {{ !empty($cockpitData['laser_online']) ? 'true' : 'false' }},
+                online: false,
                 is_working: false,
                 is_ready_wait: false,
                 phase: 'idle',
@@ -251,6 +263,7 @@
                 this.bootFromDataset();
                 this.$nextTick(() => {
                     this.refreshAllRangeFills();
+                    this.syncZoomSliderDom();
                 });
                 if (typeof MutationObserver !== 'undefined' && this.$refs.cockpitBootPayload) {
                     if (this._bootObserver) {
@@ -262,6 +275,24 @@
                         if (!raw || raw === this._lastBootRaw || !raw.startsWith('{')) return;
                         this._lastBootRaw = raw;
                         const parsed = JSON.parse(raw);
+                        if (parsed.cameraUrl && typeof parsed.cameraUrl === 'string' && parsed.cameraUrl !== this.cameraUrl) {
+                            this.cameraUrl = parsed.cameraUrl;
+                        }
+                        if (parsed.previewDataUrl && typeof parsed.previewDataUrl === 'string' && parsed.previewDataUrl !== this.previewDataUrl) {
+                            this.previewDataUrl = parsed.previewDataUrl;
+                        }
+                        if (parsed.ghostDPath && typeof parsed.ghostDPath === 'string' && parsed.ghostDPath !== this.ghostDPath) {
+                            this.ghostDPath = parsed.ghostDPath;
+                        }
+                        if (parsed.cameraLightMode && typeof parsed.cameraLightMode === 'string') {
+                            this.cameraLightMode = parsed.cameraLightMode;
+                        }
+                        if (parsed.framingMode && typeof parsed.framingMode === 'string') {
+                            this.framingMode = parsed.framingMode === 'rect' ? 'rect' : 'contour';
+                        }
+                        if (parsed.laserOnline !== undefined) {
+                            this.laserWork.online = Boolean(parsed.laserOnline);
+                        }
                         if (Array.isArray(parsed.productProfiles)) {
                             this.productProfiles = parsed.productProfiles;
                         }
@@ -272,7 +303,16 @@
                             this.applyPreflightObject(parsed.preflight);
                         }
                         if (this._activeSliderKey === null) {
-                            this.$nextTick(() => this.refreshAllRangeFills());
+                            this.$nextTick(() => {
+                                this.refreshAllRangeFills();
+                                this.syncZoomSliderDom();
+                                this.restoreScrollSnapshots();
+                            });
+                        } else {
+                            this.$nextTick(() => {
+                                this.syncZoomSliderDom();
+                                this.restoreScrollSnapshots();
+                            });
                         }
                     });
                     obs.observe(this.$refs.cockpitBootPayload, { attributes: true, attributeFilter: ['data-boot'] });
@@ -323,6 +363,21 @@
                 this.ensureHistoryStore();
                 if (d.framingMode) {
                     this.framingMode = d.framingMode === 'rect' ? 'rect' : 'contour';
+                }
+                if (d.cameraLightMode && typeof d.cameraLightMode === 'string') {
+                    this.cameraLightMode = d.cameraLightMode;
+                }
+                if (d.cameraUrl && typeof d.cameraUrl === 'string') {
+                    this.cameraUrl = d.cameraUrl;
+                }
+                if (d.previewDataUrl && typeof d.previewDataUrl === 'string') {
+                    this.previewDataUrl = d.previewDataUrl;
+                }
+                if (d.ghostDPath && typeof d.ghostDPath === 'string') {
+                    this.ghostDPath = d.ghostDPath;
+                }
+                if (d.laserOnline !== undefined) {
+                    this.laserWork.online = Boolean(d.laserOnline);
                 }
                 if (d.preflight && typeof d.preflight === 'object') {
                     this.applyPreflightObject(d.preflight);
@@ -453,8 +508,80 @@
                     bgDim: this.bedBgDim,
                     edgeFocus: this.edgeFocusFilter,
                     highContrast: this.highContrastOverlay,
-                    frameLocked: this.frameLocked
+                    frameLocked: this.frameLocked,
+                    xrayToggle: this.xrayToggle
                 };
+            },
+            toggleXray() {
+                this.xrayToggle = !this.xrayToggle;
+                this.saveCockpitZoomScope();
+            },
+            syncZoomSliderDom() {
+                const slider = this.$refs.zoomSlider;
+                if (slider) {
+                    const z = Math.max(1.0, Math.min(4.0, Number(this.cockpitZoom) || 1.0));
+                    const zStr = String(z);
+                    if (slider.value !== zStr) {
+                        slider.value = zStr;
+                    }
+                    const pct = Math.max(0, Math.min(100, ((z - 1) / 3) * 100)).toFixed(2);
+                    slider.style.setProperty('--val-pct', pct + '%');
+                }
+                const dimSlider = this.$refs.bgDimSlider;
+                if (dimSlider) {
+                    const d = Math.max(0, Math.min(65, Math.round(Number(this.bedBgDim) || 0)));
+                    const dStr = String(d);
+                    if (dimSlider.value !== dStr) {
+                        dimSlider.value = dStr;
+                    }
+                }
+            },
+            selectCameraLightMode(mode) {
+                const next = ['anti_glare', 'dim', 'normal'].includes(mode) ? mode : 'normal';
+                this.cameraLightMode = next;
+                $wire.setLaserCameraLightMode(next, this.itemId);
+            },
+            captureScrollSnapshots() {
+                const list = [];
+                let node = this.$el ? this.$el.parentElement : null;
+                while (node && node !== document.body && node !== document.documentElement) {
+                    const rectH = typeof node.getBoundingClientRect === 'function' ? node.getBoundingClientRect().height : 0;
+                    if (node.scrollTop > 0 || (rectH > 0 && node.scrollHeight > rectH + 2)) {
+                        list.push({ el: node, top: node.scrollTop });
+                    }
+                    node = node.parentElement;
+                }
+                list.push({ el: window, top: window.scrollY || window.pageYOffset || 0 });
+                this._savedScrollSnapshots = list;
+            },
+            restoreScrollSnapshots() {
+                if (!Array.isArray(this._savedScrollSnapshots) || this._savedScrollSnapshots.length === 0) return;
+                const snaps = this._savedScrollSnapshots;
+                this._savedScrollSnapshots = [];
+                const apply = () => {
+                    snaps.forEach((s) => {
+                        if (s.el === window) {
+                            if (Math.abs((window.scrollY || 0) - s.top) > 4) {
+                                window.scrollTo({ top: s.top, behavior: 'instant' });
+                            }
+                        } else if (s.el && s.el.isConnected && Math.abs(s.el.scrollTop - s.top) > 4) {
+                            s.el.scrollTop = s.top;
+                        }
+                    });
+                };
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(() => {
+                        apply();
+                        requestAnimationFrame(apply);
+                    });
+                } else {
+                    apply();
+                }
+            },
+            prepareCameraAlign() {
+                this._alignInFlight = true;
+                this._alignStartCoordSeq = this._coordSeq;
+                this.captureScrollSnapshots();
             },
             toggleFrameLock() {
                 this.frameLocked = !this.frameLocked;
@@ -616,6 +743,7 @@
             setBedBgDim(val) {
                 this.bedBgDim = Math.max(0, Math.min(65, Math.round(Number(val) || 0)));
                 this.saveCockpitZoomScope();
+                this.syncZoomSliderDom();
             },
             toggleEdgeFocusFilter() {
                 this.edgeFocusFilter = !this.edgeFocusFilter;
@@ -651,6 +779,7 @@
                     this._zoomFocusX = null;
                     this._zoomFocusY = null;
                     this.saveCockpitZoomScope();
+                    this.syncZoomSliderDom();
                     return;
                 }
                 if (this._zoomFocusX === null || this._zoomFocusY === null || !Number.isFinite(Number(this._zoomFocusX)) || !Number.isFinite(Number(this._zoomFocusY))) {
@@ -662,6 +791,7 @@
                 this.cockpitPanX = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusX) * z)).toFixed(2));
                 this.cockpitPanY = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusY) * z)).toFixed(2));
                 this.saveCockpitZoomScope();
+                this.syncZoomSliderDom();
             },
             stepCockpitZoom(delta) {
                 const next = Math.max(1.0, Math.min(4.0, Number((Number(this.cockpitZoom || 1.0) + Number(delta || 0)).toFixed(2))));
@@ -1030,9 +1160,12 @@
                 return n.toFixed(2).replace('.', ',');
             },
             syncCoordsFromServer(detail) {
-                if (this.dragging) return;
                 const p = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
+                if (p.camera_url && typeof p.camera_url === 'string') {
+                    this.cameraUrl = p.camera_url;
+                }
                 if (p.source === 'ack') {
+                    if (this.dragging) return;
                     const ackSeq = Number(p.seq || 0);
                     if (ackSeq < this._coordSeq) {
                         return;
@@ -1040,6 +1173,16 @@
                     if (ackSeq === this._coordSeq) {
                         this._lockedCoords = null;
                     }
+                    return;
+                }
+                if (p.source === 'ai_align') {
+                    const userMovedDuringAlign = this.dragging || (this._alignInFlight && this._coordSeq > this._alignStartCoordSeq);
+                    this._alignInFlight = false;
+                    this.restoreScrollSnapshots();
+                    if (userMovedDuringAlign) {
+                        return;
+                    }
+                } else if (this.dragging) {
                     return;
                 }
                 this._lockedCoords = null;
@@ -1424,13 +1567,71 @@
          @keyup.window="handleGlobalKeyup($event)"
          @blur.window="shiftHeld = false; altHeld = false; xrayKeyHeld = false"
          wire:key="laser-cockpit-{{ $previewItem->id }}-{{ $cockpitData['side'] }}"
-         class="bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 shrink-0 relative">
+         class="sf-cockpit-root w-full min-w-0 bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 shrink-0 relative">
 
         <span x-ref="cockpitBootPayload"
               class="hidden"
               data-boot="{{ json_encode($cockpitBootPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"></span>
 
         <style>
+            .sf-cockpit-root {
+                container-type: inline-size;
+                container-name: sf-cockpit;
+            }
+            .sf-cockpit-stepper {
+                justify-content: space-between;
+            }
+            .sf-cockpit-stepper-sides {
+                order: 3;
+                flex: 1 1 100%;
+                min-width: 0;
+            }
+            .sf-cockpit-zoom-sep {
+                display: none;
+            }
+            .sf-cockpit-glare-group {
+                width: 100%;
+                justify-content: space-between;
+                padding-top: 0.375rem;
+                border-top: 1px solid rgba(156, 163, 175, 0.22);
+            }
+            html.dark .sf-cockpit-glare-group {
+                border-top-color: rgba(55, 65, 81, 0.55);
+            }
+            .sf-cockpit-primary-actions {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 0.625rem;
+            }
+            @container sf-cockpit (min-width: 520px) {
+                .sf-cockpit-primary-actions {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+            @container sf-cockpit (min-width: 620px) {
+                .sf-cockpit-stepper {
+                    flex-wrap: nowrap;
+                    justify-content: flex-start;
+                }
+                .sf-cockpit-stepper-sides {
+                    order: 0;
+                    flex: 1 1 0%;
+                }
+            }
+            @container sf-cockpit (min-width: 740px) {
+                .sf-cockpit-zoom-bar {
+                    flex-wrap: nowrap;
+                }
+                .sf-cockpit-zoom-sep {
+                    display: block;
+                }
+                .sf-cockpit-glare-group {
+                    width: auto;
+                    justify-content: flex-end;
+                    padding-top: 0;
+                    border-top: 0;
+                }
+            }
             @keyframes sfLaserBtnSpin {
                 to { transform: rotate(360deg); }
             }
@@ -1579,18 +1780,18 @@
 
             @if($cockpitData['has_back'])
                 <div data-cockpit-two-sided-stepper
-                     class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+                     class="sf-cockpit-stepper flex flex-wrap items-center gap-2 w-full min-w-0">
                     <span class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider shrink-0 {{ $backDone
                         ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
                         : 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-40)]' }}">
                         <span>Beidseitig ({{ $doneSidesCount }}/2{{ $doneSidesCount >= 2 ? ' ✓' : '' }})</span>
                     </span>
 
-                    <div class="grid grid-cols-2 gap-1.5 flex-1">
+                    <div class="sf-cockpit-stepper-sides grid grid-cols-2 gap-1.5">
                         <button type="button"
                                 data-cockpit-side-btn="front"
                                 wire:click="switchLaserCockpitSide('front')"
-                                class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'front'
+                                class="min-w-0 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'front'
                                     ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-2xs'
                                     : ($frontDone
                                         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:border-[var(--theme-color)]'
@@ -1598,13 +1799,13 @@
                             <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 {{ $cockpitData['side'] === 'front' ? 'bg-gray-950 text-[var(--theme-color)]' : ($frontDone ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300') }}">
                                 {{ $frontDone ? '✓' : '1' }}
                             </span>
-                            <span>Vorderseite</span>
+                            <span class="truncate">Vorderseite</span>
                         </button>
 
                         <button type="button"
                                 data-cockpit-side-btn="back"
                                 wire:click="switchLaserCockpitSide('back')"
-                                class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'back'
+                                class="min-w-0 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'back'
                                     ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-2xs'
                                     : ($backDone
                                         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:border-[var(--theme-color)]'
@@ -1612,7 +1813,7 @@
                             <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 {{ $cockpitData['side'] === 'back' ? 'bg-gray-950 text-[var(--theme-color)]' : ($backDone ? 'bg-emerald-500 text-white' : 'bg-[var(--theme-color-20)] text-[var(--theme-color)]') }}">
                                 {{ $backDone ? '✓' : '2' }}
                             </span>
-                            <span>Rückseite{{ $backDone ? '' : ' · Offen' }}</span>
+                            <span class="truncate">Rückseite{{ $backDone ? '' : ' · Offen' }}</span>
                             @if(!$backDone && $cockpitData['side'] !== 'back')
                                 <span class="relative flex h-2 w-2 shrink-0">
                                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--theme-color)] opacity-75"></span>
@@ -1675,10 +1876,11 @@
             </div>
 
             {{-- Schlanke Zoom-Steuerleiste + Undo/Redo + Fokus/Röntgen/Sperre + Anti-Blend-Hilfe --}}
-            <div data-cockpit-zoom-bar
+            <div wire:ignore
+                 data-cockpit-zoom-bar
                  @mousedown.stop
                  @touchstart.stop
-                 class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2 px-3 py-1.5 rounded-xl border w-full max-w-[680px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
+                 class="sf-cockpit-zoom-bar flex flex-wrap items-center justify-between gap-x-2 gap-y-2 px-3 py-2 rounded-xl border w-full max-w-[680px] mx-auto min-w-0 bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
                 {{-- Undo / Redo + Fokus-Zoom + Röntgen-Blick + Rahmen-Sperre --}}
                 <div class="inline-flex items-center gap-1 shrink-0">
                     <button type="button"
@@ -1712,7 +1914,7 @@
                     </button>
                     <button type="button"
                             data-cockpit-xray-toggle
-                            @click.stop="xrayToggle = !xrayToggle"
+                            @click.stop="toggleXray()"
                             :class="isXrayActive ? 'bg-cyan-500 text-gray-950 border-cyan-500' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-cyan-400'"
                             title="Röntgen-Blick: Motiv &amp; Punkte kurz ausblenden für freie Sicht auf die Produktkante (Anklicken oder Taste X gedrückt halten)"
                             class="w-6 h-6 rounded-lg border flex items-center justify-center transition-all cursor-pointer">
@@ -1738,9 +1940,9 @@
                     </button>
                 </div>
 
-                <div class="hidden sm:block h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
+                <div class="sf-cockpit-zoom-sep h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
 
-                <div class="flex items-center gap-1.5 flex-1 min-w-[130px]">
+                <div class="flex items-center gap-1.5 flex-1 min-w-[155px]">
                     <button type="button"
                             data-cockpit-zoom-out
                             @click.stop="stepCockpitZoom(-0.25)"
@@ -1751,10 +1953,13 @@
                         <x-heroicon-m-magnifying-glass-minus class="w-4 h-4 text-[var(--theme-color)]" />
                     </button>
                     <input type="range"
+                           x-ref="zoomSlider"
                            data-cockpit-zoom-slider
                            min="1"
                            max="4"
                            step="0.05"
+                           value="1"
+                           style="--val-pct: 0.00%;"
                            :value="cockpitZoom"
                            @mousedown.stop
                            @touchstart.stop
@@ -1781,18 +1986,20 @@
                     </button>
                 </div>
 
-                <div class="hidden sm:block h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
+                <div class="sf-cockpit-zoom-sep h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
 
                 {{-- 0 ms Sichtbarkeits-Hilfe gegen Metall-Blendung: Abdunkeln (0-65 %), Kanten-Fokus & Motiv-Kontrast --}}
-                <div class="flex flex-wrap items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
+                <div class="sf-cockpit-glare-group flex flex-wrap items-center gap-1.5 shrink-0 min-w-0">
                     <label data-cockpit-bg-dimmer
                            title="Kamerabild abdunkeln gegen Metall-Spiegelungen (0 % bis 65 %)"
                            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[9px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
                         <span>Abdunkeln</span>
                         <input type="range"
+                               x-ref="bgDimSlider"
                                min="0"
                                max="65"
                                step="5"
+                               value="0"
                                :value="bedBgDim"
                                @mousedown.stop
                                @touchstart.stop
@@ -1856,14 +2063,15 @@
                  :class="[dragging || isDraggingMinimap ? 'cursor-grabbing ring-2 ring-cyan-400/60' : 'cursor-grab', cockpitZoom > 1.01 ? 'touch-none' : '']"
                  class="relative w-full max-w-[680px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-700 bg-gray-950 select-none shadow-inner transition-shadow focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-50)]">
 
-                {{-- Gezoomter & gepannter 200x200 mm Kamera-Stage-Layer --}}
-                <div x-ref="bedStage"
+                {{-- Gezoomter & gepannter 200x200 mm Kamera-Stage-Layer (wire:ignore schützt Zoom/Pan/Rahmen gegen Livewire-Morphs) --}}
+                <div wire:ignore
+                     x-ref="bedStage"
                      data-cockpit-bed-stage
                      class="absolute inset-0 w-full h-full"
                      :style="getCockpitStageTransformStyle()">
 
                     <img src="{{ $cockpitData['camera_url'] }}"
-                         wire:key="laser-cam-img-{{ $previewItem->id }}-{{ $cockpitData['refresh_token'] ?? 0 }}"
+                         :src="cameraUrl || $el.getAttribute('src')"
                          alt="xTool F2 Ultra UV Kamera 200x200 mm"
                          :style="getCameraBgFilterStyle()"
                          class="w-full h-full object-cover pointer-events-none"
@@ -1885,11 +2093,13 @@
                              preserveAspectRatio="none"
                              class="w-full h-full overflow-visible pointer-events-none">
                             <path d="{{ $cockpitData['ghost_d_path'] }}"
+                                  :d="ghostDPath || $el.getAttribute('d')"
                                   fill="none"
                                   stroke="rgba(2, 6, 23, 0.78)"
                                   stroke-width="0.75"
                                   vector-effect="non-scaling-stroke" />
                             <path d="{{ $cockpitData['ghost_d_path'] }}"
+                                  :d="ghostDPath || $el.getAttribute('d')"
                                   fill="none"
                                   :stroke="frameLocked ? '#f59e0b' : '#00d8ff'"
                                   stroke="#00d8ff"
@@ -1898,6 +2108,7 @@
                                   vector-effect="non-scaling-stroke" />
                         </svg>
                         <img src="{{ $cockpitData['preview_data_url'] }}"
+                             :src="previewDataUrl || $el.getAttribute('src')"
                              alt="Gravur-Overlay"
                              :style="getOverlayContrastStyle()"
                              :class="isXrayActive ? 'opacity-0' : ''"
@@ -2011,7 +2222,8 @@
                 </div>
 
                 {{-- Navigator-Minimap oben rechts zum millimetergenauen Verschieben des Bildausschnitts bei aktivem Zoom --}}
-                <div x-cloak
+                <div wire:ignore
+                     x-cloak
                      x-show="cockpitZoom > 1.01"
                      style="display: none;"
                      x-transition:enter="transition ease-out duration-150"
@@ -2027,6 +2239,7 @@
                      title="Bildausschnitt auf dem 200x200 mm Laserbett verschieben"
                      class="absolute top-2.5 right-2.5 z-40 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.45)] border-2 border-[var(--theme-color)] bg-gray-950/95 cursor-grab active:cursor-grabbing select-none touch-none pointer-events-auto">
                     <img src="{{ $cockpitData['camera_url'] }}"
+                         :src="cameraUrl || $el.getAttribute('src')"
                          class="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-85"
                          alt="">
                     <div class="absolute z-[2] border border-cyan-400 bg-cyan-400/20 pointer-events-none {{ $isCircleContour ? 'rounded-full' : '' }}"
@@ -2654,26 +2867,32 @@
                     <span>Kamera-Licht</span>
                 </span>
 
-                <div class="grid grid-cols-3 sm:inline-flex items-center gap-1 p-0.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 w-full sm:w-auto">
+                <div wire:ignore class="grid grid-cols-3 sm:inline-flex items-center gap-1 p-0.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 w-full sm:w-auto">
                     <button type="button"
-                            wire:click="setLaserCameraLightMode('anti_glare', '{{ $previewItem->id }}')"
-                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeCamLight === 'anti_glare'
+                            data-camera-light-btn="anti_glare"
+                            @click.stop="selectCameraLightMode('anti_glare')"
+                            :class="cameraLightMode === 'anti_glare'
                                 ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
-                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
+                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
                         Blendfrei (LED aus)
                     </button>
                     <button type="button"
-                            wire:click="setLaserCameraLightMode('dim', '{{ $previewItem->id }}')"
-                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeCamLight === 'dim'
+                            data-camera-light-btn="dim"
+                            @click.stop="selectCameraLightMode('dim')"
+                            :class="cameraLightMode === 'dim'
                                 ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
-                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
+                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
                         Gedimmt
                     </button>
                     <button type="button"
-                            wire:click="setLaserCameraLightMode('normal', '{{ $previewItem->id }}')"
-                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeCamLight === 'normal'
+                            data-camera-light-btn="normal"
+                            @click.stop="selectCameraLightMode('normal')"
+                            :class="cameraLightMode === 'normal'
                                 ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
-                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
+                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
                         Licht an
                     </button>
                 </div>
@@ -2781,16 +3000,17 @@
             </div>
 
             {{-- Schlanker 2-Schritte-Laser-Ablauf: 1. Kamera & KI-Ausrichten -> 2. An Laser senden --}}
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="sf-cockpit-primary-actions w-full min-w-0">
                 {{-- SCHRITT 1 --}}
                 <button type="button"
+                        @click="prepareCameraAlign()"
                         wire:click="refreshLaserCameraAndAlign('{{ $cockpitData['side'] }}', laserParams)"
                         wire:loading.attr="disabled"
                         wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
-                        class="sf-laser-action-btn relative min-h-[48px] flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 1
+                        class="sf-laser-action-btn relative w-full min-w-0 min-h-[48px] flex items-center justify-center gap-2 px-3 py-3 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-wider leading-tight text-center transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 1
                             ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
                             : 'bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-800' }}">
-                    <span wire:loading.class="invisible" wire:target="refreshLaserCameraAndAlign" class="inline-flex items-center justify-center gap-2">
+                    <span wire:loading.class="invisible" wire:target="refreshLaserCameraAndAlign" class="inline-flex items-center justify-center gap-2 min-w-0">
                         <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep > 1 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 1 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
                             {{ $wfStep > 1 ? '✓' : '1' }}
                         </span>
@@ -2811,12 +3031,12 @@
                         wire:click="sendJobDirectlyToLaser('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
                         wire:loading.attr="disabled"
                         wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
-                        class="sf-laser-action-btn relative min-h-[48px] flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 2
+                        class="sf-laser-action-btn relative w-full min-w-0 min-h-[48px] flex items-center justify-center gap-2 px-3 py-3 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-wider leading-tight text-center transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 2
                             ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
                             : ($wfStep >= 3
                                 ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)]'
                                 : 'bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-800') }}">
-                    <span wire:loading.class="invisible" wire:target="sendJobDirectlyToLaser" class="inline-flex items-center justify-center gap-2">
+                    <span wire:loading.class="invisible" wire:target="sendJobDirectlyToLaser" class="inline-flex items-center justify-center gap-2 min-w-0">
                         <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep >= 3 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 2 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
                             {{ $wfStep >= 3 ? '✓' : '2' }}
                         </span>
