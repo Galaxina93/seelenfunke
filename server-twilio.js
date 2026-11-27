@@ -1625,10 +1625,41 @@ function handleTwilioConnection(ws) {
             debugLog('Gemini WebSocket connected!');
             
             const isInboundSecretary = callContext.call_mode === 'inbound_secretary';
+            const isInboundCustomerService = callContext.call_mode === 'inbound_customer_service';
             const ownerName = callContext.agent_name || 'Alina Steinhauer';
+            const ownerFirst = String(ownerName).split(' ')[0] || 'Alina';
+            const shopName = callContext.shop_name || 'Mein-Seelenfunke';
             const greetName = callContext.greeting_name || callContext.contact_name || 'du';
 
-            const systemPrompt = isInboundSecretary
+            const systemPrompt = isInboundCustomerService
+                ? `
+ROLLE & IDENTITÄT (HÖCHSTE PRIORITÄT):
+- Du sprichst zu 100 Prozent ausschließlich natürliches, herzliches und professionelles Deutsch.
+- Dein Name ist Funkira. Du bist die digitale KI-Assistentin im Kundenservice von ${shopName} (Manufaktur für handveredelte Laser-Gravur und personalisierte Geschenke in Gifhorn).
+- EU-AI-ACT-TRANSPARENZ: Stelle dich zu Beginn klar als digitale KI-Assistentin von ${shopName} vor und gib bei Bedarf offen an, dass das Anliegen als Gesprächsnotiz für ${ownerFirst} festgehalten wird.
+- Sprich Anrufer höflich, warm und professionell per 'Sie' an (wechsle nur auf 'Du', falls der Anrufer dich von sich aus duzt).
+
+LIVE-KUNDENSERVICE-GESPRÄCHSFÜHRUNG:
+- Sage NIEMALS Sätze wie "Bitte sprechen Sie nach dem Signalton" oder "Ich starte eine Aufnahme". Führe ein echtes, lebendiges Dialog-Telefonat!
+- Halte jeden Sprechbeitrag angenehm kurz (1 bis maximal 2 kurze Sätze, keine Listen vorlesen) und stelle immer nur EINE Rückfrage auf einmal.
+- Nutze bei allgemeinen Shop-Fragen (Versand, Gravur, Manufaktur, Kontakt) das Tool "lookup_shop_guidance".
+- Nutze bei konkreter Bestellstatus-Anfrage AUSSCHLIESSLICH nach Nennung von Bestellnummer UND Postleitzahl oder E-Mail-Adresse das Tool "verify_customer_order".
+- Kläre freundlich und strukturiert folgende Punkte, damit daraus sofort ein vollständiges Ticket für ${ownerFirst} erstellt wird:
+  1. Vor- und Nachname des Anrufers.
+  2. Konkretes Anliegen (z. B. Bestellstatus, Wunschgravur/Sonderanfertigung, Produktfrage, Änderung oder Reklamation).
+  3. Falls vorhanden: Bestellnummer oder E-Mail-Adresse (und ggf. beste Rückrufnummer).
+  4. Wichtige Rahmenbedingungen (Wunschtermin, Frist, Produktdetails oder Erreichbarkeit).
+- Bei Reklamationen oder Transportschäden bitte freundlich um ein kurzes Foto an kontakt@mein-seelenfunke.de.
+- SPAM- & WERBESCHUTZ: Bei offensichtlicher unerwünschter Kaltakquise, Werbung oder Robocalls lehne kurz und höflich ab und beende das Gespräch sofort mit "end_call".
+
+VERBINDLICHKEIT & DATENSCHUTZ-SCHRANKE:
+- Gib am Telefon NIEMALS ungeprüfte Kundendaten, Adressen, Artikeldetails, Passwörter oder Finanzzahlen preis.
+- Versprich keine eigenmächtigen Erstattungen, Rabatte oder verbindlichen Lieferzusagen, sondern sichere eine priorisierte Prüfung und Rückmeldung durch ${ownerFirst} zu.
+
+GESPRÄCHSABSCHLUSS:
+- Sobald Anliegen, Name, Kontaktdaten/Bestellnummer (falls vorhanden) und Rahmenbedingungen geklärt sind, fasse das Anliegen in einem kurzen freundlichen Satz zusammen, kündige die direkte Weiterleitung als Ticket an ${ownerFirst} an, verabschiede dich herzlich und rufe direkt das Tool 'end_call' auf.
+                `.trim()
+                : isInboundSecretary
                 ? `
 ROLLE & IDENTITÄT (HÖCHSTE PRIORITÄT):
 - Du sprichst ZU 100% AUSSCHLIESSLICH natürliches, lebendiges Deutsch.
@@ -1705,10 +1736,42 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                         parts: [{ text: systemPrompt }]
                     },
                     tools: [{
-                        functionDeclarations: [{
-                            name: "end_call",
-                            description: "Beendet den Anruf. Rufe diese Funktion auf, wenn du alle Fragen gestellt hast, alle Antworten erhalten hast und dich verabschiedet hast, oder wenn der Kunde das Gespräch beenden möchte."
-                        }]
+                        functionDeclarations: isInboundCustomerService
+                            ? [
+                                {
+                                    name: "end_call",
+                                    description: "Beendet das Telefonat sauber, nachdem alle Rahmenbedingungen geklärt wurden und du dich freundlich verabschiedet hast."
+                                },
+                                {
+                                    name: "lookup_shop_guidance",
+                                    description: "Liefert geprüfte öffentliche Shop-Informationen von Mein-Seelenfunke (Gravur, Manufaktur, Versand, Kontaktwege) ohne personenbezogene Daten.",
+                                    parameters: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            topic: {
+                                                type: "STRING",
+                                                description: "Themenbereich: shipping, engraving, contact, returns oder general."
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    name: "verify_customer_order",
+                                    description: "Prüft strikt mit 2-Faktor-Gate (Bestellnummer UND Postleitzahl oder E-Mail-Adresse) den allgemeinen Bearbeitungsstatus einer Bestellung ohne Herausgabe sensibler Daten.",
+                                    parameters: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            order_number: { type: "STRING", description: "Die vom Anrufer genannte Bestellnummer." },
+                                            verification_value: { type: "STRING", description: "Die vom Anrufer genannte Postleitzahl oder E-Mail-Adresse." }
+                                        },
+                                        required: ["order_number", "verification_value"]
+                                    }
+                                }
+                            ]
+                            : [{
+                                name: "end_call",
+                                description: "Beendet den Anruf. Rufe diese Funktion auf, wenn du alle Fragen gestellt hast, alle Antworten erhalten hast und dich verabschiedet hast, oder wenn der Kunde das Gespräch beenden möchte."
+                            }]
                     }],
                     generationConfig: {
                         responseModalities: ["AUDIO"],
@@ -1768,6 +1831,34 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                             }
                         };
                         safeSend(geminiWs, JSON.stringify(toolResponse));
+                    } else if (call && callContext.call_mode === 'inbound_customer_service' && (call.name === 'lookup_shop_guidance' || call.name === 'verify_customer_order')) {
+                        const backendUrl = process.env.APP_URL || 'http://localhost';
+                        const proxySecret = resolveProxySecret();
+                        fetch(`${backendUrl}/api/twilio/customer-tool`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-AI-Proxy-Secret': proxySecret,
+                                'X-Bridge-Secret': proxySecret
+                            },
+                            body: JSON.stringify({
+                                tool: call.name,
+                                args: call.args || {}
+                            })
+                        })
+                            .then(r => r.ok ? r.json() : { success: false, message: 'Werkzeug kurzfristig nicht erreichbar. Bitte Anliegen für Alina aufnehmen.' })
+                            .catch(() => ({ success: false, message: 'Werkzeug kurzfristig nicht erreichbar. Bitte Anliegen für Alina aufnehmen.' }))
+                            .then(result => {
+                                safeSend(geminiWs, JSON.stringify({
+                                    toolResponse: {
+                                        functionResponses: [{
+                                            id: call.id,
+                                            name: call.name,
+                                            response: result
+                                        }]
+                                    }
+                                }));
+                            });
                     }
                 }
             }
@@ -1867,7 +1958,15 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
             } else if (response.setupComplete) {
                 isGeminiSetupComplete = true;
                 debugLog("Gemini Setup erfolgreich bestätigt!");
-                if (callContext.call_mode === 'inbound_secretary') {
+                if (callContext.call_mode === 'inbound_customer_service') {
+                    kickoffSentAtMs = Date.now();
+                    const shopName = callContext.shop_name || 'Mein-Seelenfunke';
+                    safeSend(geminiWs, JSON.stringify({
+                        realtimeInput: {
+                            text: `[KUNDENANRUF LIVE VERBUNDEN] Ein Anrufer hat die Service-Nummer von ${shopName} gewählt. Begrüße die anrufende Person jetzt sofort freundlich, herzlich und kurz auf Deutsch als digitale KI-Assistentin Funkira vom ${shopName} Kundenservice (nur 1 kurzer Satz, z. B.: 'Guten Tag, hier ist Funkira, die digitale KI-Assistentin vom ${shopName} Kundenservice! Womit darf ich Ihnen heute weiterhelfen?') und nimm das Anliegen strukturiert im Dialog auf.`
+                        }
+                    }));
+                } else if (callContext.call_mode === 'inbound_secretary') {
                     kickoffSentAtMs = Date.now();
                     const ownerFirst = (callContext.agent_name || 'Alina').split(' ')[0] || 'Alina';
                     const greetName = callContext.greeting_name || callContext.contact_name || 'du';

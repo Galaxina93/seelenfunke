@@ -676,4 +676,26 @@ class TwilioCallController extends Controller
 
         return response()->json(['status' => 'success', 'id' => $callRecord->id]);
     }
+
+    /**
+     * Bridge-authentifizierter Read-Only-Endpunkt für Live-Kundenservice-Tools (z. B. 2FA-Bestellstatus über server-twilio.js).
+     */
+    public function customerTool(Request $request)
+    {
+        if (!SystemSecurityService::isTrustedBridgeRequest($request)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $validated = $request->validate([
+            'tool' => 'required|string|in:lookup_shop_guidance,verify_customer_order',
+            'args' => 'nullable|array',
+        ]);
+
+        $result = \App\Services\System\TwilioGeminiLiveBridgeService::executeCustomerServiceTool(
+            (string) $validated['tool'],
+            is_array($validated['args'] ?? null) ? $validated['args'] : []
+        );
+
+        return response()->json($result, 200, ['Cache-Control' => 'no-store, private']);
+    }
 }

@@ -273,6 +273,9 @@ Route::post('/twilio/inbound-status', [\App\Http\Controllers\Api\TwilioCallContr
 Route::post('/twilio/call-log', [\App\Http\Controllers\Api\TwilioCallController::class, 'callLog'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
     ->middleware('throttle:30,1');
+Route::post('/twilio/customer-tool', [\App\Http\Controllers\Api\TwilioCallController::class, 'customerTool'])
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
+    ->middleware('throttle:120,1');
 
 // --- Flight Data Proxy (CORS Fix, Staff-Only & Quantized Viewport Cache) ---
 Route::get('/flights', function (\Illuminate\Http\Request $request) {
